@@ -282,13 +282,14 @@ export default function PlayPage() {
 
   const panel: React.CSSProperties = {
     width: "100%",
-    maxWidth: 480,
+    maxWidth: 500,
     padding: "14px 16px",
     borderRadius: 14,
-    border: "1px solid rgba(255,62,92,0.14)",
+    border: "1px solid rgba(255,62,92,0.18)",
     background:
-      "linear-gradient(165deg, rgba(18,20,28,0.92), rgba(10,12,16,0.88))",
-    boxShadow: "0 0 24px rgba(255,37,68,0.06), inset 0 1px 0 rgba(255,255,255,0.04)",
+      "linear-gradient(165deg, rgba(22,26,36,0.95), rgba(10,11,16,0.92))",
+    boxShadow:
+      "0 0 28px rgba(255,37,68,0.08), 0 0 40px rgba(34,211,255,0.04), inset 0 1px 0 rgba(255,255,255,0.05)",
   };
 
   const label: React.CSSProperties = {
@@ -333,7 +334,7 @@ export default function PlayPage() {
       <main
         style={{
           minHeight: "100vh",
-          background: "#06070B",
+          background: "#0a0b10",
           color: "#EDEEF2",
           fontFamily: "Exo 2, Inter, system-ui, sans-serif",
           position: "relative",
@@ -399,13 +400,13 @@ export default function PlayPage() {
           style={{
             position: "relative",
             zIndex: 1,
-            maxWidth: 560,
+            maxWidth: 580,
             margin: "0 auto",
-            padding: "24px 16px 48px",
+            padding: "22px 16px 56px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 18,
+            gap: 20,
           }}
         >
           <div style={{ textAlign: "center" }}>
