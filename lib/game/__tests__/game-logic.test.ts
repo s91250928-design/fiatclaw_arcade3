@@ -627,5 +627,47 @@ test("after update_config, solCostLamports and store buy use new priceLamports",
   assert.equal(discounted, Math.ceil(60_000_000 * 0.8));
 });
 
+// ── R3F cabinet shell structure (shipped source) ───────────────────────
+console.log("\n(j) R3F hollow cabinet (no solid blocking body)");
+
+test("ClawScene ships hollow-open-front shell, not solid fill plate", () => {
+  // Drive real shipped source file (structural contract for WebGL visibility).
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const scenePath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "components",
+    "claw",
+    "ClawScene.tsx"
+  );
+  const src = fs.readFileSync(scenePath, "utf8");
+  assert.ok(
+    src.includes('CABINET_SHELL_MODE = "hollow-open-front"'),
+    "must export hollow shell mode"
+  );
+  assert.ok(
+    src.includes("Hollow cabinet"),
+    "must document hollow cabinet (open front)"
+  );
+  // Regression: opaque black "opening" plate blocked the playfield
+  assert.equal(
+    /meshBasicMaterial\s+color=["']#050608["']/.test(src),
+    false,
+    "must not ship solid black fill plate over window"
+  );
+  // Must not use a single solid full-body RoundedBox as the only cabinet body
+  // (walls/frame pieces are OK). Flag the old pattern:
+  assert.equal(
+    /Main body[\s\S]*RoundedBox args=\{\[3\.2,\s*4\.0,\s*2\.2\]\}/.test(src),
+    false,
+    "must not use solid 3.2x4x2.2 body that occludes interior"
+  );
+  assert.ok(src.includes("GlassPanel"), "glass window component required");
+  assert.ok(src.includes("meshPhysicalMaterial"), "transmission glass material");
+});
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 if (failed > 0) process.exit(1);

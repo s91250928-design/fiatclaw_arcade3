@@ -79,73 +79,164 @@ function NeonEdge({
   );
 }
 
+const metal = {
+  color: "#1a1e28",
+  metalness: 0.88,
+  roughness: 0.32,
+} as const;
+
+/** Marker for structural tests — shell must not be a solid blocking box. */
+export const CABINET_SHELL_MODE = "hollow-open-front" as const;
+
+/**
+ * Hollow cabinet: walls + front frame only (open window).
+ * Interior playfield (claw/prizes/floor) is visible through the glass.
+ * Camera looks through front window — no solid fill plate.
+ */
 function CabinetShell() {
+  // Outer dims
+  const W = 3.2;
+  const H = 3.6;
+  const D = 2.0;
+  const wall = 0.12;
+  // Window opening in front face
+  const winW = 2.25;
+  const winH = 2.05;
+  const winY = 0.45; // center of glass window
+  const frontZ = D / 2 - 0.02;
+
   return (
     <group>
-      {/* Main body */}
-      <RoundedBox args={[3.2, 4.0, 2.2]} radius={0.06} smoothness={4} position={[0, 0.1, 0]}>
-        <meshStandardMaterial
-          color="#12151c"
-          metalness={0.85}
-          roughness={0.35}
-        />
-      </RoundedBox>
-      {/* Bevel rim front frame */}
-      <mesh position={[0, 0.55, 1.12]}>
-        <boxGeometry args={[2.7, 2.5, 0.08]} />
-        <meshStandardMaterial color="#0a0c10" metalness={0.7} roughness={0.4} />
-      </mesh>
-      {/* Opening for glass */}
-      <mesh position={[0, 0.55, 1.14]}>
-        <boxGeometry args={[2.35, 2.15, 0.06]} />
-        <meshBasicMaterial color="#050608" />
+      {/* Back wall */}
+      <mesh position={[0, 0.15, -D / 2 + wall / 2]} castShadow receiveShadow>
+        <boxGeometry args={[W - wall * 2, H - 0.2, wall]} />
+        <meshStandardMaterial {...metal} color="#0e1016" />
       </mesh>
 
-      {/* Metal side pillars */}
-      <mesh position={[-1.45, 0.2, 0.9]}>
-        <boxGeometry args={[0.18, 3.4, 0.5]} />
-        <meshStandardMaterial color="#2a3040" metalness={0.9} roughness={0.28} />
+      {/* Left outer wall */}
+      <mesh position={[-W / 2 + wall / 2, 0.15, 0]} castShadow receiveShadow>
+        <boxGeometry args={[wall, H - 0.2, D]} />
+        <meshStandardMaterial {...metal} color="#151922" />
       </mesh>
-      <mesh position={[1.45, 0.2, 0.9]}>
-        <boxGeometry args={[0.18, 3.4, 0.5]} />
-        <meshStandardMaterial color="#2a3040" metalness={0.9} roughness={0.28} />
+      {/* Right outer wall */}
+      <mesh position={[W / 2 - wall / 2, 0.15, 0]} castShadow receiveShadow>
+        <boxGeometry args={[wall, H - 0.2, D]} />
+        <meshStandardMaterial {...metal} color="#151922" />
       </mesh>
 
-      {/* Header marquee plate */}
-      <RoundedBox args={[2.6, 0.38, 0.12]} radius={0.02} position={[0, 1.95, 1.15]}>
-        <meshStandardMaterial color="#1a1e28" metalness={0.6} roughness={0.4} />
+      {/* Top cap */}
+      <mesh position={[0, H / 2 - 0.05, 0]} castShadow>
+        <boxGeometry args={[W, wall * 1.4, D]} />
+        <meshStandardMaterial {...metal} color="#1c2030" />
+      </mesh>
+      {/* Chamber floor plate (solid base under prizes) */}
+      <mesh position={[0, -0.55, 0.05]} receiveShadow>
+        <boxGeometry args={[W - wall * 2.2, wall, D - wall * 1.5]} />
+        <meshStandardMaterial {...metal} color="#0a0c10" roughness={0.55} />
+      </mesh>
+
+      {/* Front frame — top bar (above window) */}
+      <mesh position={[0, winY + winH / 2 + 0.18, frontZ]} castShadow>
+        <boxGeometry args={[W - wall, 0.36, 0.14]} />
+        <meshStandardMaterial {...metal} color="#1a1e28" />
+      </mesh>
+      {/* Front frame — bottom bar (below window, above control deck) */}
+      <mesh position={[0, winY - winH / 2 - 0.14, frontZ]} castShadow>
+        <boxGeometry args={[W - wall, 0.28, 0.14]} />
+        <meshStandardMaterial {...metal} color="#1a1e28" />
+      </mesh>
+      {/* Front frame — left stile */}
+      <mesh position={[-winW / 2 - 0.18, winY, frontZ]} castShadow>
+        <boxGeometry args={[0.28, winH + 0.5, 0.14]} />
+        <meshStandardMaterial {...metal} color="#222836" />
+      </mesh>
+      {/* Front frame — right stile */}
+      <mesh position={[winW / 2 + 0.18, winY, frontZ]} castShadow>
+        <boxGeometry args={[0.28, winH + 0.5, 0.14]} />
+        <meshStandardMaterial {...metal} color="#222836" />
+      </mesh>
+
+      {/* Inner bevel around window (chamfer look) */}
+      <mesh position={[0, winY + winH / 2 - 0.02, frontZ + 0.02]}>
+        <boxGeometry args={[winW + 0.08, 0.05, 0.06]} />
+        <meshStandardMaterial color="#2a3040" metalness={0.9} roughness={0.25} />
+      </mesh>
+      <mesh position={[0, winY - winH / 2 + 0.02, frontZ + 0.02]}>
+        <boxGeometry args={[winW + 0.08, 0.05, 0.06]} />
+        <meshStandardMaterial color="#2a3040" metalness={0.9} roughness={0.25} />
+      </mesh>
+
+      {/* Side pillars (front-facing thickness) */}
+      <mesh position={[-W / 2 + 0.14, 0.2, frontZ - 0.15]} castShadow>
+        <boxGeometry args={[0.2, H - 0.5, 0.45]} />
+        <meshStandardMaterial color="#2a3040" metalness={0.92} roughness={0.26} />
+      </mesh>
+      <mesh position={[W / 2 - 0.14, 0.2, frontZ - 0.15]} castShadow>
+        <boxGeometry args={[0.2, H - 0.5, 0.45]} />
+        <meshStandardMaterial color="#2a3040" metalness={0.92} roughness={0.26} />
+      </mesh>
+
+      {/* Header marquee */}
+      <RoundedBox
+        args={[2.55, 0.36, 0.1]}
+        radius={0.02}
+        position={[0, winY + winH / 2 + 0.38, frontZ + 0.04]}
+      >
+        <meshStandardMaterial color="#1a1e28" metalness={0.65} roughness={0.38} />
       </RoundedBox>
 
       {/* Neon edges */}
-      <NeonEdge position={[0, 2.18, 1.12]} args={[2.5, 0.03, 0.03]} color={RED} />
-      <NeonEdge position={[-1.52, 0.3, 1.05]} args={[0.03, 2.8, 0.03]} color={CYAN} />
-      <NeonEdge position={[1.52, 0.3, 1.05]} args={[0.03, 2.8, 0.03]} color={RED} />
-      <NeonEdge position={[0, -1.55, 1.05]} args={[2.6, 0.03, 0.03]} color={CYAN} />
+      <NeonEdge
+        position={[0, winY + winH / 2 + 0.58, frontZ + 0.05]}
+        args={[2.5, 0.03, 0.03]}
+        color={RED}
+      />
+      <NeonEdge
+        position={[-W / 2 + 0.05, 0.25, frontZ]}
+        args={[0.03, 2.6, 0.03]}
+        color={CYAN}
+      />
+      <NeonEdge
+        position={[W / 2 - 0.05, 0.25, frontZ]}
+        args={[0.03, 2.6, 0.03]}
+        color={RED}
+      />
+      <NeonEdge
+        position={[0, winY - winH / 2 - 0.28, frontZ + 0.02]}
+        args={[2.55, 0.025, 0.025]}
+        color={CYAN}
+      />
 
-      {/* Control deck body (lower front) */}
-      <RoundedBox args={[3.0, 0.9, 0.7]} radius={0.04} position={[0, -1.75, 0.85]}>
-        <meshStandardMaterial color="#141820" metalness={0.75} roughness={0.4} />
+      {/* Control deck (below window — solid, not blocking glass) */}
+      <RoundedBox
+        args={[3.0, 0.85, 0.65]}
+        radius={0.04}
+        position={[0, -1.65, 0.75]}
+      >
+        <meshStandardMaterial color="#141820" metalness={0.78} roughness={0.38} />
       </RoundedBox>
     </group>
   );
 }
 
+/** Transparent glass only — no opaque plate behind it. */
 function GlassPanel() {
   return (
-    <mesh position={[0, 0.55, 1.13]}>
-      <boxGeometry args={[2.3, 2.1, 0.04]} />
+    <mesh position={[0, 0.45, 0.98]} renderOrder={2}>
+      <boxGeometry args={[2.2, 2.0, 0.03]} />
       <meshPhysicalMaterial
-        color="#a8d4e8"
+        color="#b8dce8"
         metalness={0}
-        roughness={0.05}
-        transmission={0.85}
-        thickness={0.4}
+        roughness={0.04}
+        transmission={0.92}
+        thickness={0.35}
         transparent
-        opacity={0.35}
-        ior={1.45}
-        envMapIntensity={1.2}
+        opacity={0.22}
+        ior={1.4}
+        envMapIntensity={0.8}
         clearcoat={1}
-        clearcoatRoughness={0.08}
+        clearcoatRoughness={0.06}
+        depthWrite={false}
       />
     </mesh>
   );
