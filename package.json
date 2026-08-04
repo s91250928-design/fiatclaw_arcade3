@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx lib/game/__tests__/game-logic.test.ts",
+    "test:game": "tsx lib/game/__tests__/game-logic.test.ts"
   },
   "dependencies": {
     "@solana/web3.js": "^1.95.3",
@@ -14,6 +16,7 @@
     "@solana/wallet-adapter-react": "^0.15.35",
     "@solana/wallet-adapter-react-ui": "^0.9.35",
     "@solana/wallet-adapter-phantom": "^0.9.24",
+    "@solana/wallet-adapter-solflare": "^0.6.28",
     "@supabase/supabase-js": "^2.45.4",
     "next": "^14.2.5",
     "react": "^18.3.1",
@@ -23,6 +26,7 @@
     "typescript": "^5.5.4",
     "@types/node": "^20.14.0",
     "@types/react": "18.2.79",
-    "@types/react-dom": "18.2.25"
+    "@types/react-dom": "18.2.25",
+    "tsx": "^4.16.2"
   }
 }

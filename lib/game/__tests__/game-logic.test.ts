@@ -1,0 +1,506 @@
+/**
+ * Unit tests against shipped pure game logic (no mocks of units under test).
+ * Run: npx tsx lib/game/__tests__/game-logic.test.ts
+ */
+
+import assert from "node:assert/strict";
+import {
+  LOSE_MESSAGE,
+  activePrizes,
+  addPlays,
+  applyPlayToPlayerStats,
+  awardAndResetJackpot,
+  clawCost,
+  consumePlay,
+  contributeJackpot,
+  createDropGuard,
+  createJackpotState,
+  createTestStore,
+  debitClaw,
+  defaultPrizeCatalog,
+  feeMultiplierForStake,
+  isDropUiBusy,
+  mulberry32,
+  rankLeaderboard,
+  resolveOutcome,
+  selectWeightedPrize,
+  simulateWinRate,
+  solCostLamports,
+  stakeClaw,
+  tierForStake,
+  unstakeClaw,
+  WIN_PROBABILITY,
+  type PrizeEntry,
+  type ResolvedPlay,
+} from "../index";
+
+let passed = 0;
+let failed = 0;
+
+function test(name: string, fn: () => void) {
+  try {
+    fn();
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } catch (e) {
+    failed += 1;
+    console.error(`  ✗ ${name}`);
+    console.error(e);
+  }
+}
+
+console.log("\n=== ClawArcade game logic tests ===\n");
+
+// ── (a) weighted prize selection ───────────────────────────────────────
+console.log("(a) weighted selection & catalog");
+
+test("active catalog entries only; never empty when weights exist", () => {
+  const cat = defaultPrizeCatalog();
+  const active = activePrizes(cat);
+  assert.ok(active.length >= 5);
+  assert.ok(active.every((p) => p.active && p.weight > 0));
+  const kinds = new Set(active.map((p) => p.kind));
+  for (const k of ["sol", "claw", "nft", "mystery", "jackpot"] as const) {
+    assert.ok(kinds.has(k), `missing kind ${k}`);
+  }
+});
+
+test("selectWeightedPrize respects weights (deterministic seed)", () => {
+  const cat: PrizeEntry[] = [
+    {
+      id: "a",
+      code: "a",
+      kind: "sol",
+      title: "A",
+      valueLamports: 1,
+      clawAmount: 0,
+      weight: 1000,
+      active: true,
+      maxMultiplierCap: 2.5,
+    },
+    {
+      id: "b",
+      code: "b",
+      kind: "sol",
+      title: "B",
+      valueLamports: 1,
+      clawAmount: 0,
+      weight: 1,
+      active: true,
+      maxMultiplierCap: 2.5,
+    },
+    {
+      id: "off",
+      code: "off",
+      kind: "sol",
+      title: "Off",
+      valueLamports: 99,
+      clawAmount: 0,
+      weight: 9999,
+      active: false,
+      maxMultiplierCap: 2.5,
+    },
+  ];
+  const rng = mulberry32(42);
+  let aCount = 0;
+  for (let i = 0; i < 200; i++) {
+    const p = selectWeightedPrize(cat, rng);
+    assert.ok(p && p.code !== "off");
+    if (p!.code === "a") aCount++;
+  }
+  assert.ok(aCount > 180, `expected A-dominant, got ${aCount}/200`);
+});
+
+test("resolveOutcome never uses client won flag — only RNG + catalog", () => {
+  const cat = defaultPrizeCatalog();
+  // First rng() is win gate: ≥ WIN_PROBABILITY (0.2) → lose
+  const loseRng = () => 0.5;
+  const d = resolveOutcome(cat, {
+    stakeLamports: 50_000_000,
+    maxWinMultiplier: 2.5,
+    jackpotBalanceLamports: 230_000_000,
+    rng: loseRng,
+  });
+  assert.equal(d.outcome, "lose");
+  assert.equal(d.message, LOSE_MESSAGE);
+  assert.equal(d.message, "Better Luck Next Pull.");
+});
+
+test("resolveOutcome wins when gate roll is below WIN_PROBABILITY", () => {
+  const cat = defaultPrizeCatalog();
+  let calls = 0;
+  const rng = () => {
+    calls += 1;
+    // first call: gate win (0.05 < 0.2); second: pick first prize
+    return calls === 1 ? 0.05 : 0;
+  };
+  const d = resolveOutcome(cat, {
+    stakeLamports: 50_000_000,
+    maxWinMultiplier: 2.5,
+    jackpotBalanceLamports: 230_000_000,
+    rng,
+  });
+  assert.equal(d.outcome, "win");
+  assert.ok(d.prize);
+  assert.notEqual(d.message, LOSE_MESSAGE);
+});
+
+// ── (b) play credits ───────────────────────────────────────────────────
+console.log("\n(b) play credits");
+
+test("add plays then consume exactly one; reject at zero", () => {
+  let state = { availablePlays: 0 };
+  const bought = addPlays(state, 3);
+  assert.equal(bought.ok, true);
+  if (!bought.ok) return;
+  state = { availablePlays: bought.availablePlays };
+  assert.equal(state.availablePlays, 3);
+
+  const c1 = consumePlay(state);
+  assert.equal(c1.ok, true);
+  if (!c1.ok) return;
+  assert.equal(c1.availablePlays, 2);
+
+  const c2 = consumePlay({ availablePlays: 1 });
+  assert.equal(c2.ok, true);
+  if (!c2.ok) return;
+  assert.equal(c2.availablePlays, 0);
+
+  const c3 = consumePlay({ availablePlays: 0 });
+  assert.equal(c3.ok, false);
+  if (c3.ok) return;
+  assert.equal(c3.error, "no plays available");
+  assert.equal(c3.availablePlays, 0);
+});
+
+test("store startAttempt deducts one play", () => {
+  const store = createTestStore();
+  store.creditClawBalance("Wallet1111111111111111111111111111111", 10_000);
+  const buy = store.buyPlaysWithClaw("Wallet1111111111111111111111111111111", 2);
+  assert.equal(buy.ok, true);
+  if (!buy.ok) return;
+  assert.equal(buy.availablePlays, 2);
+  const start = store.startAttempt("Wallet1111111111111111111111111111111");
+  assert.equal(start.ok, true);
+  if (!start.ok) return;
+  assert.equal(start.availablePlays, 1);
+  const zero = store.startAttempt("Wallet2222222222222222222222222222222");
+  assert.equal(zero.ok, false);
+});
+
+// ── (c) jackpot ────────────────────────────────────────────────────────
+console.log("\n(c) jackpot");
+
+test("contribute increases balance; jackpot win resets to base", () => {
+  let jp = createJackpotState(100_000_000, 1_000_000);
+  assert.equal(jp.balanceLamports, 100_000_000);
+  jp = contributeJackpot(jp);
+  assert.equal(jp.balanceLamports, 101_000_000);
+  jp = contributeJackpot(jp);
+  assert.equal(jp.balanceLamports, 102_000_000);
+  const { awarded, state } = awardAndResetJackpot(jp, "WinnerWalletxxxxxxxxxx");
+  assert.equal(awarded, 102_000_000);
+  assert.equal(state.balanceLamports, 100_000_000);
+  assert.equal(state.lastWinnerWallet, "WinnerWalletxxxxxxxxxx");
+});
+
+test("store resolve path contributes every play and resets on jackpot prize", () => {
+  const store = createTestStore();
+  const w = "JackpotWallet11111111111111111111111";
+  store.creditClawBalance(w, 100_000);
+  store.buyPlaysWithClaw(w, 5);
+  const before = store.jackpot.balanceLamports;
+  const start = store.startAttempt(w);
+  assert.ok(start.ok);
+  if (!start.ok) return;
+
+  // Force jackpot by using a catalog of only jackpot + resolving with rng that picks it
+  store.prizes = [
+    {
+      id: "jp",
+      code: "jackpot",
+      kind: "jackpot",
+      title: "Jackpot Cube",
+      valueLamports: 200_000_000,
+      clawAmount: 0,
+      weight: 1,
+      active: true,
+      maxMultiplierCap: 2.5,
+    },
+  ];
+  // gate < 0.2 → win, second call picks jackpot (only prize)
+  let n = 0;
+  const rng = () => {
+    n += 1;
+    return n === 1 ? 0.05 : 0;
+  };
+  const r = store.resolveAttempt(start.playId, w, rng);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.result.isJackpot, true);
+  assert.equal(r.result.outcome, "win");
+  // Contributed once then awarded full pot, then reset to base
+  assert.equal(store.jackpot.balanceLamports, store.jackpot.baseLamports);
+  assert.ok(r.result.awardedLamports >= before);
+});
+
+// ── (d) staking does not affect odds ───────────────────────────────────
+console.log("\n(d) staking fee only — odds independent");
+
+test("fee multiplier reduces cost but not prize selection", () => {
+  const mult0 = feeMultiplierForStake(0);
+  const multHi = feeMultiplierForStake(100_000);
+  assert.equal(mult0, 1);
+  assert.ok(multHi < 1);
+
+  const base = 50_000_000;
+  assert.equal(solCostLamports(1, base, mult0), base);
+  assert.ok(solCostLamports(1, base, multHi) < base);
+  assert.ok(clawCost(1, 500, multHi) < clawCost(1, 500, mult0));
+
+  const cat = defaultPrizeCatalog();
+  const seed = 12345;
+  const d1 = resolveOutcome(cat, {
+    stakeLamports: base,
+    maxWinMultiplier: 2.5,
+    jackpotBalanceLamports: 230_000_000,
+    rng: mulberry32(seed),
+  });
+  const d2 = resolveOutcome(cat, {
+    stakeLamports: base,
+    maxWinMultiplier: 2.5,
+    jackpotBalanceLamports: 230_000_000,
+    rng: mulberry32(seed),
+  });
+  assert.equal(d1.outcome, d2.outcome);
+  assert.equal(d1.prize?.code, d2.prize?.code);
+  assert.equal(d1.awardedLamports, d2.awardedLamports);
+  // Staking state is irrelevant to resolveOutcome — no stake param exists
+  assert.equal(tierForStake(0).vip, false);
+  assert.equal(tierForStake(5000).vip, true);
+});
+
+test("stake/unstake ledger", () => {
+  const s = stakeClaw(5000, 0, 1000);
+  assert.equal(s.ok, true);
+  if (!s.ok) return;
+  assert.equal(s.clawBalance, 4000);
+  assert.equal(s.stakedClaw, 1000);
+  const u = unstakeClaw(s.clawBalance, s.stakedClaw, 500);
+  assert.equal(u.ok, true);
+  if (!u.ok) return;
+  assert.equal(u.stakedClaw, 500);
+  assert.equal(u.clawBalance, 4500);
+});
+
+// ── (e) leaderboard aggregation ────────────────────────────────────────
+console.log("\n(e) leaderboard");
+
+test("aggregate stats match fixture for windows", () => {
+  const now = new Date("2026-08-04T12:00:00.000Z");
+  const plays: ResolvedPlay[] = [
+    {
+      playId: "1",
+      wallet: "AAA",
+      outcome: "win",
+      prizeCode: "sol_small",
+      prizeKind: "sol",
+      prizeTitle: "SOL",
+      awardedLamports: 50_000_000,
+      awardedClaw: 0,
+      isJackpot: false,
+      message: "win",
+      remainingPlays: 0,
+      jackpotBalanceLamports: 0,
+      createdAt: "2026-08-04T10:00:00.000Z",
+    },
+    {
+      playId: "2",
+      wallet: "AAA",
+      outcome: "lose",
+      prizeCode: null,
+      prizeKind: null,
+      prizeTitle: null,
+      awardedLamports: 0,
+      awardedClaw: 0,
+      isJackpot: false,
+      message: LOSE_MESSAGE,
+      remainingPlays: 0,
+      jackpotBalanceLamports: 0,
+      createdAt: "2026-08-03T10:00:00.000Z",
+    },
+    {
+      playId: "3",
+      wallet: "BBB",
+      outcome: "win",
+      prizeCode: "claw_pack",
+      prizeKind: "claw",
+      prizeTitle: "CLAW",
+      awardedLamports: 40_000_000,
+      awardedClaw: 600,
+      isJackpot: false,
+      message: "win",
+      remainingPlays: 0,
+      jackpotBalanceLamports: 0,
+      createdAt: "2026-07-01T10:00:00.000Z",
+    },
+  ];
+
+  const all = rankLeaderboard(plays, "all", "solWonLamports", now);
+  assert.equal(all.length, 2);
+  const aaa = all.find((r) => r.wallet === "AAA")!;
+  assert.equal(aaa.totalPlays, 2);
+  assert.equal(aaa.wins, 1);
+  assert.equal(aaa.losses, 1);
+  assert.equal(aaa.solWonLamports, 50_000_000);
+  assert.equal(aaa.biggestWinLamports, 50_000_000);
+
+  const daily = rankLeaderboard(plays, "daily", "totalPlays", now);
+  assert.equal(daily.length, 1);
+  assert.equal(daily[0]!.wallet, "AAA");
+  assert.equal(daily[0]!.totalPlays, 1);
+
+  const weekly = rankLeaderboard(plays, "weekly", "wins", now);
+  assert.ok(weekly.some((r) => r.wallet === "AAA"));
+  assert.ok(!weekly.some((r) => r.wallet === "BBB"));
+
+  const stats = applyPlayToPlayerStats(
+    { totalPlays: 0, wins: 0, losses: 0, solWonLamports: 0, clawWon: 0, biggestWinLamports: 0 },
+    { outcome: "win", awardedLamports: 10, awardedClaw: 5 }
+  );
+  assert.equal(stats.wins, 1);
+  assert.equal(stats.clawWon, 5);
+});
+
+// ── (f) Win probability 20% (server-only constant) ─────────────────────
+console.log("\n(f) win probability 20%");
+
+test("WIN_PROBABILITY is exactly 0.2", () => {
+  assert.equal(WIN_PROBABILITY, 0.2);
+});
+
+test("Monte Carlo win rate ≈ 20% within ±2pp", () => {
+  const cat = defaultPrizeCatalog();
+  const rng = mulberry32(99);
+  const N = 50_000;
+  const rate = simulateWinRate(cat, N, rng);
+  console.log(`    simulated win rate (N=${N}) = ${rate.toFixed(4)}`);
+  assert.ok(rate >= 0.18, `win rate ${rate} below 0.18`);
+  assert.ok(rate <= 0.22, `win rate ${rate} above 0.22`);
+});
+
+// ── debit claw ─────────────────────────────────────────────────────────
+test("debitClaw rejects insufficient balance", () => {
+  const r = debitClaw(100, 500);
+  assert.equal(r.ok, false);
+});
+
+// ── store full loop lose message ───────────────────────────────────────
+test("lose path returns exact Better Luck Next Pull.", () => {
+  const store = createTestStore();
+  const w = "LoseWallet1111111111111111111111111";
+  store.creditClawBalance(w, 50_000);
+  store.buyPlaysWithClaw(w, 1);
+  const s = store.startAttempt(w);
+  assert.ok(s.ok);
+  if (!s.ok) return;
+  // gate roll 0.9 ≥ 0.2 → lose
+  const r = store.resolveAttempt(s.playId, w, () => 0.9);
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  assert.equal(r.result.outcome, "lose");
+  assert.equal(r.result.message, "Better Luck Next Pull.");
+});
+
+// ── DROP re-entrancy guard (shipped lock used by /play) ────────────────
+console.log("\n(g) DROP re-entrancy guard");
+
+test("createDropGuard blocks concurrent acquires until release", () => {
+  const g = createDropGuard();
+  assert.equal(g.tryAcquire(), true);
+  assert.equal(g.isLocked(), true);
+  assert.equal(g.tryAcquire(), false, "second acquire must fail while locked");
+  assert.equal(g.tryAcquire(), false);
+  g.release();
+  assert.equal(g.isLocked(), false);
+  assert.equal(g.tryAcquire(), true);
+  g.release();
+});
+
+test("isDropUiBusy covers starting/playing even when phase is ready/idle", () => {
+  assert.equal(isDropUiBusy("starting", "ready"), true);
+  assert.equal(isDropUiBusy("playing", "idle"), true);
+  assert.equal(isDropUiBusy("buying", "idle"), true);
+  assert.equal(isDropUiBusy("ready", "ready"), false);
+  assert.equal(isDropUiBusy("idle", "idle"), false);
+  assert.equal(isDropUiBusy("ready", "drop"), true);
+  assert.equal(isDropUiBusy("success", "close"), true);
+});
+
+test("double start without client guard burns two plays (why lock is required)", () => {
+  const store = createTestStore();
+  const w = "DoubleDropWallet1111111111111111111";
+  store.creditClawBalance(w, 50_000);
+  store.buyPlaysWithClaw(w, 3);
+  const a = store.startAttempt(w);
+  const b = store.startAttempt(w);
+  assert.ok(a.ok && b.ok);
+  if (!a.ok || !b.ok) return;
+  assert.equal(a.availablePlays, 2);
+  assert.equal(b.availablePlays, 1);
+  // Client drop-guard must prevent this double-call path for one DROP.
+});
+
+// ── Admin SOL price stays authoritative for buy/verify ─────────────────
+console.log("\n(h) admin price ↔ SOL cost sync");
+
+test("partial updateConfig does not disable machine or wipe other fields", () => {
+  const store = createTestStore();
+  assert.equal(store.config.machineEnabled, true);
+  store.updateConfig({ priceLamports: 60_000_000 });
+  assert.equal(store.config.machineEnabled, true, "machine must stay enabled");
+  assert.equal(store.config.clawPrice, 500);
+  // Explicit undefined must not clobber
+  store.updateConfig({ machineEnabled: undefined as unknown as boolean });
+  assert.equal(store.config.machineEnabled, true);
+  const w = "MachineStayOnWallet11111111111111111";
+  store.creditClawBalance(w, 10_000);
+  store.buyPlaysWithClaw(w, 1);
+  const started = store.startAttempt(w);
+  assert.equal(started.ok, true, "start must work after price-only admin patch");
+});
+
+test("after update_config, solCostLamports and store buy use new priceLamports", () => {
+  const store = createTestStore();
+  const oldPrice = store.config.priceLamports;
+  assert.equal(oldPrice, 50_000_000);
+  store.updateConfig({ priceLamports: 60_000_000 });
+  assert.equal(store.config.priceLamports, 60_000_000);
+  assert.equal(store.config.machineEnabled, true);
+
+  // Same formula API routes use: store.config.priceLamports (not env CONFIG).
+  const unitPrice = store.config.priceLamports;
+  const minFor1 = solCostLamports(1, unitPrice, 1);
+  assert.equal(minFor1, 60_000_000);
+  const minFor3 = solCostLamports(3, unitPrice, 1);
+  assert.equal(minFor3, 180_000_000);
+
+  // buyPlaysWithSol ledger cost tracks store price
+  const w = "PriceSyncWallet11111111111111111111";
+  const buy = store.buyPlaysWithSol(w, 2, "sig_price_sync_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  assert.equal(buy.ok, true);
+  if (!buy.ok) return;
+  assert.equal(buy.costLamports, solCostLamports(2, store.config.priceLamports, 1));
+  assert.equal(buy.costLamports, 120_000_000);
+
+  // Staking fee multiplies the admin unit price, not a stale env default
+  store.creditClawBalance(w, 100_000);
+  store.stake(w, 100_000); // Diamond VIP 0.8
+  const mult = feeMultiplierForStake(store.ensurePlayer(w).stakedClaw);
+  assert.equal(mult, 0.8);
+  const discounted = solCostLamports(1, store.config.priceLamports, mult);
+  assert.equal(discounted, Math.ceil(60_000_000 * 0.8));
+});
+
+console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
+if (failed > 0) process.exit(1);

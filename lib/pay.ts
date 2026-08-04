@@ -1,7 +1,6 @@
 /**
- * lib/pay.ts — КЛИЕНТ.
- * Только строит транзакцию оплаты и отдаёт подпись серверу.
- * Никаких секретов, никакого решения исхода, никакой записи в БД.
+ * lib/pay.ts — CLIENT.
+ * Builds payment txs and calls server APIs. Never decides outcomes.
  */
 
 "use client";
@@ -21,54 +20,168 @@ const RPC =
     ? "https://api.mainnet-beta.solana.com"
     : "https://api.devnet.solana.com");
 const TREASURY = process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "";
-const PRICE = BigInt(process.env.NEXT_PUBLIC_PRICE_LAMPORTS ?? "0");
+const PRICE = BigInt(process.env.NEXT_PUBLIC_PRICE_LAMPORTS ?? "50000000");
 
-/**
- * 1) Пользователь платит за игру → возвращаем подпись.
- * Сервер потом сам проверит finalized + сумму + получателя.
- */
-export async function payForPlay(wallet: WalletContextState): Promise<string> {
+function connection(): Connection {
+  return new Connection(RPC, "confirmed");
+}
+
+/** Pay SOL to treasury for N plays (amount = unit * plays; server re-checks). */
+export async function paySolForPlays(
+  wallet: WalletContextState,
+  plays: number,
+  unitLamports: bigint = PRICE,
+  feeMultiplier = 1
+): Promise<string> {
   if (!wallet.publicKey || !wallet.sendTransaction) {
-    throw new Error("Кошелёк не подключён");
+    throw new Error("Wallet not connected");
   }
-  if (!TREASURY) throw new Error("Казна не настроена (NEXT_PUBLIC_TREASURY_ADDRESS)");
-  if (PRICE <= 0n) throw new Error("Цена игры не настроена");
+  if (!TREASURY) throw new Error("Treasury not configured");
+  if (unitLamports <= 0n) throw new Error("Price not configured");
+  if (plays < 1) throw new Error("Invalid play count");
 
-  const connection = new Connection(RPC, "confirmed");
+  const unit = BigInt(Math.ceil(Number(unitLamports) * feeMultiplier));
+  const lamports = unit * BigInt(plays);
+
+  const conn = connection();
   const tx = new Transaction().add(
     SystemProgram.transfer({
       fromPubkey: wallet.publicKey,
       toPubkey: new PublicKey(TREASURY),
-      lamports: Number(PRICE),
+      lamports: Number(lamports),
     })
   );
 
   const { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash("finalized");
+    await conn.getLatestBlockhash("finalized");
   tx.recentBlockhash = blockhash;
   tx.feePayer = wallet.publicKey;
 
-  const sig = await wallet.sendTransaction(tx, connection);
-
-  // Ждём confirmed, чтобы не слать серверу совсем сырую tx.
-  // Сервер всё равно перепроверит на finalized.
-  await connection.confirmTransaction(
+  const sig = await wallet.sendTransaction(tx, conn);
+  await conn.confirmTransaction(
     { signature: sig, blockhash, lastValidBlockHeight },
     "confirmed"
   );
-
   return sig;
 }
 
-/**
- * 2) Полный цикл: оплата → серверная проверка → playId.
- * Клиент получает только то, что сервер решил.
- */
+export async function buyPlaysSol(
+  wallet: WalletContextState,
+  plays: number,
+  feeMultiplier = 1,
+  /** Must match server GameStore.config.priceLamports (from player/state). */
+  unitLamports: bigint = PRICE
+) {
+  if (!wallet.publicKey) throw new Error("Wallet not connected");
+  const signature = await paySolForPlays(
+    wallet,
+    plays,
+    unitLamports,
+    feeMultiplier
+  );
+  const res = await fetch("/api/plays/buy", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      wallet: wallet.publicKey.toBase58(),
+      currency: "SOL",
+      plays,
+      signature,
+    }),
+  });
+  const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error ?? `Buy failed (${res.status})`);
+  }
+  return data as {
+    ok: true;
+    availablePlays: number;
+    playsBought: number;
+    costLamports: string;
+  };
+}
+
+export async function buyPlaysClaw(wallet: WalletContextState, plays: number) {
+  if (!wallet.publicKey) throw new Error("Wallet not connected");
+  const res = await fetch("/api/plays/buy", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      wallet: wallet.publicKey.toBase58(),
+      currency: "CLAW",
+      plays,
+    }),
+  });
+  const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error ?? `Buy failed (${res.status})`);
+  }
+  return data as {
+    ok: true;
+    availablePlays: number;
+    clawBalance: number;
+    costClaw: number;
+  };
+}
+
+/** Consume one play credit; returns playId for DROP. */
+export async function startAttempt(wallet: WalletContextState) {
+  if (!wallet.publicKey) throw new Error("Wallet not connected");
+  const res = await fetch("/api/play/start", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ wallet: wallet.publicKey.toBase58() }),
+  });
+  const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error ?? `Start failed (${res.status})`);
+  }
+  return data as {
+    ok: true;
+    playId: string;
+    availablePlays: number;
+    jackpotBalanceLamports: string;
+  };
+}
+
+/** Server resolves outcome — never send won/outcome from client. */
+export async function resolveAttempt(wallet: WalletContextState, playId: string) {
+  if (!wallet.publicKey) throw new Error("Wallet not connected");
+  const res = await fetch("/api/play/resolve", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      wallet: wallet.publicKey.toBase58(),
+      playId,
+    }),
+  });
+  const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error ?? `Resolve failed (${res.status})`);
+  }
+  return data as {
+    ok: true;
+    playId: string;
+    outcome: "win" | "lose";
+    won: boolean;
+    prize: {
+      code: string | null;
+      kind: string | null;
+      title: string | null;
+      awardedLamports: string;
+      awardedClaw: number;
+      isJackpot: boolean;
+    } | null;
+    message: string;
+    remainingPlays: number;
+    jackpotBalanceLamports: string;
+  };
+}
+
+/** Legacy: pay 1 play with SOL and start (kept for compatibility). */
 export async function startPlay(wallet: WalletContextState) {
-  if (!wallet.publicKey) throw new Error("Кошелёк не подключён");
-
-  const signature = await payForPlay(wallet);
-
+  if (!wallet.publicKey) throw new Error("Wallet not connected");
+  const signature = await paySolForPlays(wallet, 1);
   const res = await fetch("/api/play/start", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -77,17 +190,52 @@ export async function startPlay(wallet: WalletContextState) {
       signature,
     }),
   });
-
   const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
   if (!res.ok || !data.ok) {
-    throw new Error(data.error ?? `Сервер отклонил игру (${res.status})`);
+    throw new Error(data.error ?? `Server rejected play (${res.status})`);
   }
-
   return data as {
     ok: true;
     playId: string;
     cluster: string;
     priceLamports: string;
+    availablePlays: number;
     next: string;
   };
+}
+
+export async function fetchPlayerState(wallet: string) {
+  const res = await fetch(`/api/player/state?wallet=${encodeURIComponent(wallet)}`);
+  const data = await res.json().catch(() => ({ ok: false }));
+  return data;
+}
+
+export async function faucetClaw(wallet: string, amount = 5000) {
+  const res = await fetch("/api/claw/faucet", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ wallet, amount }),
+  });
+  return res.json();
+}
+
+export async function stakeClawApi(
+  wallet: string,
+  action: "stake" | "unstake",
+  amount: number
+) {
+  const res = await fetch("/api/stake", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ wallet, action, amount }),
+  });
+  const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
+  if (!res.ok || !data.ok) throw new Error(data.error ?? "Stake failed");
+  return data;
+}
+
+export async function getSolBalance(publicKey: PublicKey): Promise<number> {
+  const conn = connection();
+  const lamports = await conn.getBalance(publicKey, "confirmed");
+  return lamports / 1e9;
 }

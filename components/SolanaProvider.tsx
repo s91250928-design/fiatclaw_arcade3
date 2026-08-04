@@ -8,6 +8,7 @@ import {
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { clusterApiUrl } from "@solana/web3.js";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
@@ -16,14 +17,14 @@ interface Props {
   children: ReactNode;
 }
 
-/** Cast: peer React types mismatch between wallet-adapter and Next 14 */
 const Conn = ConnectionProvider as React.ComponentType<{
   endpoint: string;
   config?: { commitment?: string };
   children?: ReactNode;
 }>;
 const Wallets = WalletProvider as React.ComponentType<{
-  wallets: ReturnType<typeof PhantomWalletAdapter>[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wallets: any[];
   autoConnect?: boolean;
   children?: ReactNode;
 }>;
@@ -47,7 +48,10 @@ export function SolanaProvider({ children }: Props) {
     return clusterApiUrl(network);
   }, [network]);
 
-  const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
+  const wallets = useMemo(
+    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter({ network })],
+    [network]
+  );
 
   return (
     <Conn endpoint={endpoint} config={{ commitment: "confirmed" }}>
