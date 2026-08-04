@@ -33,6 +33,7 @@ import {
   buildPrizePileLayout,
   isMoneyPrizeKind,
   layoutFillsLowerBand,
+  layoutHasRequiredKinds,
   winningPrizes,
   clawFingersOpen,
   clawOverlayText,
@@ -651,21 +652,17 @@ test("active catalog winners are all money-valued (SOL/$CLAW/jackpot/nft/mystery
 
 test("visual pile is dense money kinds, lower band, no spheres-only layout", () => {
   const layout = buildPrizePileLayout(42);
-  assert.ok(layout.length >= 28, `need dense pile, got ${layout.length}`);
+  assert.ok(layout.length >= 36, `need dense pile, got ${layout.length}`);
   assert.ok(layoutFillsLowerBand(layout));
-  const kinds = new Set(layout.map((p) => p.kind));
-  for (const k of [
-    "crystal",
-    "fiatclaw_token",
-    "sol_crystal",
-    "sol_bar",
-    "neon_capsule",
-    "gold_crystal",
-    "jackpot_hex",
-  ] as const) {
-    assert.ok(kinds.has(k), `missing visual kind ${k}`);
-  }
+  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+SOL+gems+hex");
   assert.ok(layout.every((p) => isMoneyPrizeKind(p.kind)));
+  // Explicit required readable types
+  const kinds = new Set(layout.map((p) => p.kind));
+  assert.ok(kinds.has("fiatclaw_token"));
+  assert.ok(kinds.has("sol_crystal") || kinds.has("sol_bar"));
+  assert.ok(kinds.has("crystal_red"));
+  assert.ok(kinds.has("crystal_cyan"));
+  assert.ok(kinds.has("crystal_gold"));
   // height variation
   const ys = layout.map((p) => p.position[1]);
   assert.ok(Math.max(...ys) - Math.min(...ys) > 0.02);
@@ -721,6 +718,32 @@ test("ClawScene ships hollow-open-front shell, not solid fill plate", () => {
     false,
     "must not use simple colored sphere pile"
   );
+  // Metal claw mechanism markers
+  assert.ok(src.includes("Braided cable") || src.includes("cableLen"), "metal cable");
+  assert.ok(src.includes("Motor housing") || src.includes("motor"), "motor housing");
+  assert.ok(src.includes("finger") || src.includes("Left finger"), "hinged fingers");
+});
+
+test("PrizeMeshes ships FIATCLAW token + multi-color gems + SOL forms", () => {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const meshPath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "components",
+    "claw",
+    "PrizeMeshes.tsx"
+  );
+  const src = fs.readFileSync(meshPath, "utf8");
+  assert.ok(src.includes("FiatClawToken"), "FIATCLAW token mesh");
+  assert.ok(src.includes("FacetedGem") || src.includes("dodecahedron"), "faceted gems");
+  assert.ok(src.includes("SolBar") && src.includes("SolCrystal"), "SOL forms");
+  assert.ok(src.includes("JackpotHex"), "jackpot hex");
+  assert.ok(src.includes("crystal_cyan") || src.includes("CYAN"), "multi-color gems");
+  // Not only a single octahedron for everything
+  assert.ok(src.includes("cylinderGeometry"), "token disc geometry");
 });
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);

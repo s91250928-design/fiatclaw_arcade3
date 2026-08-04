@@ -383,81 +383,148 @@ function ClawAssembly({
 
   // cable length visual
   const cableLen = phase === "drop" || phase === "close" ? 0.95 : 0.35;
+  const metal = { color: "#c8d0e0", metalness: 0.92, roughness: 0.2 } as const;
+  const metalDark = { color: "#2a3040", metalness: 0.88, roughness: 0.28 } as const;
 
   return (
     <group ref={group} position={[0, 1.55, 0.55]} castShadow>
-      {/* Gantry carriage */}
-      <mesh position={[0, 0.15, 0]} castShadow>
-        <boxGeometry args={[0.35, 0.12, 0.28]} />
-        <meshStandardMaterial color="#3a4254" metalness={0.85} roughness={0.3} />
+      {/* Gantry rail (thick metal bar) */}
+      <mesh position={[0, 0.24, 0]} castShadow>
+        <boxGeometry args={[2.25, 0.06, 0.1]} />
+        <meshStandardMaterial {...metalDark} color="#3a4458" />
       </mesh>
-      {/* Cable */}
-      <mesh position={[0, -cableLen / 2, 0]}>
-        <cylinderGeometry args={[0.015, 0.015, cableLen, 8]} />
-        <meshStandardMaterial color="#9aa3b5" metalness={0.9} roughness={0.25} />
-      </mesh>
-      {/* Motor housing */}
-      <mesh position={[0, -cableLen - 0.08, 0]} castShadow>
-        <boxGeometry args={[0.28, 0.16, 0.22]} />
-        <meshStandardMaterial
-          color="#1a2030"
-          metalness={0.8}
-          roughness={0.3}
-          emissive={CYAN}
-          emissiveIntensity={0.25}
-        />
-      </mesh>
-      {/* Neon strip on motor */}
-      <mesh position={[0, -cableLen - 0.08, 0.12]}>
-        <boxGeometry args={[0.18, 0.03, 0.02]} />
+      <mesh position={[0, 0.27, 0]}>
+        <boxGeometry args={[2.2, 0.015, 0.04]} />
         <meshStandardMaterial
           color={CYAN}
           emissive={CYAN}
-          emissiveIntensity={2}
+          emissiveIntensity={1.2}
           toneMapped={false}
         />
       </mesh>
 
-      {/* Fingers pivot */}
-      <group position={[0, -cableLen - 0.2, 0]}>
-        <mesh>
-          <sphereGeometry args={[0.05, 16, 16]} />
-          <meshStandardMaterial color="#5a6578" metalness={0.85} roughness={0.3} />
-        </mesh>
-        {/* Left finger */}
-        <group ref={left} position={[-0.04, 0, 0]} rotation={[0, 0, 0.5]}>
-          <mesh position={[0, -0.14, 0]} castShadow>
-            <boxGeometry args={[0.06, 0.28, 0.06]} />
-            <meshStandardMaterial color="#c8d0e0" metalness={0.75} roughness={0.25} />
-          </mesh>
-          <mesh position={[0, -0.3, 0.01]} castShadow>
-            <boxGeometry args={[0.05, 0.12, 0.05]} />
-            <meshStandardMaterial color="#8a93a8" metalness={0.7} roughness={0.3} />
-          </mesh>
-        </group>
-        {/* Right finger */}
-        <group ref={right} position={[0.04, 0, 0]} rotation={[0, 0, -0.5]}>
-          <mesh position={[0, -0.14, 0]} castShadow>
-            <boxGeometry args={[0.06, 0.28, 0.06]} />
-            <meshStandardMaterial color="#c8d0e0" metalness={0.75} roughness={0.25} />
-          </mesh>
-          <mesh position={[0, -0.3, 0.01]} castShadow>
-            <boxGeometry args={[0.05, 0.12, 0.05]} />
-            <meshStandardMaterial color="#8a93a8" metalness={0.7} roughness={0.3} />
-          </mesh>
-        </group>
+      {/* Carriage block */}
+      <mesh position={[0, 0.14, 0]} castShadow>
+        <boxGeometry args={[0.42, 0.14, 0.32]} />
+        <meshStandardMaterial {...metalDark} />
+      </mesh>
+      <mesh position={[0, 0.14, 0.14]}>
+        <boxGeometry args={[0.28, 0.08, 0.06]} />
+        <meshStandardMaterial {...metal} />
+      </mesh>
 
-        {/* Held / falling money prize (crystal — always cash-value aesthetic) */}
-        <group ref={prize} position={[0, -0.42, 0]} visible={false}>
-          <PrizeMeshByKind kind="crystal" scale={hold ? 1.05 : 0.95} />
-        </group>
+      {/* Braided cable (dual cylinders for thickness) */}
+      <mesh position={[0, -cableLen / 2, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, cableLen, 12]} />
+        <meshStandardMaterial color="#a8b0c0" metalness={0.95} roughness={0.18} />
+      </mesh>
+      <mesh position={[0.008, -cableLen / 2, 0.006]}>
+        <cylinderGeometry args={[0.01, 0.01, cableLen * 0.98, 8]} />
+        <meshStandardMaterial color="#6a7388" metalness={0.9} roughness={0.25} />
+      </mesh>
+
+      {/* Motor housing — multi-part metal mechanism */}
+      <group position={[0, -cableLen - 0.1, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[0.32, 0.18, 0.26]} />
+          <meshStandardMaterial {...metalDark} color="#1a2030" emissive={CYAN} emissiveIntensity={0.15} />
+        </mesh>
+        {/* Side plates */}
+        <mesh position={[-0.17, 0, 0]} castShadow>
+          <boxGeometry args={[0.04, 0.2, 0.28]} />
+          <meshStandardMaterial {...metal} />
+        </mesh>
+        <mesh position={[0.17, 0, 0]} castShadow>
+          <boxGeometry args={[0.04, 0.2, 0.28]} />
+          <meshStandardMaterial {...metal} />
+        </mesh>
+        {/* Front vent / neon bar */}
+        <mesh position={[0, 0.02, 0.14]}>
+          <boxGeometry args={[0.22, 0.04, 0.025]} />
+          <meshStandardMaterial
+            color={CYAN}
+            emissive={CYAN}
+            emissiveIntensity={2}
+            toneMapped={false}
+          />
+        </mesh>
+        <mesh position={[0, -0.04, 0.14]}>
+          <boxGeometry args={[0.18, 0.02, 0.02]} />
+          <meshStandardMaterial
+            color={RED}
+            emissive={RED}
+            emissiveIntensity={1.2}
+            toneMapped={false}
+          />
+        </mesh>
+        {/* Bolt detail */}
+        {([-0.1, 0.1] as const).map((bx) => (
+          <mesh key={bx} position={[bx, 0.06, 0.12]}>
+            <cylinderGeometry args={[0.015, 0.015, 0.02, 8]} />
+            <meshStandardMaterial {...metal} color="#e0e4ec" />
+          </mesh>
+        ))}
       </group>
 
-      {/* Top rail */}
-      <mesh position={[0, 0.22, 0]}>
-        <boxGeometry args={[2.2, 0.04, 0.08]} />
-        <meshStandardMaterial color="#3a4458" metalness={0.9} roughness={0.25} />
-      </mesh>
+      {/* Claw fingers — thick hinged metal, not sticks */}
+      <group position={[0, -cableLen - 0.24, 0]}>
+        {/* Pivot hub */}
+        <mesh castShadow>
+          <cylinderGeometry args={[0.06, 0.06, 0.08, 16]} />
+          <meshStandardMaterial {...metal} color="#8a93a8" />
+        </mesh>
+        <mesh position={[0, 0, 0.05]}>
+          <sphereGeometry args={[0.045, 16, 16]} />
+          <meshStandardMaterial {...metalDark} />
+        </mesh>
+
+        {/* Left finger: upper arm + joint + curved tip */}
+        <group ref={left} position={[-0.05, -0.02, 0]}>
+          <mesh position={[0, -0.12, 0]} castShadow>
+            <boxGeometry args={[0.075, 0.26, 0.07]} />
+            <meshStandardMaterial {...metal} />
+          </mesh>
+          {/* knuckle */}
+          <mesh position={[0, -0.26, 0]} castShadow>
+            <sphereGeometry args={[0.04, 12, 12]} />
+            <meshStandardMaterial {...metal} color="#9aa3b5" />
+          </mesh>
+          {/* tip / claw hook */}
+          <mesh position={[0.015, -0.36, 0.01]} rotation={[0, 0, 0.35]} castShadow>
+            <boxGeometry args={[0.06, 0.14, 0.055]} />
+            <meshStandardMaterial {...metal} color="#d0d6e2" />
+          </mesh>
+          <mesh position={[0.04, -0.42, 0.02]} rotation={[0.3, 0, 0.5]} castShadow>
+            <boxGeometry args={[0.04, 0.08, 0.04]} />
+            <meshStandardMaterial {...metal} color="#e8ecf4" />
+          </mesh>
+        </group>
+
+        {/* Right finger */}
+        <group ref={right} position={[0.05, -0.02, 0]}>
+          <mesh position={[0, -0.12, 0]} castShadow>
+            <boxGeometry args={[0.075, 0.26, 0.07]} />
+            <meshStandardMaterial {...metal} />
+          </mesh>
+          <mesh position={[0, -0.26, 0]} castShadow>
+            <sphereGeometry args={[0.04, 12, 12]} />
+            <meshStandardMaterial {...metal} color="#9aa3b5" />
+          </mesh>
+          <mesh position={[-0.015, -0.36, 0.01]} rotation={[0, 0, -0.35]} castShadow>
+            <boxGeometry args={[0.06, 0.14, 0.055]} />
+            <meshStandardMaterial {...metal} color="#d0d6e2" />
+          </mesh>
+          <mesh position={[-0.04, -0.42, 0.02]} rotation={[0.3, 0, -0.5]} castShadow>
+            <boxGeometry args={[0.04, 0.08, 0.04]} />
+            <meshStandardMaterial {...metal} color="#e8ecf4" />
+          </mesh>
+        </group>
+
+        {/* Held / falling money prize */}
+        <group ref={prize} position={[0, -0.48, 0]} visible={false}>
+          <PrizeMeshByKind kind="fiatclaw_token" scale={hold ? 1.1 : 1} />
+        </group>
+      </group>
     </group>
   );
 }
