@@ -30,6 +30,10 @@ import {
   tierForStake,
   unstakeClaw,
   WIN_PROBABILITY,
+  buildPrizePileLayout,
+  isMoneyPrizeKind,
+  layoutFillsLowerBand,
+  winningPrizes,
   clawFingersOpen,
   clawOverlayText,
   clawPullSequence,
@@ -627,6 +631,46 @@ test("after update_config, solCostLamports and store buy use new priceLamports",
   assert.equal(discounted, Math.ceil(60_000_000 * 0.8));
 });
 
+// ── Money-only prizes (catalog + visual pile) ──────────────────────────
+console.log("\n(k) money-only prizes");
+
+test("active catalog winners are all money-valued (SOL/$CLAW/jackpot/nft/mystery)", () => {
+  const winners = winningPrizes(defaultPrizeCatalog());
+  assert.ok(winners.length >= 5);
+  for (const p of winners) {
+    const money =
+      p.kind === "jackpot" ||
+      p.valueLamports > 0 ||
+      p.clawAmount > 0 ||
+      p.kind === "nft" ||
+      p.kind === "mystery";
+    assert.ok(money, `empty toy prize: ${p.code}`);
+    assert.notEqual(p.code, "lose");
+  }
+});
+
+test("visual pile is dense money kinds, lower band, no spheres-only layout", () => {
+  const layout = buildPrizePileLayout(42);
+  assert.ok(layout.length >= 28, `need dense pile, got ${layout.length}`);
+  assert.ok(layoutFillsLowerBand(layout));
+  const kinds = new Set(layout.map((p) => p.kind));
+  for (const k of [
+    "crystal",
+    "fiatclaw_token",
+    "sol_crystal",
+    "sol_bar",
+    "neon_capsule",
+    "gold_crystal",
+    "jackpot_hex",
+  ] as const) {
+    assert.ok(kinds.has(k), `missing visual kind ${k}`);
+  }
+  assert.ok(layout.every((p) => isMoneyPrizeKind(p.kind)));
+  // height variation
+  const ys = layout.map((p) => p.position[1]);
+  assert.ok(Math.max(...ys) - Math.min(...ys) > 0.02);
+});
+
 // ── R3F cabinet shell structure (shipped source) ───────────────────────
 console.log("\n(j) R3F hollow cabinet (no solid blocking body)");
 
@@ -667,6 +711,16 @@ test("ClawScene ships hollow-open-front shell, not solid fill plate", () => {
   );
   assert.ok(src.includes("GlassPanel"), "glass window component required");
   assert.ok(src.includes("meshPhysicalMaterial"), "transmission glass material");
+  // Money prize meshes, not plain sphere pile
+  assert.ok(
+    src.includes("buildPrizePileLayout") || src.includes("AnimatedPrize"),
+    "must use money prize pile layout"
+  );
+  assert.equal(
+    /sphereGeometry args=\{\[it\.r/.test(src),
+    false,
+    "must not use simple colored sphere pile"
+  );
 });
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);

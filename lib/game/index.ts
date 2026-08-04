@@ -7,5 +7,6 @@ export * from "./leaderboard";
 export * from "./rng";
 export * from "./drop-guard";
 export * from "./claw-phases";
+export * from "./prize-visuals";
 export { GameStore, getGameStore, createTestStore } from "./store";
 export type { PlayerRecord, AttemptRecord } from "./store";

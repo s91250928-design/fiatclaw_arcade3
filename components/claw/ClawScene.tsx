@@ -16,6 +16,8 @@ import {
   updateSlippedLatch,
   type ClawPhase,
 } from "@/lib/game/claw-phases";
+import { buildPrizePileLayout } from "@/lib/game/prize-visuals";
+import { AnimatedPrize, PrizeMeshByKind } from "./PrizeMeshes";
 
 const RED = "#FF3E5C";
 const CYAN = "#22D3FF";
@@ -289,47 +291,20 @@ function ChamberFloor() {
 }
 
 function Prizes({ phase }: { phase: ClawPhase }) {
-  const items = useMemo(
-    () =>
-      [
-        { p: [-0.55, 0.12, 0.2] as const, c: RED, r: 0.12 },
-        { p: [-0.25, 0.1, 0.45] as const, c: CYAN, r: 0.1 },
-        { p: [0.05, 0.14, 0.15] as const, c: "#c9a032", r: 0.13 },
-        { p: [0.35, 0.11, 0.4] as const, c: "#9945FF", r: 0.11 },
-        { p: [0.6, 0.13, 0.18] as const, c: RED, r: 0.1 },
-        { p: [-0.1, 0.1, 0.55] as const, c: CYAN, r: 0.09 },
-        { p: [0.2, 0.12, 0.55] as const, c: "#14F195", r: 0.1 },
-        { p: [-0.4, 0.11, 0.55] as const, c: "#ff8a98", r: 0.095 },
-      ] as const,
-    []
-  );
-  const dim = phase === "win" ? 0.35 : 1;
-  const g = useRef<THREE.Group>(null);
-  useFrame((s) => {
-    if (!g.current) return;
-    g.current.children.forEach((ch, i) => {
-      ch.position.y = items[i]!.p[1] + Math.sin(s.clock.elapsedTime * 1.6 + i) * 0.02;
-      ch.rotation.y = s.clock.elapsedTime * 0.4 + i;
-    });
-  });
+  const layout = useMemo(() => buildPrizePileLayout(42), []);
+  const dim = phase === "win" ? 0.4 : 1;
   return (
-    <group ref={g} position={[0, -0.35, 0.35]} scale={[1, 1, 1]}>
-      {items.map((it, i) => (
-        <mesh
-          key={i}
-          position={[it.p[0], it.p[1], it.p[2]]}
-          castShadow
-          scale={dim}
-        >
-          <sphereGeometry args={[it.r, 32, 32]} />
-          <meshStandardMaterial
-            color={it.c}
-            metalness={0.55}
-            roughness={0.25}
-            emissive={it.c}
-            emissiveIntensity={0.12}
-          />
-        </mesh>
+    <group
+      position={[0, -0.35, 0.35]}
+      userData={{
+        prizePile: "money",
+        prizeCount: layout.length,
+        moneyOnly: true,
+      }}
+    >
+      {/* dense lower-fifth money pile: crystals, $FIATCLAW tokens, SOL bars, capsules */}
+      {layout.map((spec, i) => (
+        <AnimatedPrize key={i} spec={spec} dim={dim} />
       ))}
     </group>
   );
@@ -348,7 +323,7 @@ function ClawAssembly({
   const group = useRef<THREE.Group>(null);
   const left = useRef<THREE.Group>(null);
   const right = useRef<THREE.Group>(null);
-  const prize = useRef<THREE.Mesh>(null);
+  const prize = useRef<THREE.Group>(null);
   const fall = useRef(0);
 
   const x = mapClawX(clawX);
@@ -472,17 +447,10 @@ function ClawAssembly({
           </mesh>
         </group>
 
-        {/* Held / falling prize */}
-        <mesh ref={prize} position={[0, -0.42, 0]} castShadow visible={false}>
-          <sphereGeometry args={[0.1, 28, 28]} />
-          <meshStandardMaterial
-            color={RED}
-            metalness={0.5}
-            roughness={0.22}
-            emissive={RED}
-            emissiveIntensity={hold ? 0.55 : 0.15}
-          />
-        </mesh>
+        {/* Held / falling money prize (crystal — always cash-value aesthetic) */}
+        <group ref={prize} position={[0, -0.42, 0]} visible={false}>
+          <PrizeMeshByKind kind="crystal" scale={hold ? 1.05 : 0.95} />
+        </group>
       </group>
 
       {/* Top rail */}
