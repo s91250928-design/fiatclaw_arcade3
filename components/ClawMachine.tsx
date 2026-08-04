@@ -553,33 +553,31 @@ export function ClawMachine({
               }}
             />
 
-            {/* ── Perspective floor plane ── */}
+            {/* ── Perspective floor plane (deeper grid + fog) ── */}
             <div
               data-claw-floor
               style={{
                 position: "absolute",
-                left: "-15%",
-                right: "-15%",
-                bottom: "-8%",
-                height: "58%",
+                left: "-20%",
+                right: "-20%",
+                bottom: "-12%",
+                height: "62%",
                 transformOrigin: "center bottom",
-                transform: "rotateX(62deg) translateZ(0)",
+                transform: "rotateX(64deg) translateZ(-8px)",
                 transformStyle: "preserve-3d",
                 zIndex: 2,
-                background: `
-                  linear-gradient(180deg,
-                    rgba(12,14,20,0.2) 0%,
-                    rgba(8,9,14,0.85) 40%,
-                    rgba(4,5,8,0.95) 100%)
-                `,
                 backgroundImage: `
-                  linear-gradient(rgba(34,211,255,0.12) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(34,211,255,0.1) 1px, transparent 1px),
-                  linear-gradient(180deg, transparent, rgba(0,0,0,0.7))
+                  linear-gradient(rgba(34,211,255,0.14) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(255,62,92,0.08) 1px, transparent 1px),
+                  linear-gradient(180deg,
+                    rgba(12,14,22,0.15) 0%,
+                    rgba(8,9,14,0.75) 35%,
+                    rgba(4,5,8,0.95) 70%,
+                    rgba(0,0,0,0.98) 100%)
                 `,
-                backgroundSize: "28px 28px, 28px 28px, 100% 100%",
+                backgroundSize: "32px 32px, 32px 32px, 100% 100%",
                 boxShadow:
-                  "inset 0 30px 40px rgba(0,0,0,0.5), 0 -20px 40px rgba(0,0,0,0.3)",
+                  "inset 0 40px 50px rgba(0,0,0,0.55), 0 -24px 48px rgba(0,0,0,0.4)",
               }}
             >
               {/* Contact shadow under claw track */}
@@ -710,34 +708,64 @@ export function ClawMachine({
                         transform: "rotateX(70deg)",
                       }}
                     />
-                    {/* sphere / capsule body */}
+                    {/* Multi-layer sphere: core + rim light + specular + reflection band */}
                     <div
                       style={{
                         width: "100%",
                         height: "100%",
-                        borderRadius: p.capsule ? "40%" : "50%",
+                        borderRadius: p.capsule ? "42%" : "50%",
                         background: p.bg,
                         border: p.border,
                         boxShadow: `
                           ${p.glow},
-                          inset -6px -8px 14px rgba(0,0,0,0.45),
-                          inset 4px 5px 10px rgba(255,255,255,0.25),
-                          0 8px 16px rgba(0,0,0,0.5)
+                          inset -8px -10px 16px rgba(0,0,0,0.55),
+                          inset 5px 6px 12px rgba(255,255,255,0.28),
+                          0 10px 18px rgba(0,0,0,0.55),
+                          0 0 0 1px rgba(255,255,255,0.06)
                         `,
                         position: "relative",
+                        overflow: "hidden",
                       }}
                     >
-                      {/* specular */}
+                      {/* primary specular */}
                       <div
                         style={{
                           position: "absolute",
-                          top: "12%",
-                          left: "18%",
-                          width: "38%",
-                          height: "28%",
+                          top: "10%",
+                          left: "16%",
+                          width: "42%",
+                          height: "32%",
                           borderRadius: "50%",
                           background:
-                            "radial-gradient(circle, rgba(255,255,255,0.55), transparent 70%)",
+                            "radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.15) 45%, transparent 70%)",
+                          filter: "blur(0.4px)",
+                        }}
+                      />
+                      {/* secondary reflection band */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "18%",
+                          right: "12%",
+                          width: "28%",
+                          height: "18%",
+                          borderRadius: "50%",
+                          background:
+                            "radial-gradient(circle, rgba(255,255,255,0.18), transparent 70%)",
+                        }}
+                      />
+                      {/* equatorial sheen */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "8%",
+                          right: "8%",
+                          top: "48%",
+                          height: "12%",
+                          borderRadius: "50%",
+                          background:
+                            "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
+                          opacity: 0.7,
                         }}
                       />
                     </div>
@@ -1112,7 +1140,7 @@ export function ClawMachine({
             />
           </div>
 
-          {/* ═══════ CONTROL DECK ═══════ */}
+          {/* ═══════ UNIFIED CONTROL DECK (one metal plate) ═══════ */}
           <div
             data-claw-controls="deck"
             style={{
@@ -1120,33 +1148,58 @@ export function ClawMachine({
               bottom: 0,
               left: 0,
               right: 0,
-              height: 132,
+              height: 136,
               zIndex: 40,
               display: "flex",
-              alignItems: "center",
+              alignItems: "stretch",
               justifyContent: "space-between",
-              padding: "12px 20px 16px",
-              gap: 10,
+              padding: "14px 16px 16px",
+              gap: 12,
               background: `
-                linear-gradient(180deg, #1a1e28 0%, #0e1016 40%, ${BG} 100%)
+                linear-gradient(180deg,
+                  #242836 0%,
+                  #141820 28%,
+                  #0c0e14 65%,
+                  ${BG} 100%)
               `,
-              borderTop: "1px solid rgba(255,62,92,0.28)",
-              boxShadow:
-                "0 -16px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 8px 16px rgba(0,0,0,0.3)",
+              borderTop: "1px solid rgba(255,62,92,0.35)",
+              boxShadow: `
+                0 -18px 44px rgba(0,0,0,0.55),
+                inset 0 1px 0 rgba(255,255,255,0.1),
+                inset 0 10px 20px rgba(0,0,0,0.35),
+                inset 0 -1px 0 rgba(34,211,255,0.08)
+              `,
             }}
           >
+            {/* engraved panel rails */}
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: 6,
+                left: 18,
+                right: 18,
+                height: 2,
+                borderRadius: 1,
+                background: `linear-gradient(90deg, transparent, rgba(255,62,92,0.45), rgba(34,211,255,0.4), transparent)`,
+                opacity: 0.7,
+              }}
+            />
             {/* Status plate */}
             <div
               data-claw-status={status}
               style={{
-                minWidth: 96,
+                minWidth: 100,
                 padding: "12px 14px",
                 borderRadius: 14,
                 border: "1px solid rgba(255,255,255,0.1)",
                 background:
-                  "linear-gradient(160deg, #222632 0%, #10141c 50%, #080a0e 100%)",
+                  "linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(16,18,24,0.95) 40%, #080a0e 100%)",
                 boxShadow:
-                  "inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 12px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.3)",
+                  "inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.45), 0 0 20px rgba(255,37,68,0.08)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
               }}
             >
               <div

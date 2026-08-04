@@ -280,55 +280,108 @@ export default function PlayPage() {
   const solPrice = ((priceLamports * feeMultiplier) / 1e9).toFixed(4);
   const clawCost = Math.ceil(clawPrice * feeMultiplier);
 
-  const panel: React.CSSProperties = {
+  /* ── FiatClaw landing tokens ── */
+  const RED = "#FF3E5C";
+  const CYAN = "#22D3FF";
+  const MUTED = "#9BA1AE";
+  const DIM = "#5E6472";
+
+  const glassCard: React.CSSProperties = {
     width: "100%",
     maxWidth: 500,
-    padding: "14px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,62,92,0.18)",
+    padding: "18px 18px",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.085)",
     background:
-      "linear-gradient(165deg, rgba(22,26,36,0.95), rgba(10,11,16,0.92))",
+      "linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.014))",
     boxShadow:
-      "0 0 28px rgba(255,37,68,0.08), 0 0 40px rgba(34,211,255,0.04), inset 0 1px 0 rgba(255,255,255,0.05)",
+      "0 26px 62px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.09), 0 0 40px rgba(255,37,68,0.06)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
   };
 
-  const label: React.CSSProperties = {
-    fontFamily: "JetBrains Mono, monospace",
-    fontSize: 10,
-    letterSpacing: "0.12em",
-    color: "#5c6478",
+  const glassCardCyan: React.CSSProperties = {
+    ...glassCard,
+    border: "1px solid rgba(34,211,255,0.22)",
+    boxShadow:
+      "0 26px 62px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.09), 0 0 32px rgba(34,211,255,0.08)",
+  };
+
+  const monoLabel: React.CSSProperties = {
+    fontFamily: "JetBrains Mono, ui-monospace, monospace",
+    fontSize: 9,
+    letterSpacing: "0.22em",
+    color: DIM,
     margin: 0,
+    fontWeight: 500,
   };
 
-  const value: React.CSSProperties = {
+  const orbitValue: React.CSSProperties = {
+    fontFamily: "Orbitron, sans-serif",
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#EDEEF2",
+    margin: "6px 0 0",
+    letterSpacing: "0.04em",
+  };
+
+  const ctaPrimary = (off?: boolean): React.CSSProperties => ({
+    padding: "12px 18px",
+    borderRadius: 11,
+    border: "1px solid rgba(255,120,140,0.45)",
+    cursor: off ? "not-allowed" : "pointer",
+    color: "#fff",
+    fontFamily: "Orbitron, Inter, sans-serif",
+    fontWeight: 800,
+    fontSize: 10,
+    letterSpacing: "0.14em",
+    background: off
+      ? "rgba(70,74,88,0.45)"
+      : "linear-gradient(180deg,#FF3E5C,#C4102A 62%,#8C0A1E)",
+    boxShadow: off
+      ? "none"
+      : "0 0 24px rgba(255,37,68,0.4), inset 0 1px 0 rgba(255,255,255,0.3)",
+    opacity: off ? 0.55 : 1,
+    transition: "transform 0.2s, box-shadow 0.2s",
+  });
+
+  const ctaGhost = (off?: boolean): React.CSSProperties => ({
+    padding: "12px 18px",
+    borderRadius: 11,
+    border: "1px solid rgba(34,211,255,0.35)",
+    cursor: off ? "not-allowed" : "pointer",
+    color: CYAN,
+    fontFamily: "Orbitron, Inter, sans-serif",
+    fontWeight: 700,
+    fontSize: 10,
+    letterSpacing: "0.14em",
+    background:
+      "linear-gradient(180deg, rgba(20,36,48,0.95), rgba(8,12,18,0.98))",
+    boxShadow: off
+      ? "none"
+      : "0 0 18px rgba(34,211,255,0.15), inset 0 1px 0 rgba(255,255,255,0.08)",
+    opacity: off ? 0.55 : 1,
+  });
+
+  const fieldInput: React.CSSProperties = {
+    width: 88,
+    padding: "12px 14px",
+    borderRadius: 11,
+    border: "1px solid rgba(34,211,255,0.28)",
+    background: "rgba(4,6,10,0.85)",
+    color: "#EDEEF2",
     fontFamily: "Orbitron, sans-serif",
     fontSize: 13,
-    color: "#EDEEF2",
-    margin: "4px 0 0",
-  };
-
-  const smallBtn = (primary?: boolean): React.CSSProperties => ({
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: primary
-      ? "1px solid rgba(255,120,140,0.45)"
-      : "1px solid rgba(34,211,255,0.3)",
-    background: primary
-      ? "linear-gradient(180deg,#FF3E5C,#C4102A 55%,#8C0A1E)"
-      : "rgba(20,28,40,0.8)",
-    color: "#fff",
-    fontFamily: "Orbitron, sans-serif",
-    fontSize: 10,
-    letterSpacing: "0.1em",
     fontWeight: 600,
-    cursor: busy ? "not-allowed" : "pointer",
-    opacity: busy ? 0.5 : 1,
-  });
+    letterSpacing: "0.06em",
+    outline: "none",
+    boxShadow: "inset 0 0 18px rgba(34,211,255,0.06), 0 0 0 1px rgba(0,0,0,0.3)",
+  };
 
   return (
     <>
       <link
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700&family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
         rel="stylesheet"
       />
       <main
@@ -347,7 +400,7 @@ export default function PlayPage() {
             position: "fixed",
             inset: 0,
             background:
-              "radial-gradient(ellipse 70% 45% at 50% -5%, rgba(255,37,68,0.14), transparent 55%), radial-gradient(ellipse 35% 30% at 90% 70%, rgba(34,211,255,0.05), transparent), radial-gradient(ellipse 30% 25% at 10% 80%, rgba(153,69,255,0.04), transparent)",
+              "radial-gradient(ellipse 70% 45% at 50% -5%, rgba(255,37,68,0.16), transparent 55%), radial-gradient(ellipse 35% 30% at 90% 70%, rgba(34,211,255,0.06), transparent), radial-gradient(ellipse 30% 25% at 10% 80%, rgba(153,69,255,0.05), transparent)",
             pointerEvents: "none",
             zIndex: 0,
           }}
@@ -362,10 +415,11 @@ export default function PlayPage() {
             justifyContent: "space-between",
             flexWrap: "wrap",
             gap: 10,
-            padding: "14px 20px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            background: "rgba(6,7,11,0.85)",
-            backdropFilter: "blur(12px)",
+            padding: "14px clamp(14px,3vw,28px)",
+            height: 64,
+            borderBottom: "1px solid rgba(255,255,255,0.07)",
+            background: "linear-gradient(180deg, rgba(10,11,16,0.92), rgba(10,11,16,0.75))",
+            backdropFilter: "blur(18px) saturate(150%)",
           }}
         >
           <Link
@@ -376,22 +430,34 @@ export default function PlayPage() {
               fontWeight: 700,
               fontSize: 12,
               letterSpacing: "0.2em",
-              color: "#FF3E5C",
+              color: RED,
               textShadow: "0 0 14px rgba(255,37,68,0.45)",
             }}
           >
-            ← CLAWARCADE
+            ← FIATCLAW
           </Link>
-          <nav style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <Link href="/leaderboard" style={{ color: "#9BA1AE", fontSize: 12, textDecoration: "none" }}>
-              Leaderboard
-            </Link>
-            <Link href="/stake" style={{ color: "#9BA1AE", fontSize: 12, textDecoration: "none" }}>
-              Stake
-            </Link>
-            <Link href="/admin" style={{ color: "#9BA1AE", fontSize: 12, textDecoration: "none" }}>
-              Admin
-            </Link>
+          <nav style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            {[
+              { href: "/leaderboard", label: "LEADERBOARD" },
+              { href: "/stake", label: "STAKE" },
+              { href: "/admin", label: "ADMIN" },
+            ].map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                style={{
+                  padding: "8px 11px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.14em",
+                  color: MUTED,
+                  textDecoration: "none",
+                  fontFamily: "Inter, sans-serif",
+                }}
+              >
+                {l.label}
+              </Link>
+            ))}
             <WalletConnectButton />
           </nav>
         </header>
@@ -400,24 +466,25 @@ export default function PlayPage() {
           style={{
             position: "relative",
             zIndex: 1,
-            maxWidth: 580,
+            maxWidth: 540,
             margin: "0 auto",
-            padding: "22px 16px 56px",
+            padding: "24px 16px 64px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 20,
+            gap: 16,
           }}
         >
-          <div style={{ textAlign: "center" }}>
+          <div style={{ textAlign: "center", marginBottom: 4 }}>
             <p
               style={{
                 margin: "0 0 8px",
                 fontFamily: "Orbitron, sans-serif",
                 fontSize: 10,
-                letterSpacing: "0.32em",
-                color: "#FF3E5C",
+                letterSpacing: "0.36em",
+                color: RED,
                 fontWeight: 600,
+                textShadow: "0 0 16px rgba(255,37,68,0.45)",
               }}
             >
               LIVE SESSION
@@ -428,7 +495,7 @@ export default function PlayPage() {
                 fontFamily: "Orbitron, sans-serif",
                 fontWeight: 700,
                 fontSize: "clamp(22px, 5vw, 30px)",
-                letterSpacing: "0.06em",
+                letterSpacing: "0.08em",
                 lineHeight: 1.2,
               }}
             >
@@ -436,50 +503,89 @@ export default function PlayPage() {
             </h1>
           </div>
 
-          {/* Balances + jackpot */}
+          {/* Balances — glass grid */}
           <div
             data-play-chrome="balances"
             style={{
-              ...panel,
+              ...glassCard,
               display: "grid",
               gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 12,
+              gap: 0,
+              padding: 0,
+              overflow: "hidden",
             }}
           >
-            <div>
-              <p style={label}>SOL</p>
-              <p style={value} data-balance="sol">
-                {wallet.connected
+            {[
+              {
+                k: "SOL",
+                v: wallet.connected
                   ? solBalance == null
                     ? "…"
                     : solBalance.toFixed(4)
-                  : "—"}
-              </p>
-            </div>
-            <div>
-              <p style={label}>$CLAW</p>
-              <p style={value} data-balance="claw">
-                {wallet.connected ? clawBalance.toLocaleString() : "—"}
-              </p>
-            </div>
-            <div>
-              <p style={label}>PLAYS</p>
-              <p style={{ ...value, color: "#22D3FF" }} data-balance="plays">
-                {wallet.connected ? availablePlays : "—"}
-              </p>
-            </div>
+                  : "—",
+                color: "#EDEEF2",
+                attr: "sol",
+              },
+              {
+                k: "$CLAW",
+                v: wallet.connected ? clawBalance.toLocaleString() : "—",
+                color: "#EDEEF2",
+                attr: "claw",
+              },
+              {
+                k: "PLAYS",
+                v: wallet.connected ? String(availablePlays) : "—",
+                color: CYAN,
+                attr: "plays",
+              },
+            ].map((cell, i) => (
+              <div
+                key={cell.k}
+                style={{
+                  padding: "16px 14px",
+                  borderRight: i < 2 ? "1px solid rgba(255,255,255,0.06)" : undefined,
+                  textAlign: "center",
+                }}
+              >
+                <p style={monoLabel}>{cell.k}</p>
+                <p
+                  style={{ ...orbitValue, color: cell.color, fontSize: 15 }}
+                  data-balance={cell.attr}
+                >
+                  {cell.v}
+                </p>
+              </div>
+            ))}
           </div>
 
-          <div style={{ ...panel, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {/* Jackpot bar */}
+          <div
+            data-play-chrome="jackpot"
+            style={{
+              ...glassCardCyan,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "16px 20px",
+            }}
+          >
             <div>
-              <p style={label}>LIVE JACKPOT</p>
-              <p style={{ ...value, color: "#14F195", fontSize: 16 }} data-jackpot="live">
+              <p style={monoLabel}>LIVE JACKPOT</p>
+              <p
+                style={{
+                  ...orbitValue,
+                  color: "#14F195",
+                  fontSize: 18,
+                  textShadow: "0 0 18px rgba(20,241,149,0.35)",
+                }}
+                data-jackpot="live"
+              >
                 {jackpotSol} SOL
               </p>
             </div>
             <div style={{ textAlign: "right" }}>
-              <p style={label}>TIER</p>
-              <p style={{ ...value, fontSize: 11 }}>
+              <p style={monoLabel}>TIER</p>
+              <p style={{ ...orbitValue, fontSize: 12, color: MUTED }}>
                 {tier}
                 {vip ? " · VIP" : ""}
               </p>
@@ -500,75 +606,219 @@ export default function PlayPage() {
             }
           />
 
-          {/* Buy plays */}
-          <div style={panel} data-play-chrome="buy">
-            <p style={{ ...label, marginBottom: 10 }}>BUY PLAYS</p>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-              <label style={{ fontSize: 12, color: "#9BA1AE" }}>Qty</label>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={buyCount}
-                onChange={(e) => setBuyCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+          {/* BUY PLAYS — landing glass card */}
+          <div style={glassCard} data-play-chrome="buy">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 14,
+              }}
+            >
+              <p
                 style={{
-                  width: 64,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "#0e1016",
-                  color: "#fff",
+                  ...monoLabel,
+                  color: RED,
+                  letterSpacing: "0.26em",
+                  fontSize: 10,
                 }}
-              />
-              <span style={{ fontSize: 11, color: "#5c6478" }}>
-                {solPrice} SOL or {clawCost} $CLAW each
+              >
+                BUY PLAYS
+              </p>
+              <span
+                style={{
+                  fontFamily: "JetBrains Mono, monospace",
+                  fontSize: 10,
+                  color: MUTED,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {solPrice} SOL · {clawCost} $CLAW
               </span>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              <button type="button" style={smallBtn(true)} disabled={busy || !wallet.connected} onClick={onBuySol}>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "center",
+                marginBottom: 16,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <p style={{ ...monoLabel, marginBottom: 8 }}>QTY</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    data-buy-qty="dec"
+                    onClick={() => setBuyCount((n) => Math.max(1, n - 1))}
+                    style={ctaGhost(busy)}
+                    disabled={busy}
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={buyCount}
+                    data-buy-input="qty"
+                    onChange={(e) =>
+                      setBuyCount(
+                        Math.max(1, Math.min(20, Number(e.target.value) || 1))
+                      )
+                    }
+                    style={{ ...fieldInput, width: 72, textAlign: "center" }}
+                  />
+                  <button
+                    type="button"
+                    data-buy-qty="inc"
+                    onClick={() => setBuyCount((n) => Math.min(20, n + 1))}
+                    style={ctaGhost(busy)}
+                    disabled={busy}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 10,
+              }}
+            >
+              <button
+                type="button"
+                data-buy-action="sol"
+                style={ctaPrimary(busy || !wallet.connected)}
+                disabled={busy || !wallet.connected}
+                onClick={onBuySol}
+              >
                 BUY WITH SOL
               </button>
-              <button type="button" style={smallBtn()} disabled={busy || !wallet.connected} onClick={onBuyClaw}>
+              <button
+                type="button"
+                data-buy-action="claw"
+                style={ctaGhost(busy || !wallet.connected)}
+                disabled={busy || !wallet.connected}
+                onClick={onBuyClaw}
+              >
                 BUY WITH $CLAW
               </button>
-              <button type="button" style={smallBtn()} disabled={!wallet.connected} onClick={onFaucet}>
+              <button
+                type="button"
+                data-buy-action="faucet"
+                style={ctaGhost(!wallet.connected)}
+                disabled={!wallet.connected}
+                onClick={onFaucet}
+              >
                 FAUCET $CLAW
               </button>
             </div>
           </div>
 
-          {/* Staking quick controls */}
-          <div style={panel} data-play-chrome="stake">
-            <p style={{ ...label, marginBottom: 10 }}>STAKE $CLAW · VIP fee discount</p>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <input
-                type="number"
-                min={100}
-                step={100}
-                value={stakeAmt}
-                onChange={(e) => setStakeAmt(Math.max(1, Number(e.target.value) || 0))}
+          {/* STAKE — landing glass card */}
+          <div style={glassCard} data-play-chrome="stake">
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 14,
+              }}
+            >
+              <p
                 style={{
-                  width: 100,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "#0e1016",
-                  color: "#fff",
+                  ...monoLabel,
+                  color: CYAN,
+                  letterSpacing: "0.26em",
+                  fontSize: 10,
                 }}
-              />
-              <span style={{ fontSize: 11, color: "#5c6478" }}>
-                Staked: {stakedClaw.toLocaleString()}
+              >
+                STAKE $CLAW
+              </p>
+              <span
+                style={{
+                  fontFamily: "JetBrains Mono, monospace",
+                  fontSize: 10,
+                  color: MUTED,
+                }}
+              >
+                Staked {stakedClaw.toLocaleString()}
               </span>
-              <button type="button" style={smallBtn()} disabled={!wallet.connected} onClick={() => onStake("stake")}>
+            </div>
+            <p
+              style={{
+                margin: "0 0 14px",
+                fontSize: 12,
+                color: MUTED,
+                lineHeight: 1.5,
+              }}
+            >
+              VIP fee discount only — does not change outcomes.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-end",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <p style={{ ...monoLabel, marginBottom: 8 }}>AMOUNT</p>
+                <input
+                  type="number"
+                  min={100}
+                  step={100}
+                  value={stakeAmt}
+                  data-stake-input="amount"
+                  onChange={(e) =>
+                    setStakeAmt(Math.max(1, Number(e.target.value) || 0))
+                  }
+                  style={{ ...fieldInput, width: 120 }}
+                />
+              </div>
+              <button
+                type="button"
+                data-stake-action="stake"
+                style={ctaPrimary(!wallet.connected)}
+                disabled={!wallet.connected}
+                onClick={() => onStake("stake")}
+              >
                 STAKE
               </button>
-              <button type="button" style={smallBtn()} disabled={!wallet.connected} onClick={() => onStake("unstake")}>
+              <button
+                type="button"
+                data-stake-action="unstake"
+                style={ctaGhost(!wallet.connected)}
+                disabled={!wallet.connected}
+                onClick={() => onStake("unstake")}
+              >
                 UNSTAKE
               </button>
             </div>
           </div>
 
-          <div style={{ ...panel, textAlign: "center" }}>
+          {/* Session message */}
+          <div
+            style={{
+              ...glassCard,
+              textAlign: "center",
+              padding: "14px 18px",
+              borderColor:
+                status === "success"
+                  ? "rgba(20,241,149,0.35)"
+                  : status === "error"
+                    ? "rgba(255,107,122,0.35)"
+                    : "rgba(255,255,255,0.085)",
+            }}
+          >
             <p
               style={{
                 margin: 0,
@@ -580,7 +830,7 @@ export default function PlayPage() {
                     ? "#14F195"
                     : status === "error"
                       ? "#FF6B7A"
-                      : "#9BA1AE",
+                      : MUTED,
                 minHeight: 18,
               }}
               data-play-message
@@ -598,7 +848,7 @@ export default function PlayPage() {
                   margin: "8px 0 0",
                   fontFamily: "JetBrains Mono, monospace",
                   fontSize: 10,
-                  color: "#5c6478",
+                  color: DIM,
                   letterSpacing: "0.08em",
                 }}
               >
@@ -610,14 +860,16 @@ export default function PlayPage() {
           <p
             style={{
               margin: 0,
-              fontSize: 11,
-              color: "#5c6478",
+              fontFamily: "JetBrains Mono, monospace",
+              fontSize: 9,
+              letterSpacing: "0.14em",
+              color: DIM,
               textAlign: "center",
-              lineHeight: 1.5,
-              maxWidth: 360,
+              lineHeight: 1.6,
+              maxWidth: 380,
             }}
           >
-            Outcomes are decided server-side. Staking reduces play fees only.
+            Outcomes decided server-side. Staking reduces play fees only.
           </p>
         </div>
       </main>
