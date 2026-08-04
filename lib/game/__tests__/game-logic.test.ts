@@ -30,6 +30,11 @@ import {
   tierForStake,
   unstakeClaw,
   WIN_PROBABILITY,
+  clawOverlayText,
+  clawPullSequence,
+  clawStatusLabel,
+  isClawBusyPhase,
+  nextClawPhase,
   type PrizeEntry,
   type ResolvedPlay,
 } from "../index";
@@ -410,6 +415,65 @@ test("lose path returns exact Better Luck Next Pull.", () => {
   if (!r.ok) return;
   assert.equal(r.result.outcome, "lose");
   assert.equal(r.result.message, "Better Luck Next Pull.");
+});
+
+// ── Claw phase chrome (status vocabulary + sequence) ───────────────────
+console.log("\n(i) claw phases / PULL sequence");
+
+test("status labels cover STANDBY→ARMED→DESCENDING→LOCKING→RETRACTING→WIN/MISS", () => {
+  assert.equal(clawStatusLabel("idle"), "STANDBY");
+  assert.equal(clawStatusLabel("ready"), "ARMED");
+  assert.equal(clawStatusLabel("drop"), "DESCENDING");
+  assert.equal(clawStatusLabel("close"), "LOCKING");
+  assert.equal(clawStatusLabel("lift"), "RETRACTING");
+  assert.equal(clawStatusLabel("hold"), "RETRACTING");
+  assert.equal(clawStatusLabel("return"), "RETRACTING");
+  assert.equal(clawStatusLabel("win"), "WIN");
+  assert.equal(clawStatusLabel("lose"), "MISS");
+  assert.equal(clawStatusLabel("slip"), "MISS");
+});
+
+test("PULL sequence progresses busy phases then recover to ARMED", () => {
+  const winSeq = clawPullSequence(true);
+  assert.deepEqual(winSeq, [
+    "drop",
+    "close",
+    "lift",
+    "hold",
+    "return",
+    "win",
+    "ready",
+  ]);
+  const loseSeq = clawPullSequence(false);
+  assert.deepEqual(loseSeq, [
+    "drop",
+    "close",
+    "lift",
+    "slip",
+    "return",
+    "lose",
+    "ready",
+  ]);
+  // step through win path
+  let p: ReturnType<typeof nextClawPhase> = "ready";
+  p = nextClawPhase(p, true);
+  assert.equal(p, "drop");
+  assert.equal(isClawBusyPhase(p), true);
+  p = nextClawPhase(p, true);
+  assert.equal(p, "close");
+  assert.equal(clawStatusLabel(p), "LOCKING");
+  while (p !== "ready") {
+    p = nextClawPhase(p, true);
+  }
+  assert.equal(p, "ready");
+  assert.equal(clawStatusLabel(p), "ARMED");
+});
+
+test("win overlay SECURED / lose overlay MISS + message path", () => {
+  assert.equal(clawOverlayText("win"), "SECURED");
+  assert.equal(clawOverlayText("lose"), "MISS");
+  assert.equal(clawOverlayText("drop"), null);
+  assert.equal(LOSE_MESSAGE, "Better Luck Next Pull.");
 });
 
 // ── DROP re-entrancy guard (shipped lock used by /play) ────────────────

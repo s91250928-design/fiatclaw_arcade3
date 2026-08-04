@@ -282,11 +282,13 @@ export default function PlayPage() {
 
   const panel: React.CSSProperties = {
     width: "100%",
-    maxWidth: 440,
+    maxWidth: 480,
     padding: "14px 16px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.07)",
-    background: "rgba(14,16,22,0.75)",
+    borderRadius: 14,
+    border: "1px solid rgba(255,62,92,0.14)",
+    background:
+      "linear-gradient(165deg, rgba(18,20,28,0.92), rgba(10,12,16,0.88))",
+    boxShadow: "0 0 24px rgba(255,37,68,0.06), inset 0 1px 0 rgba(255,255,255,0.04)",
   };
 
   const label: React.CSSProperties = {
@@ -397,13 +399,13 @@ export default function PlayPage() {
           style={{
             position: "relative",
             zIndex: 1,
-            maxWidth: 520,
+            maxWidth: 560,
             margin: "0 auto",
             padding: "24px 16px 48px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 16,
+            gap: 18,
           }}
         >
           <div style={{ textAlign: "center" }}>
