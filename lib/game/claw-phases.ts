@@ -95,3 +95,47 @@ export function nextClawPhase(phase: ClawPhase, won: boolean): ClawPhase {
   if (idx >= seq.length - 1) return seq[seq.length - 1]!;
   return seq[idx + 1]!;
 }
+
+/**
+ * Whether the claw should display a held prize for this phase.
+ * `slippedThisPull` is true once the lose branch hit `slip` this attempt.
+ * Win path: keep prize through close → lift → hold → return → win (SECURED).
+ * Lose path: after slip, prize is not held (falls).
+ */
+export function clawShouldHoldPrize(
+  phase: ClawPhase,
+  slippedThisPull: boolean
+): boolean {
+  if (phase === "close" || phase === "lift" || phase === "hold" || phase === "win") {
+    return true;
+  }
+  // Win recover: return without slip still holds the prize with glow
+  if (phase === "return" && !slippedThisPull) return true;
+  return false;
+}
+
+/**
+ * Whether claw fingers are open. Closed whenever holding a prize;
+ * open on idle/ready/drop and after a slip/lose.
+ */
+export function clawFingersOpen(
+  phase: ClawPhase,
+  slippedThisPull: boolean
+): boolean {
+  if (clawShouldHoldPrize(phase, slippedThisPull)) return false;
+  if (phase === "idle" || phase === "ready" || phase === "drop") return true;
+  if (phase === "slip" || phase === "lose") return true;
+  // return after slip: open
+  if (phase === "return" && slippedThisPull) return true;
+  return true;
+}
+
+/** Track slip latch across the pull (pure step for tests / UI). */
+export function updateSlippedLatch(
+  phase: ClawPhase,
+  prevSlipped: boolean
+): boolean {
+  if (phase === "drop" || phase === "idle" || phase === "ready") return false;
+  if (phase === "slip") return true;
+  return prevSlipped;
+}

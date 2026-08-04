@@ -30,11 +30,14 @@ import {
   tierForStake,
   unstakeClaw,
   WIN_PROBABILITY,
+  clawFingersOpen,
   clawOverlayText,
   clawPullSequence,
+  clawShouldHoldPrize,
   clawStatusLabel,
   isClawBusyPhase,
   nextClawPhase,
+  updateSlippedLatch,
   type PrizeEntry,
   type ResolvedPlay,
 } from "../index";
@@ -474,6 +477,64 @@ test("win overlay SECURED / lose overlay MISS + message path", () => {
   assert.equal(clawOverlayText("lose"), "MISS");
   assert.equal(clawOverlayText("drop"), null);
   assert.equal(LOSE_MESSAGE, "Better Luck Next Pull.");
+});
+
+test("win path keeps prize held + fingers closed through return → SECURED", () => {
+  // Simulate sequence: drop→close→lift→hold→return→win→ready
+  let slipped = false;
+  const winSteps: Array<Parameters<typeof clawShouldHoldPrize>[0]> = [
+    "drop",
+    "close",
+    "lift",
+    "hold",
+    "return",
+    "win",
+    "ready",
+  ];
+  for (const ph of winSteps) {
+    slipped = updateSlippedLatch(ph, slipped);
+    if (ph === "close" || ph === "lift" || ph === "hold" || ph === "return" || ph === "win") {
+      assert.equal(
+        clawShouldHoldPrize(ph, slipped),
+        true,
+        `hold prize on win phase ${ph}`
+      );
+      assert.equal(
+        clawFingersOpen(ph, slipped),
+        false,
+        `fingers closed on win phase ${ph}`
+      );
+    }
+    if (ph === "drop") {
+      assert.equal(clawShouldHoldPrize(ph, slipped), false);
+      assert.equal(clawFingersOpen(ph, slipped), true);
+    }
+  }
+  assert.equal(slipped, false, "win path never latches slip");
+});
+
+test("lose path opens fingers and drops prize after slip (incl. return)", () => {
+  let slipped = false;
+  for (const ph of ["drop", "close", "lift", "slip", "return", "lose", "ready"] as const) {
+    slipped = updateSlippedLatch(ph, slipped);
+    if (ph === "close" || ph === "lift") {
+      assert.equal(clawShouldHoldPrize(ph, slipped), true);
+      assert.equal(clawFingersOpen(ph, slipped), false);
+    }
+    if (ph === "slip" || ph === "return" || ph === "lose") {
+      assert.equal(slipped, true);
+      assert.equal(
+        clawShouldHoldPrize(ph, slipped),
+        false,
+        `no hold on lose phase ${ph}`
+      );
+      assert.equal(
+        clawFingersOpen(ph, slipped),
+        true,
+        `fingers open on lose phase ${ph}`
+      );
+    }
+  }
 });
 
 // ── DROP re-entrancy guard (shipped lock used by /play) ────────────────

@@ -15,9 +15,12 @@ import {
   type CSSProperties,
 } from "react";
 import {
+  clawFingersOpen,
   clawOverlayText,
+  clawShouldHoldPrize,
   clawStatusLabel,
   isClawBusyPhase,
+  updateSlippedLatch,
   type ClawPhase,
 } from "@/lib/game/claw-phases";
 
@@ -47,6 +50,8 @@ export function ClawMachine({
   const fxRef = useRef<HTMLCanvasElement>(null);
   const [internalX, setInternalX] = useState(50);
   const [clock, setClock] = useState(0);
+  /** Once true after slip this pull — return/lose open fingers & drop prize. */
+  const [slippedThisPull, setSlippedThisPull] = useState(false);
   const clawX = controlledX ?? internalX;
   const busy = isClawBusyPhase(phase);
   const status = clawStatusLabel(phase);
@@ -54,6 +59,10 @@ export function ClawMachine({
   const joyOn = Boolean(canMove && !busy && !disabled);
   const shaking = phase === "win";
   const winBurst = phase === "win";
+
+  useEffect(() => {
+    setSlippedThisPull((prev) => updateSlippedLatch(phase, prev));
+  }, [phase]);
 
   // RAF clock for idle bob / neon (throttled via rAF, not setState every frame heavily)
   useEffect(() => {
@@ -213,17 +222,11 @@ export function ClawMachine({
     }
   }, [phase]);
 
-  const fingersOpen =
-    phase === "idle" ||
-    phase === "ready" ||
-    phase === "drop" ||
-    phase === "slip" ||
-    phase === "return" ||
-    phase === "lose";
-
-  const holdPrize =
-    phase === "close" || phase === "lift" || phase === "hold" || phase === "win";
-  const slipPrize = phase === "slip" || (phase === "lose" && !holdPrize);
+  // Win: prize stays gripped through return → SECURED. Lose: open after slip.
+  const holdPrize = clawShouldHoldPrize(phase, slippedThisPull);
+  const fingersOpen = clawFingersOpen(phase, slippedThisPull);
+  const slipPrize =
+    phase === "slip" || (phase === "lose" && !holdPrize);
 
   const idleSway =
     phase === "idle" || phase === "ready" ? Math.sin(clock * 0.0011) * 1.6 : 0;
