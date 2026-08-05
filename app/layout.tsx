@@ -28,7 +28,7 @@ export default function RootLayout({
           fontFamily: "Inter, system-ui, sans-serif",
           minHeight: "100vh",
           maxWidth: "100vw",
-          overflowX: "hidden",
+          // overflow-x only on .lobby-main — not body (breaks fixed wallet modal on PC)
         }}
       >
         <SolanaProvider>{children}</SolanaProvider>

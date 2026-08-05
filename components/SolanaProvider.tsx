@@ -1,20 +1,24 @@
 "use client";
 
 /**
- * Solana wallet root: Phantom + Solflare.
- * autoConnect=false. RPC/cluster from NEXT_PUBLIC_* env.
- * Always wraps children in providers so useWallet / useWalletModal work.
+ * Solana wallet root — desktop Phantom extension + mobile deep-link.
+ *
+ * Uses empty `wallets` so Wallet Standard auto-registers installed wallets
+ * (Phantom/Solflare on PC). WalletProvider also injects Mobile Wallet Adapter
+ * on mobile. autoConnect=false. RPC from NEXT_PUBLIC_* env.
  */
 
-import React, { useCallback, useMemo, useEffect, useState, type ReactNode } from "react";
+import React, { useCallback, useMemo, type ReactNode } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
-import { WalletAdapterNetwork, type WalletError } from "@solana/wallet-adapter-base";
+import {
+  WalletAdapterNetwork,
+  type Adapter,
+  type WalletError,
+} from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
-import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { clusterApiUrl } from "@solana/web3.js";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
@@ -33,11 +37,6 @@ function resolveNetwork(): WalletAdapterNetwork {
 }
 
 export function SolanaProvider({ children }: Props) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    setReady(true);
-  }, []);
-
   const network = useMemo(() => resolveNetwork(), []);
 
   const endpoint = useMemo(() => {
@@ -46,16 +45,15 @@ export function SolanaProvider({ children }: Props) {
     return clusterApiUrl(network);
   }, [network]);
 
-  // Instantiate adapters only in the browser after mount (Phantom injects window.solana)
-  const wallets = useMemo(() => {
-    if (!ready || typeof window === "undefined") return [];
-    return [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter({ network }),
-    ];
-  }, [network, ready]);
+  /**
+   * Empty list = Wallet Standard discovers Phantom/Solflare extensions on PC.
+   * Do NOT also mount legacy PhantomWalletAdapter — duplicates break desktop connect.
+   * Mobile Wallet Adapter is added automatically by WalletProvider on mobile UA.
+   */
+  const wallets = useMemo<Adapter[]>(() => [], []);
 
   const onError = useCallback((error: WalletError) => {
+    // WalletNotSelected / WalletNotReady are common; keep UI alive
     console.error("[FiatClaw wallet]", error?.name, error?.message ?? error);
   }, []);
 

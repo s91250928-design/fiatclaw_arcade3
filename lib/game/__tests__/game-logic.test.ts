@@ -916,18 +916,33 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     lobbySrc.includes("lobby-grid") || lobbySrc.includes("lobby-main"),
     "lobby uses responsive layout classes"
   );
-  // Provider: Phantom + Solflare, autoConnect false
+  // Provider: Wallet Standard path (empty wallets) + modal; autoConnect false
   const providerSrc = fs.readFileSync(
     path.join(root, "components", "SolanaProvider.tsx"),
     "utf8"
   );
-  assert.ok(providerSrc.includes("PhantomWalletAdapter"));
-  assert.ok(providerSrc.includes("SolflareWalletAdapter"));
+  assert.ok(providerSrc.includes("WalletModalProvider"));
   assert.ok(
     providerSrc.includes("autoConnect={false}") ||
       providerSrc.includes("autoConnect: false")
   );
-  assert.ok(providerSrc.includes("WalletModalProvider"));
+  // Standard discovery (empty wallets array) — PC Phantom extension path
+  assert.ok(
+    providerSrc.includes("useMemo") &&
+      (providerSrc.includes("[]") || providerSrc.includes("Adapter[]")),
+    "wallets list for Standard discovery"
+  );
+  assert.ok(providerSrc.includes("ConnectionProvider"));
+  assert.ok(providerSrc.includes("WalletProvider"));
+  const btnSrc = fs.readFileSync(
+    path.join(root, "components", "WalletConnectButton.tsx"),
+    "utf8"
+  );
+  assert.ok(
+    btnSrc.includes("WalletMultiButton") || btnSrc.includes("useWalletModal"),
+    "connect UI opens adapter surface"
+  );
+  assert.ok(btnSrc.includes('"use client"'));
   const css = fs.readFileSync(path.join(root, "app", "globals.css"), "utf8");
   assert.ok(css.includes("max-width: 767px") || css.includes("max-width:767px"));
   assert.ok(css.includes("wallet-adapter-modal"));

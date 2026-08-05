@@ -1,6 +1,7 @@
 /**
- * Connect wallet — WalletMultiButton + safe client mount.
- * Opens Phantom/Solflare modal (extension or mobile deep link).
+ * Connect wallet — official WalletMultiButton (modal → Phantom extension on PC,
+ * mobile deep-link via Wallet Standard / MWA).
+ * Client-only mount avoids SSR/hydration issues with wallet adapters.
  */
 
 "use client";
@@ -11,13 +12,12 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
 export function WalletConnectButton() {
   const [mounted, setMounted] = useState(false);
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, wallets } = useWallet();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Placeholder keeps header layout stable (SSR + first paint)
   if (!mounted) {
     return (
       <button
@@ -37,7 +37,9 @@ export function WalletConnectButton() {
       data-wallet-connect="ready"
       data-wallet-connected={connected ? "true" : "false"}
       data-wallet-address={publicKey?.toBase58() ?? ""}
-      style={{ display: "inline-flex", flexShrink: 0 }}
+      data-wallet-count={String(wallets.length)}
+      data-wallet-names={wallets.map((w) => w.adapter.name).join(",")}
+      style={{ display: "inline-flex", flexShrink: 0, position: "relative", zIndex: 30 }}
     >
       <WalletMultiButton style={btnStyle} className="fiatclaw-wallet-btn" />
     </div>
