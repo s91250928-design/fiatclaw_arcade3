@@ -839,34 +839,79 @@ test("Prize emblems: $FIATCLAW 3-blade claw + SOL bars (no V crow-foot art)", ()
   assert.ok(vis.includes('sol_token: "/refs/sol-token.png"'));
 });
 
-test("Dashboard hosts clickable PULL + joystick; machine mounts canvas", () => {
+test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const root = path.join(__dirname, "..", "..", "..");
-  const playSrc = fs.readFileSync(path.join(root, "app", "play", "page.tsx"), "utf8");
+  const lobbySrc = fs.readFileSync(path.join(root, "app", "play", "page.tsx"), "utf8");
+  const gamePageSrc = fs.readFileSync(
+    path.join(root, "app", "play", "game", "page.tsx"),
+    "utf8"
+  );
+  const sessionSrc = fs.readFileSync(
+    path.join(root, "components", "game", "GameSession.tsx"),
+    "utf8"
+  );
   const machineSrc = fs.readFileSync(
     path.join(root, "components", "ClawMachine.tsx"),
     "utf8"
   );
-  assert.ok(playSrc.includes('data-claw-action="pull"'));
-  assert.ok(playSrc.includes('data-claw-controls="joystick"'));
-  assert.ok(playSrc.includes('data-claw-dir="left"'));
-  assert.ok(playSrc.includes('data-claw-dir="right"'));
+  // Lobby: PLAY NOW, no embedded machine / PULL
+  assert.ok(
+    lobbySrc.includes("data-arcade-lobby") || lobbySrc.includes("LOBBY"),
+    "lobby route"
+  );
+  assert.ok(
+    lobbySrc.includes('data-lobby-action="play-now"') ||
+      lobbySrc.includes("PLAY NOW") ||
+      lobbySrc.includes("/play/game"),
+    "lobby has PLAY NOW → game"
+  );
+  assert.equal(
+    lobbySrc.includes("ClawMachine"),
+    false,
+    "lobby does not embed ClawMachine"
+  );
+  assert.equal(
+    lobbySrc.includes('data-claw-action="pull"'),
+    false,
+    "lobby has no PULL control"
+  );
+  // Game session: full-screen claw + controls
+  assert.ok(gamePageSrc.includes("GameSession") || gamePageSrc.includes("game"));
+  assert.ok(sessionSrc.includes("ClawMachine"), "game mounts ClawMachine");
+  assert.ok(sessionSrc.includes('data-claw-action="pull"'));
+  assert.ok(sessionSrc.includes('data-claw-controls="joystick"'));
+  assert.ok(sessionSrc.includes('data-claw-dir="left"'));
+  assert.ok(sessionSrc.includes('data-claw-dir="right"'));
+  assert.ok(
+    sessionSrc.includes("play-again") || sessionSrc.includes("PLAY AGAIN")
+  );
+  assert.ok(
+    sessionSrc.includes("return-lobby") ||
+      sessionSrc.includes("RETURN TO DASHBOARD") ||
+      sessionSrc.includes("/play")
+  );
   assert.ok(machineSrc.includes("ClawCanvas") || machineSrc.includes("r3f-webgl"));
-  assert.ok(playSrc.includes("ClawMachine"));
 });
 
-test("WIN_PROBABILITY is 0.2 in code only; absent from play UI", () => {
+test("WIN_PROBABILITY is 0.2 in code only; absent from lobby/game UI", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
-  const playPath = path.join(__dirname, "..", "..", "..", "app", "play", "page.tsx");
+  const root = path.join(__dirname, "..", "..", "..");
+  const lobbySrc = fs.readFileSync(path.join(root, "app", "play", "page.tsx"), "utf8");
+  const sessionSrc = fs.readFileSync(
+    path.join(root, "components", "game", "GameSession.tsx"),
+    "utf8"
+  );
   const prizesPath = path.join(__dirname, "..", "prizes.ts");
-  const playSrc = fs.readFileSync(playPath, "utf8");
   const prizesSrc = fs.readFileSync(prizesPath, "utf8");
   assert.ok(/WIN_PROBABILITY\s*=\s*0\.2/.test(prizesSrc));
-  assert.equal(playSrc.includes("WIN_PROBABILITY"), false);
-  assert.equal(/\b20\s*%/.test(playSrc), false, "no 20% on play page");
-  assert.ok(playSrc.includes("ClawMachine"), "play mounts ClawMachine");
+  assert.equal(lobbySrc.includes("WIN_PROBABILITY"), false);
+  assert.equal(sessionSrc.includes("WIN_PROBABILITY"), false);
+  assert.equal(/\b20\s*%/.test(lobbySrc), false, "no 20% on lobby");
+  assert.equal(/\b20\s*%/.test(sessionSrc), false, "no 20% on game UI");
+  assert.ok(sessionSrc.includes("ClawMachine"), "game mounts ClawMachine");
 });
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
