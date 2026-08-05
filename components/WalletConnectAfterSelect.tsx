@@ -1,68 +1,81 @@
 "use client";
 
 /**
- * WalletModal only calls select() (autoConnect=false) — without this bridge,
- * PC shows Phantom as "Detected" then silently never connects.
- * After the user opens the modal and picks a wallet, we call connect().
- * Does NOT auto-connect on page load (localStorage restore alone is ignored).
+ * WalletModal only select()s. With autoConnect=false, PC needs connect() after
+ * the user closes the modal (covers same-name reselect when localStorage already
+ * has Phantom — select is a no-op so wallet dep never changes).
  */
 
 import { useEffect, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useWalletUiError } from "@/components/SolanaProvider";
+import {
+  runWalletConnect,
+  shouldConnectAfterModalClose,
+} from "@/lib/wallet/connect-after-select";
 
 export function WalletConnectAfterSelect() {
   const { wallet, connect, connected, connecting } = useWallet();
   const { visible } = useWalletModal();
   const { setError } = useWalletUiError();
-  const userOpenedModal = useRef(false);
-  const connectingRef = useRef(false);
 
-  // Track intentional open of the wallet modal (user click path)
+  const userOpenedModal = useRef(false);
+  const prevVisible = useRef(false);
+  const inFlight = useRef(false);
+  /** Bumps so stale async results are ignored without cancelling mid-connect */
+  const gen = useRef(0);
+
   useEffect(() => {
+    const wasVisible = prevVisible.current;
+    prevVisible.current = visible;
+
     if (visible) {
       userOpenedModal.current = true;
       setError(null);
+      return;
     }
-  }, [visible, setError]);
 
-  useEffect(() => {
-    if (!userOpenedModal.current) return;
-    if (!wallet || connected || connecting || connectingRef.current) return;
+    const should = shouldConnectAfterModalClose({
+      userOpenedModal: userOpenedModal.current,
+      prevVisible: wasVisible,
+      visible,
+      hasWallet: Boolean(wallet),
+      connected,
+      connecting,
+      inFlight: inFlight.current,
+    });
 
-    // User selected a wallet from the modal — complete the PC extension handshake
-    connectingRef.current = true;
-    let cancelled = false;
+    if (!should) return;
 
-    (async () => {
-      try {
-        await connect();
-        if (!cancelled) {
-          setError(null);
-          userOpenedModal.current = false;
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg =
-            e instanceof Error
-              ? e.message
-              : typeof e === "string"
-                ? e
-                : "Wallet connect failed. Unlock Phantom and try again.";
-          setError(msg);
-          // Allow retry on next select
-          userOpenedModal.current = true;
-        }
-      } finally {
-        connectingRef.current = false;
+    inFlight.current = true;
+    const myGen = ++gen.current;
+
+    void (async () => {
+      const result = await runWalletConnect(() => connect());
+      // Ignore if a newer attempt started
+      if (myGen !== gen.current) return;
+
+      inFlight.current = false;
+      if (result.ok) {
+        setError(null);
+        userOpenedModal.current = false;
+      } else {
+        setError(result.message);
+        // Intent cleared; next open of modal sets it again for retry
+        userOpenedModal.current = false;
       }
     })();
+  }, [visible, wallet, connected, connecting, connect, setError]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [wallet, connected, connecting, connect, setError]);
+  // Clear intent once fully connected (e.g. success after async)
+  useEffect(() => {
+    if (connected) {
+      userOpenedModal.current = false;
+      inFlight.current = false;
+      setError(null);
+    }
+  }, [connected, setError]);
 
   return null;
 }

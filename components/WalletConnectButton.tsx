@@ -38,7 +38,7 @@ export function WalletConnectButton() {
     );
   }
 
-  const names = wallets.map((w) => w.adapter.name);
+  const names = wallets.map((w) => String(w.adapter.name));
 
   return (
     <div

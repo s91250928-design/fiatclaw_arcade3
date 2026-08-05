@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx lib/game/__tests__/game-logic.test.ts",
+    "test": "tsx lib/game/__tests__/game-logic.test.ts && tsx lib/wallet/__tests__/connect-after-select.test.ts",
     "test:game": "tsx lib/game/__tests__/game-logic.test.ts",
+    "test:wallet": "tsx lib/wallet/__tests__/connect-after-select.test.ts",
     "screenshot:play": "node scripts/screenshot-play.mjs"
   },
   "dependencies": {

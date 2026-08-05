@@ -937,7 +937,7 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
   assert.ok(providerSrc.includes("useMemo"), "wallets via useMemo");
   assert.ok(providerSrc.includes("ConnectionProvider"));
   assert.ok(providerSrc.includes("WalletProvider"));
-  // select() alone does not connect — bridge must call connect()
+  // select() alone does not connect — bridge uses modal-close path (same-name reselect)
   const bridgePath = path.join(
     root,
     "components",
@@ -945,8 +945,49 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
   );
   assert.ok(fs.existsSync(bridgePath), "WalletConnectAfterSelect exists");
   const bridgeSrc = fs.readFileSync(bridgePath, "utf8");
-  assert.ok(bridgeSrc.includes("connect()"), "bridge calls connect after select");
-  assert.ok(bridgeSrc.includes("userOpenedModal") || bridgeSrc.includes("visible"));
+  assert.ok(
+    bridgeSrc.includes("shouldConnectAfterModalClose"),
+    "bridge uses pure modal-close helper (same-name reselect)"
+  );
+  assert.ok(
+    bridgeSrc.includes("runWalletConnect"),
+    "bridge runs connect via runWalletConnect"
+  );
+  const helperSrc = fs.readFileSync(
+    path.join(root, "lib", "wallet", "connect-after-select.ts"),
+    "utf8"
+  );
+  assert.ok(helperSrc.includes("export function shouldConnectAfterModalClose"));
+  // Pure helper must return true for same-name reselect scenario (localStorage wallet)
+  const {
+    shouldConnectAfterModalClose,
+  } = require("../../wallet/connect-after-select") as typeof import("../../wallet/connect-after-select");
+  assert.equal(
+    shouldConnectAfterModalClose({
+      userOpenedModal: true,
+      prevVisible: true,
+      visible: false,
+      hasWallet: true,
+      connected: false,
+      connecting: false,
+      inFlight: false,
+    }),
+    true,
+    "same-name reselect / modal-close must attempt connect"
+  );
+  assert.equal(
+    shouldConnectAfterModalClose({
+      userOpenedModal: false,
+      prevVisible: false,
+      visible: false,
+      hasWallet: true,
+      connected: false,
+      connecting: false,
+      inFlight: false,
+    }),
+    false,
+    "localStorage alone must not auto-connect"
+  );
   const btnSrc = fs.readFileSync(
     path.join(root, "components", "WalletConnectButton.tsx"),
     "utf8"
