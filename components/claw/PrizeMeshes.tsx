@@ -33,18 +33,19 @@ function PrizeBillboard({
     map.needsUpdate = true;
   }, [map]);
 
-  const s = 0.22 * scale;
+  // Larger billboards so the pile reads as coins/crystals, not dust
+  const s = 0.28 * scale;
   return (
-    <mesh castShadow>
+    <mesh castShadow renderOrder={1}>
       <planeGeometry args={[s, s]} />
       <meshStandardMaterial
         map={map}
         transparent
-        alphaTest={0.12}
-        roughness={0.35}
-        metalness={0.35}
-        emissive="#1a0a10"
-        emissiveIntensity={0.15}
+        alphaTest={0.08}
+        roughness={0.28}
+        metalness={0.4}
+        emissive="#12080c"
+        emissiveIntensity={0.22}
         side={THREE.DoubleSide}
         depthWrite={false}
       />

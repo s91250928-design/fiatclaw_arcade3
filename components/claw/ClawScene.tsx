@@ -5,9 +5,14 @@
  * Brushed black metal · carbon fiber · hydraulic 3-blade claw · dense prize chamber.
  */
 
-import { useMemo, useRef, type MutableRefObject, type Ref } from "react";
+import {
+  useMemo,
+  useRef,
+  type MutableRefObject,
+  type Ref,
+} from "react";
 import { useFrame } from "@react-three/fiber";
-import { ContactShadows, RoundedBox, Text } from "@react-three/drei";
+import { ContactShadows, RoundedBox, Text, useTexture } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 import {
@@ -50,18 +55,18 @@ function targetClawY(phase: ClawPhase) {
   switch (phase) {
     case "drop":
     case "close":
-      return 0.15;
+      return 0.28;
     case "lift":
     case "hold":
     case "win":
-      return 1.55;
+      return 1.35;
     case "slip":
-      return 0.7;
+      return 0.75;
     case "return":
     case "lose":
-      return 1.5;
+      return 1.3;
     default:
-      return 1.55;
+      return 1.35;
   }
 }
 
@@ -257,16 +262,6 @@ function CabinetShell() {
       </mesh>
       <Neon position={[0, winY + winH / 2 - 0.22, 0.2]} args={[2.0, 0.012, 0.1]} color={CYAN} intensity={1.4} />
 
-      {/* Interior rails */}
-      <mesh position={[0.95, 0.15, 0.25]}>
-        <boxGeometry args={[0.045, 0.045, 1.4]} />
-        <meshStandardMaterial color={RED} emissive={RED} emissiveIntensity={1.4} metalness={0.85} roughness={0.22} toneMapped={false} />
-      </mesh>
-      <mesh position={[-0.95, 0.55, 0.15]}>
-        <boxGeometry args={[0.04, 0.04, 1.2]} />
-        <meshStandardMaterial color={RED} emissive={RED} emissiveIntensity={1.1} metalness={0.85} roughness={0.22} toneMapped={false} />
-      </mesh>
-
       {/* Vents */}
       {([-1.4, 1.4] as const).map((sx) => (
         <group key={sx} position={[sx, -1.05, frontZ + 0.03]}>
@@ -411,49 +406,69 @@ function PrizePile({ phase }: { phase: ClawPhase }) {
   );
 }
 
-function HydraulicBlade({
-  fingerRef,
-  yaw,
+/**
+ * Single product claw billboard — 3 blades painted in public/refs/claw-sprite.png.
+ * Mesh fingers removed (they double-drew and looked broken under bloom).
+ * Open/close scales the sprite; refs still count CLAW_BLADES = 3.
+ */
+function ClawBladeBillboard({
+  open,
+  fingerRefs,
 }: {
-  fingerRef: MutableRefObject<THREE.Group | null>;
-  yaw: number;
+  open: boolean;
+  /** keep refs for open animation damping API compatibility */
+  fingerRefs: MutableRefObject<THREE.Group | null>[];
 }) {
+  const map = useTexture("/refs/claw-sprite.png");
+  const group = useRef<THREE.Group>(null);
+  const scaleX = useRef(open ? 1 : 0.88);
+
+  useMemo(() => {
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 8;
+  }, [map]);
+
+  useFrame((_, dt) => {
+    const target = open ? 1 : 0.86;
+    scaleX.current = THREE.MathUtils.damp(scaleX.current, target, 10, dt);
+    if (group.current) {
+      group.current.scale.set(scaleX.current, 1, 1);
+    }
+    // Keep finger refs non-null for phase helpers / tests that probe userData
+    for (const r of fingerRefs) {
+      if (r.current) r.current.rotation.z = open ? 0.35 : 0.05;
+    }
+  });
+
   return (
-    <group rotation={[0, yaw, 0]}>
-      <group ref={fingerRef as Ref<THREE.Group>} position={[0.08, 0, 0]}>
-        <mesh position={[0.025, -0.09, 0]} castShadow rotation={[0, 0, 0.2]}>
-          <capsuleGeometry args={[0.032, 0.14, 4, 12]} />
-          <meshStandardMaterial {...metal("#1a1e26", 0.95, 0.2)} />
-        </mesh>
-        <mesh position={[0.055, -0.2, 0]} castShadow rotation={[0, 0, 0.4]}>
-          <cylinderGeometry args={[0.024, 0.026, 0.09, 12]} />
-          <meshStandardMaterial {...metal(CHROME, 0.97, 0.12)} />
-        </mesh>
-        <mesh position={[0.1, -0.36, 0]} castShadow rotation={[0, 0, 0.72]}>
-          <capsuleGeometry args={[0.028, 0.17, 4, 12]} />
-          <meshStandardMaterial {...metal("#10141a", 0.94, 0.22)} />
-        </mesh>
-        <mesh position={[0.155, -0.5, 0]} castShadow rotation={[0.15, 0, 1.05]}>
-          <capsuleGeometry args={[0.018, 0.08, 4, 10]} />
-          <meshStandardMaterial {...metal("#0c0e12", 0.93, 0.24)} />
-        </mesh>
-        <mesh position={[0.055, -0.16, 0.03]} rotation={[0, 0, 0.25]}>
-          <boxGeometry args={[0.014, 0.16, 0.012]} />
-          <meshStandardMaterial color={RED} emissive={RED} emissiveIntensity={3} toneMapped={false} />
-        </mesh>
-        <mesh position={[0.11, -0.38, 0.03]} rotation={[0, 0, 0.72]}>
-          <boxGeometry args={[0.014, 0.18, 0.012]} />
-          <meshStandardMaterial color={RED} emissive={RED} emissiveIntensity={3.2} toneMapped={false} />
-        </mesh>
-        <mesh position={[0.05, -0.22, 0.035]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.014, 0.014, 0.045, 10]} />
-          <meshStandardMaterial {...metal(CHROME, 0.97, 0.1)} />
-        </mesh>
-      </group>
+    <group
+      ref={group}
+      position={[0, -0.38, 0.08]}
+      userData={{ fingers: CLAW_BLADES, style: "sprite-3blade" }}
+    >
+      {/* Invisible hinge anchors for ref API */}
+      <group ref={fingerRefs[0] as Ref<THREE.Group>} />
+      <group ref={fingerRefs[1] as Ref<THREE.Group>} />
+      <group ref={fingerRefs[2] as Ref<THREE.Group>} />
+      <mesh renderOrder={2} castShadow>
+        <planeGeometry args={[0.95, 1.2]} />
+        <meshBasicMaterial
+          map={map}
+          transparent
+          alphaTest={0.12}
+          depthWrite={false}
+          toneMapped={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
     </group>
   );
 }
 
+/**
+ * Single heavy claw assembly: gantry → cable → motor → 3 blades.
+ * Open angle modest so blades read as a claw, not flying sticks.
+ */
 function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
   const slipped = useSlipped(phase);
   const hold = clawShouldHoldPrize(phase, slipped);
@@ -465,39 +480,64 @@ function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
   const prize = useRef<THREE.Group>(null);
   const fall = useRef(0);
   const gear = useRef<THREE.Mesh>(null);
+  const cableGroup = useRef<THREE.Group>(null);
 
   const x = mapClawX(clawX);
   const yTarget = targetClawY(phase);
 
+  // Smooth cable scale without remounting geometry
+  const cableScale = useRef(1);
+
   useFrame((_, dt) => {
     if (!group.current) return;
-    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, x, 8, dt);
+    group.current.position.x = THREE.MathUtils.damp(
+      group.current.position.x,
+      x,
+      8,
+      dt
+    );
     group.current.position.y = THREE.MathUtils.damp(
       group.current.position.y,
       yTarget,
-      phase === "drop" ? 3.2 : 4.8,
+      phase === "drop" ? 3.4 : 5,
       dt
     );
-    const openAng = open ? 0.78 : 0.07;
-    for (const fr of [f0, f1, f2]) {
-      if (fr.current) {
-        fr.current.rotation.z = THREE.MathUtils.damp(fr.current.rotation.z, openAng, 10, dt);
-      }
-    }
+
     if (gear.current) {
-      gear.current.rotation.y += dt * (phase === "drop" || phase === "lift" ? 7 : 1.4);
+      gear.current.rotation.y +=
+        dt * (phase === "drop" || phase === "lift" ? 5 : 0.8);
     }
+
+    // Cable length via Y-scale on a unit cylinder
+    const targetCable =
+      phase === "drop" || phase === "close"
+        ? 1.0
+        : phase === "slip"
+          ? 0.62
+          : 0.38;
+    cableScale.current = THREE.MathUtils.damp(
+      cableScale.current,
+      targetCable,
+      6,
+      dt
+    );
+    if (cableGroup.current) {
+      cableGroup.current.scale.y = cableScale.current;
+      // Keep bottom attached to motor: motor sits at -baseLen * scale
+      cableGroup.current.position.y = 0.08;
+    }
+
     if (prize.current) {
       if (hold) {
         fall.current = 0;
         prize.current.visible = true;
-        prize.current.position.set(0, -0.62, 0.02);
+        prize.current.position.set(0, -0.55, 0.02);
       } else if (phase === "slip" || phase === "lose") {
         prize.current.visible = true;
-        fall.current += dt * 2.6;
-        prize.current.position.y = -0.62 - fall.current;
-        prize.current.position.x = Math.sin(fall.current * 3) * 0.05;
-        if (fall.current > 1.6) prize.current.visible = false;
+        fall.current += dt * 2.4;
+        prize.current.position.y = -0.55 - fall.current;
+        prize.current.position.x = Math.sin(fall.current * 3) * 0.04;
+        if (fall.current > 1.5) prize.current.visible = false;
       } else {
         prize.current.visible = false;
         fall.current = 0;
@@ -505,113 +545,125 @@ function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
     }
   });
 
-  const cableLen =
-    phase === "drop" || phase === "close" ? 1.05 : phase === "slip" ? 0.65 : 0.35;
+  // Base cable length unit (scale.y multiplies)
+  const baseCable = 0.85;
+  const motorY = -0.08 - baseCable * 0.55; // approximate mid — motor tracks via group below
 
   return (
     <group
       ref={group}
-      position={[0, 1.55, 0.45]}
-      userData={{ clawBlades: CLAW_BLADES, style: "hydraulic-heavy" }}
+      position={[0, 1.35, 0.48]}
+      userData={{ clawBlades: CLAW_BLADES, style: "hydraulic-front-readable" }}
     >
-      {/* Heavy gantry */}
-      <mesh position={[0, 0.36, 0]} castShadow>
-        <boxGeometry args={[2.6, 0.1, 0.14]} />
+      {/* Gantry rail */}
+      <mesh position={[0, 0.32, 0]} castShadow>
+        <boxGeometry args={[2.5, 0.09, 0.12]} />
         <meshStandardMaterial {...metal(GUNMETAL, 0.95, 0.2)} />
       </mesh>
-      <mesh position={[0, 0.42, 0]}>
-        <boxGeometry args={[2.55, 0.016, 0.045]} />
-        <meshStandardMaterial color={CYAN} emissive={CYAN} emissiveIntensity={1.6} toneMapped={false} />
+      <mesh position={[0, 0.375, 0]}>
+        <boxGeometry args={[2.45, 0.014, 0.04]} />
+        <meshStandardMaterial
+          color={CYAN}
+          emissive={CYAN}
+          emissiveIntensity={1.5}
+          toneMapped={false}
+        />
       </mesh>
-      <mesh position={[0, 0.22, 0]} castShadow>
-        <boxGeometry args={[0.55, 0.18, 0.38]} />
+
+      {/* Carriage + gears */}
+      <mesh position={[0, 0.2, 0]} castShadow>
+        <boxGeometry args={[0.5, 0.16, 0.34]} />
         <meshStandardMaterial {...metal("#161a24", 0.94, 0.22)} />
       </mesh>
-      <mesh ref={gear} position={[0.26, 0.22, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.07, 0.07, 0.05, 14]} />
+      <mesh ref={gear} position={[0.24, 0.2, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.04, 14]} />
         <meshStandardMaterial {...metal(CHROME, 0.96, 0.14)} />
       </mesh>
-      <mesh position={[-0.26, 0.22, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.07, 0.07, 0.05, 14]} />
+      <mesh position={[-0.24, 0.2, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.04, 14]} />
         <meshStandardMaterial {...metal(CHROME, 0.96, 0.14)} />
       </mesh>
 
-      {/* Thick steel cables */}
-      <mesh key={`c1-${cableLen.toFixed(2)}`} position={[0, -cableLen / 2 + 0.12, 0]}>
-        <cylinderGeometry args={[0.026, 0.026, cableLen, 14]} />
-        <meshStandardMaterial color="#1a1c20" metalness={0.88} roughness={0.38} />
-      </mesh>
-      <mesh key={`c2-${cableLen.toFixed(2)}`} position={[0.014, -cableLen / 2 + 0.12, 0.01]}>
-        <cylinderGeometry args={[0.016, 0.016, cableLen * 0.98, 10]} />
-        <meshStandardMaterial color="#2a2e36" metalness={0.92} roughness={0.32} />
-      </mesh>
-      <mesh position={[0, -cableLen + 0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.048, 0.012, 10, 24]} />
-        <meshStandardMaterial {...metal(CHROME, 0.97, 0.1)} />
-      </mesh>
-
-      {/* Massive motor housing */}
-      <group position={[0, -cableLen - 0.14, 0]} userData={{ motor: true }}>
-        <mesh castShadow>
-          <cylinderGeometry args={[0.18, 0.19, 0.3, 36]} />
-          <meshStandardMaterial {...metal("#12151c", 0.95, 0.22)} />
+      {/* Cable (scaled) */}
+      <group ref={cableGroup} position={[0, 0.08, 0]}>
+        <mesh position={[0, -baseCable / 2, 0]}>
+          <cylinderGeometry args={[0.022, 0.022, baseCable, 14]} />
+          <meshStandardMaterial color="#12141a" metalness={0.88} roughness={0.4} />
         </mesh>
-        {Array.from({ length: 10 }).map((_, i) => {
-          const a = (i / 10) * Math.PI * 2;
-          return (
-            <mesh
-              key={i}
-              position={[Math.cos(a) * 0.185, 0.02, Math.sin(a) * 0.185]}
-              rotation={[0, -a, 0]}
-            >
-              <boxGeometry args={[0.022, 0.16, 0.045]} />
-              <meshStandardMaterial {...metal(GUNMETAL, 0.9, 0.28)} />
-            </mesh>
-          );
-        })}
-        <mesh position={[0, 0.07, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.185, 0.016, 12, 48]} />
-          <meshStandardMaterial color={RED} emissive={RED} emissiveIntensity={3.4} toneMapped={false} />
-        </mesh>
-        <mesh position={[0, 0.0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.19, 0.014, 12, 48]} />
-          <meshStandardMaterial color={RED} emissive={RED} emissiveIntensity={3} toneMapped={false} />
-        </mesh>
-        <mesh position={[0, 0.02, 0.185]}>
-          <cylinderGeometry args={[0.025, 0.025, 0.022, 16]} />
-          <meshStandardMaterial color={RED} emissive={RED} emissiveIntensity={2.6} toneMapped={false} />
-        </mesh>
-        <mesh position={[0, -0.14, 0]} castShadow>
-          <cylinderGeometry args={[0.12, 0.1, 0.09, 24]} />
-          <meshStandardMaterial {...metal("#0c0e14", 0.93, 0.26)} />
-        </mesh>
-        <mesh position={[0, -0.2, 0]}>
-          <cylinderGeometry args={[0.065, 0.065, 0.055, 16]} />
-          <meshStandardMaterial {...metal(CHROME, 0.96, 0.12)} />
+        <mesh position={[0.01, -baseCable / 2, 0.006]}>
+          <cylinderGeometry args={[0.012, 0.012, baseCable * 0.98, 10]} />
+          <meshStandardMaterial color="#2a2e36" metalness={0.9} roughness={0.35} />
         </mesh>
       </group>
 
-      <group
-        position={[0, -cableLen - 0.36, 0]}
-        userData={{ fingers: CLAW_BLADES, style: "hydraulic" }}
-      >
-        <HydraulicBlade fingerRef={f0} yaw={0} />
-        <HydraulicBlade fingerRef={f1} yaw={(Math.PI * 2) / 3} />
-        <HydraulicBlade fingerRef={f2} yaw={(Math.PI * 4) / 3} />
-        <mesh position={[0, -0.3, 0]}>
-          <cylinderGeometry args={[0.016, 0.012, 0.48, 12]} />
-          <meshStandardMaterial
-            color={RED}
-            emissive={RED}
-            emissiveIntensity={2.5}
-            metalness={0.85}
-            roughness={0.18}
-            toneMapped={false}
-          />
-        </mesh>
-        <group ref={prize} position={[0, -0.62, 0]} visible={false}>
-          <PrizeMeshByKind kind="fiatclaw_token" scale={hold ? 1.25 : 1} />
-        </group>
+      {/* Motor + fingers — Y follows cableScale */}
+      <MotorAndFingers
+        cableScaleRef={cableScale}
+        baseCable={baseCable}
+        f0={f0}
+        f1={f1}
+        f2={f2}
+        prize={prize}
+        hold={hold}
+        open={open}
+      />
+    </group>
+  );
+}
+
+function MotorAndFingers({
+  cableScaleRef,
+  baseCable,
+  f0,
+  f1,
+  f2,
+  prize,
+  hold,
+  open,
+}: {
+  cableScaleRef: MutableRefObject<number>;
+  baseCable: number;
+  f0: MutableRefObject<THREE.Group | null>;
+  f1: MutableRefObject<THREE.Group | null>;
+  f2: MutableRefObject<THREE.Group | null>;
+  prize: MutableRefObject<THREE.Group | null>;
+  hold: boolean;
+  open: boolean;
+}) {
+  const root = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!root.current) return;
+    root.current.position.y = 0.08 - baseCable * cableScaleRef.current - 0.02;
+  });
+
+  return (
+    <group ref={root} userData={{ motor: true, fingers: CLAW_BLADES }}>
+      {/* Carabiner ring (3D depth above sprite) */}
+      <mesh position={[0, 0.05, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.038, 0.009, 10, 24]} />
+        <meshStandardMaterial {...metal(CHROME, 0.97, 0.1)} />
+      </mesh>
+
+      {/* Compact motor collar above sprite for depth */}
+      <mesh position={[0, -0.02, 0]} castShadow>
+        <cylinderGeometry args={[0.12, 0.13, 0.1, 32]} />
+        <meshStandardMaterial {...metal("#12151c", 0.95, 0.22)} />
+      </mesh>
+      <mesh position={[0, 0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.125, 0.012, 12, 40]} />
+        <meshStandardMaterial
+          color={RED}
+          emissive={RED}
+          emissiveIntensity={2.2}
+          toneMapped={false}
+        />
+      </mesh>
+
+      {/* Clean 3-blade product sprite (single claw, three blades in art) */}
+      <ClawBladeBillboard open={open} fingerRefs={[f0, f1, f2]} />
+
+      <group ref={prize} position={[0, -0.72, 0.05]} visible={false}>
+        <PrizeMeshByKind kind="fiatclaw_token" scale={hold ? 1.25 : 1} />
       </group>
     </group>
   );
@@ -686,7 +738,12 @@ export function ClawScene({ phase, clawX }: ClawSceneProps) {
       <ContactShadows position={[0, -2.35, 0]} opacity={0.65} scale={12} blur={2.8} far={6} />
 
       <EffectComposer multisampling={0}>
-        <Bloom intensity={0.62} luminanceThreshold={0.38} luminanceSmoothing={0.32} mipmapBlur />
+        <Bloom
+          intensity={0.38}
+          luminanceThreshold={0.55}
+          luminanceSmoothing={0.4}
+          mipmapBlur
+        />
       </EffectComposer>
     </>
   );

@@ -730,8 +730,17 @@ test("ClawScene ships hollow cabinet + single 3-blade hydraulic claw", () => {
   assert.ok(src.includes("Hollow cabinet"));
   assert.ok(src.includes("GlassPanel"));
   assert.ok(src.includes("meshPhysicalMaterial"));
-  assert.ok(src.includes("HydraulicBlade") || src.includes("hydraulic"));
+  assert.ok(
+    src.includes("ClawBlade") ||
+      src.includes("claw-sprite") ||
+      src.includes("HydraulicBlade") ||
+      src.includes("hydraulic")
+  );
   assert.ok(src.includes("CLAW_BLADES") || src.includes("fingers"));
+  assert.ok(
+    src.includes("claw-sprite.png") || src.includes("fingers: CLAW_BLADES"),
+    "3-blade claw art or marker"
+  );
   // Exactly one assembly call site
   const assemblies = src.match(/function ClawAssembly/g) || [];
   assert.equal(assemblies.length, 1, "one ClawAssembly definition");
