@@ -96,7 +96,9 @@ export function useArcadePlayer() {
         BigInt(priceLamports)
       );
       setAvailablePlays(r.availablePlays);
-      setMessage(`+${r.playsBought} plays. Ready when you are.`);
+      setMessage(
+        `+${r.playsBought} plays. Press PLAY NOW to enter the vault.`
+      );
       setStatus("ready");
       await refreshState();
     } catch (e: unknown) {
@@ -117,13 +119,16 @@ export function useArcadePlayer() {
       const r = await buyPlaysClaw(wallet, buyCount);
       setAvailablePlays(r.availablePlays);
       setClawBalance(r.clawBalance);
-      setMessage(`+${buyCount} plays for ${r.costClaw} $CLAW.`);
+      setMessage(
+        `+${buyCount} plays for ${r.costClaw} $CLAW. Press PLAY NOW.`
+      );
       setStatus("ready");
+      await refreshState();
     } catch (e: unknown) {
       setStatus("error");
       setMessage(e instanceof Error ? e.message : "Purchase failed");
     }
-  }, [wallet, buyCount]);
+  }, [wallet, buyCount, refreshState]);
 
   const onFaucet = useCallback(async () => {
     if (!wallet.publicKey) return;

@@ -892,7 +892,19 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
       sessionSrc.includes("RETURN TO DASHBOARD") ||
       sessionSrc.includes("/play")
   );
+  assert.ok(
+    sessionSrc.includes("data-game-end-overlay") ||
+      sessionSrc.includes("roundDone"),
+    "game has round-end overlay path"
+  );
+  assert.ok(
+    sessionSrc.includes("refreshState"),
+    "game refreshes player state on handoff"
+  );
   assert.ok(machineSrc.includes("ClawCanvas") || machineSrc.includes("r3f-webgl"));
+  // Lobby CTA labels
+  assert.ok(lobbySrc.includes("PLAY NOW"));
+  assert.ok(lobbySrc.includes("/play/game"));
 });
 
 test("WIN_PROBABILITY is 0.2 in code only; absent from lobby/game UI", () => {
@@ -909,8 +921,17 @@ test("WIN_PROBABILITY is 0.2 in code only; absent from lobby/game UI", () => {
   assert.ok(/WIN_PROBABILITY\s*=\s*0\.2/.test(prizesSrc));
   assert.equal(lobbySrc.includes("WIN_PROBABILITY"), false);
   assert.equal(sessionSrc.includes("WIN_PROBABILITY"), false);
-  assert.equal(/\b20\s*%/.test(lobbySrc), false, "no 20% on lobby");
-  assert.equal(/\b20\s*%/.test(sessionSrc), false, "no 20% on game UI");
+  // Win-rate copy only (CSS gradients may contain "20%" positions)
+  assert.equal(
+    /win\s*(rate|chance|probability)|odds\s*20|20\s*%\s*win/i.test(lobbySrc),
+    false,
+    "no win-rate % copy on lobby"
+  );
+  assert.equal(
+    /win\s*(rate|chance|probability)|odds\s*20|20\s*%\s*win/i.test(sessionSrc),
+    false,
+    "no win-rate % copy on game UI"
+  );
   assert.ok(sessionSrc.includes("ClawMachine"), "game mounts ClawMachine");
 });
 

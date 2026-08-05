@@ -30,17 +30,20 @@ export default function ArcadeLobbyPage() {
   const canEnterVault =
     p.wallet.connected && p.availablePlays > 0 && !busy;
 
-  const enterVault = () => {
+  const enterVault = async () => {
     if (!p.wallet.connected) {
       p.setMessage("Connect wallet first");
       p.setStatus("error");
       return;
     }
     if (p.availablePlays < 1) {
-      p.setMessage("Buy plays first, then enter the vault");
+      p.setMessage("Buy plays first, then press PLAY NOW");
       p.setStatus("error");
       return;
     }
+    // Refresh balances right before handoff so game sees latest plays
+    await p.refreshState();
+    p.setMessage("Entering vault…");
     router.push("/play/game");
   };
 

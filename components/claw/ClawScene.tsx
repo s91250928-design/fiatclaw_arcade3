@@ -693,13 +693,26 @@ export function ClawScene({ phase, clawX }: ClawSceneProps) {
 
   useFrame((state, dt) => {
     t.current += dt;
-    // Exterior front-hero framing
-    state.camera.lookAt(0, 0.05, 0);
-    if (root.current && (phase === "idle" || phase === "ready")) {
-      root.current.rotation.y = Math.sin(t.current * 0.12) * 0.05;
+    // Exterior front-hero framing + light cinematic idle
+    const cam = state.camera;
+    const idle = phase === "idle" || phase === "ready";
+    if (idle) {
+      cam.position.x = Math.sin(t.current * 0.15) * 0.12;
+      cam.position.y = 0.15 + Math.sin(t.current * 0.11) * 0.04;
     }
-    if (phase === "win" && root.current) {
-      root.current.position.x = Math.sin(performance.now() * 0.04) * 0.02;
+    if (phase === "win") {
+      cam.position.z = THREE.MathUtils.damp(cam.position.z, 5.6, 2.5, dt);
+      if (root.current) {
+        root.current.position.x = Math.sin(performance.now() * 0.04) * 0.025;
+      }
+    } else if (phase === "lose" || phase === "slip") {
+      cam.position.z = THREE.MathUtils.damp(cam.position.z, 6.4, 2, dt);
+    } else {
+      cam.position.z = THREE.MathUtils.damp(cam.position.z, 6.2, 1.5, dt);
+    }
+    cam.lookAt(0, 0.05, 0);
+    if (root.current && idle) {
+      root.current.rotation.y = Math.sin(t.current * 0.12) * 0.04;
     }
   });
 
@@ -708,32 +721,32 @@ export function ClawScene({ phase, clawX }: ClawSceneProps) {
       <color attach="background" args={["#04060a"]} />
       <fog attach="fog" args={["#04060a", 9, 20]} />
 
-      {/* Dark-neon lighting — red/cyan only, enough ambient for metal form */}
-      <ambientLight intensity={0.28} />
+      {/* Dark-neon lighting — red #FF3E5C + cyan #22D3FF only (no white flood) */}
+      <ambientLight intensity={0.22} color="#1a2030" />
       <directionalLight
         position={[3.5, 5, 4]}
-        intensity={0.55}
-        color="#90a0b8"
+        intensity={0.4}
+        color={CYAN}
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
-      <pointLight position={[-2.2, 1.8, 2.5]} intensity={1.5} color={CYAN} />
-      <pointLight position={[2.2, 1.5, 2.5]} intensity={1.65} color={RED} />
-      <pointLight position={[0, 1.2, 1.5]} intensity={0.85} color={CYAN} />
-      <pointLight position={[0, 0.3, 1.4]} intensity={1.0} color={RED} />
-      <pointLight position={[0, -0.9, 0.4]} intensity={0.5} color={PURPLE} />
+      <pointLight position={[-2.2, 1.8, 2.5]} intensity={1.55} color={CYAN} />
+      <pointLight position={[2.2, 1.5, 2.5]} intensity={1.7} color={RED} />
+      <pointLight position={[0, 1.2, 1.5]} intensity={0.9} color={CYAN} />
+      <pointLight position={[0, 0.3, 1.4]} intensity={1.05} color={RED} />
+      <pointLight position={[0, -0.9, 0.4]} intensity={0.45} color={PURPLE} />
       <spotLight
         position={[0, 3.2, 1.8]}
         angle={0.5}
         penumbra={0.65}
-        intensity={1.1}
+        intensity={1.0}
         color={CYAN}
       />
       <spotLight
         position={[0, 1.4, -1.5]}
         angle={0.55}
         penumbra={0.7}
-        intensity={0.65}
+        intensity={0.7}
         color={RED}
       />
 

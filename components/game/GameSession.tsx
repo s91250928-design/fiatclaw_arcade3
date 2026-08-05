@@ -57,6 +57,21 @@ export function GameSession() {
   const outcomeRef = useRef<{ won: boolean; message: string } | null>(null);
   const dropGuardRef = useRef(createDropGuard());
 
+  // Fresh balances when entering vault from lobby
+  useEffect(() => {
+    void refreshState();
+    setStatus("ready");
+    setMessage(
+      wallet.connected
+        ? availablePlays > 0
+          ? "Aim · PULL ×3 to play"
+          : "No plays — return to lobby to buy"
+        : "Connect wallet in lobby, then enter vault"
+    );
+    // only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Session clock (display only)
   useEffect(() => {
     const t = setInterval(() => setSessionTimer((s) => s + 1), 1000);
@@ -77,9 +92,10 @@ export function GameSession() {
       setTimeout(() => {
         setPlayId(null);
         setClawX(50);
+        setPhase("ready");
         outcomeRef.current = null;
         dropGuardRef.current.release();
-        refreshState();
+        void refreshState();
       }, 4200);
     },
     [refreshState, setMessage, setStatus]
@@ -189,6 +205,10 @@ export function GameSession() {
   const ss = String(sessionTimer % 60).padStart(2, "0");
 
   const playAgain = () => {
+    if (availablePlays < 1) {
+      setMessage("No plays left — return to lobby to buy");
+      return;
+    }
     setRoundDone(false);
     setPhase("ready");
     setStatus("ready");
@@ -196,7 +216,10 @@ export function GameSession() {
     setClawX(50);
     setPlayId(null);
     dropGuardRef.current.release();
+    void refreshState();
   };
+
+  const lastWon = status === "success";
 
   return (
     <>
@@ -514,10 +537,126 @@ export function GameSession() {
               </p>
             </div>
 
-            {(roundDone || status === "success" || status === "error") && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                type="button"
+                data-game-action="play-again"
+                onClick={playAgain}
+                disabled={!wallet.connected || availablePlays < 1 || busy}
+                style={{
+                  width: "100%",
+                  minHeight: 48,
+                  borderRadius: 12,
+                  border: "none",
+                  cursor:
+                    wallet.connected && availablePlays > 0 && !busy
+                      ? "pointer"
+                      : "not-allowed",
+                  color: "#fff",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontWeight: 800,
+                  fontSize: 12,
+                  letterSpacing: "0.16em",
+                  background:
+                    wallet.connected && availablePlays > 0
+                      ? `linear-gradient(180deg, ${RED}, #8C0A1E)`
+                      : "rgba(70,74,88,0.5)",
+                  opacity: wallet.connected && availablePlays > 0 ? 1 : 0.5,
+                }}
+              >
+                PLAY AGAIN
+              </button>
+              <button
+                type="button"
+                data-game-action="return-lobby"
+                onClick={() => router.push("/play")}
+                style={{
+                  width: "100%",
+                  minHeight: 44,
+                  borderRadius: 12,
+                  border: "1px solid rgba(34,211,255,0.4)",
+                  cursor: "pointer",
+                  color: CYAN,
+                  fontFamily: "Orbitron, sans-serif",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  letterSpacing: "0.14em",
+                  background: "rgba(8,14,22,0.95)",
+                }}
+              >
+                RETURN TO DASHBOARD
+              </button>
+            </div>
+
+            <div style={{ ...panelStyle, marginTop: "auto" }}>
+              <p style={labelStyle}>SESSION</p>
+              <p style={{ ...valueStyle, fontSize: 11, color: MUTED, marginTop: 8 }}>
+                Outcomes decided server-side. Staking reduces play fees only.
+              </p>
+            </div>
+          </aside>
+        </div>
+
+        {/* Round-end overlay (Phase 1 shell) */}
+        {roundDone && (
+          <div
+            data-game-end-overlay
+            data-game-end-actions
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 50,
+              display: "grid",
+              placeItems: "center",
+              background: "rgba(2,3,6,0.72)",
+              backdropFilter: "blur(8px)",
+              padding: 24,
+            }}
+          >
+            <div
+              style={{
+                ...panelStyle,
+                maxWidth: 400,
+                width: "100%",
+                textAlign: "center",
+                padding: "28px 24px",
+                border: lastWon
+                  ? "1px solid rgba(20,241,149,0.45)"
+                  : "1px solid rgba(255,62,92,0.4)",
+                boxShadow: lastWon
+                  ? "0 0 48px rgba(20,241,149,0.2)"
+                  : "0 0 48px rgba(255,37,68,0.25)",
+              }}
+            >
+              <p
+                style={{
+                  ...labelStyle,
+                  color: lastWon ? "#14F195" : RED,
+                  letterSpacing: "0.28em",
+                }}
+              >
+                {lastWon ? "SECURED" : "MISS"}
+              </p>
+              <p
+                style={{
+                  ...valueStyle,
+                  fontSize: 18,
+                  marginTop: 12,
+                  color: lastWon ? "#14F195" : "#FF8A96",
+                }}
+              >
+                {lastWon ? message || "Reward secured" : LOSE_COPY}
+              </p>
+              <p style={{ ...labelStyle, marginTop: 14, color: MUTED }}>
+                PLAYS LEFT · {wallet.connected ? availablePlays : "—"}
+              </p>
               <div
-                style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                data-game-end-actions
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  marginTop: 22,
+                }}
               >
                 <button
                   type="button"
@@ -526,8 +665,8 @@ export function GameSession() {
                   disabled={!wallet.connected || availablePlays < 1}
                   style={{
                     width: "100%",
-                    minHeight: 52,
-                    borderRadius: 12,
+                    minHeight: 56,
+                    borderRadius: 14,
                     border: "none",
                     cursor:
                       wallet.connected && availablePlays > 0
@@ -536,17 +675,16 @@ export function GameSession() {
                     color: "#fff",
                     fontFamily: "Orbitron, sans-serif",
                     fontWeight: 800,
-                    fontSize: 13,
-                    letterSpacing: "0.18em",
+                    fontSize: 14,
+                    letterSpacing: "0.2em",
                     background:
                       wallet.connected && availablePlays > 0
-                        ? `linear-gradient(180deg, ${RED}, #8C0A1E)`
+                        ? `radial-gradient(circle at 40% 20%, #FF9AAB, ${RED} 45%, #8C0A1E)`
                         : "rgba(70,74,88,0.5)",
                     boxShadow:
                       wallet.connected && availablePlays > 0
-                        ? "0 0 28px rgba(255,37,68,0.45)"
+                        ? "0 0 36px rgba(255,37,68,0.55)"
                         : "none",
-                    opacity: wallet.connected && availablePlays > 0 ? 1 : 0.55,
                   }}
                 >
                   PLAY AGAIN
@@ -559,29 +697,22 @@ export function GameSession() {
                     width: "100%",
                     minHeight: 48,
                     borderRadius: 12,
-                    border: "1px solid rgba(34,211,255,0.4)",
+                    border: "1px solid rgba(34,211,255,0.45)",
                     cursor: "pointer",
                     color: CYAN,
                     fontFamily: "Orbitron, sans-serif",
                     fontWeight: 700,
                     fontSize: 12,
-                    letterSpacing: "0.14em",
-                    background: "rgba(8,14,22,0.95)",
+                    letterSpacing: "0.16em",
+                    background: "rgba(6,10,16,0.95)",
                   }}
                 >
                   RETURN TO DASHBOARD
                 </button>
               </div>
-            )}
-
-            <div style={{ ...panelStyle, marginTop: "auto" }}>
-              <p style={labelStyle}>SESSION</p>
-              <p style={{ ...valueStyle, fontSize: 11, color: MUTED, marginTop: 8 }}>
-                Outcomes decided server-side. Staking reduces play fees only.
-              </p>
             </div>
-          </aside>
-        </div>
+          </div>
+        )}
       </main>
     </>
   );
