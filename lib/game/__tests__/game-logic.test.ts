@@ -696,9 +696,9 @@ test("active catalog winners are all money-valued (SOL/$CLAW/jackpot/nft/mystery
 
 test("visual pile is dense premium crypto kinds, lower band, no toy spheres", () => {
   const layout = buildPrizePileLayout(42);
-  assert.ok(layout.length >= 36, `need dense pile, got ${layout.length}`);
+  assert.ok(layout.length >= 100, `need dense pile, got ${layout.length}`);
   assert.ok(layoutFillsLowerBand(layout));
-  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+SOL+vaults+crates");
+  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+SOL+vaults+crates+jackpot");
   assert.ok(layout.every((p) => isMoneyPrizeKind(p.kind)));
   const kinds = new Set(layout.map((p) => p.kind));
   assert.ok(kinds.has("fiatclaw_token"));
@@ -706,23 +706,80 @@ test("visual pile is dense premium crypto kinds, lower band, no toy spheres", ()
   assert.ok(kinds.has("vault_box"));
   assert.ok(kinds.has("mystery_crate"));
   assert.ok(kinds.has("nft_capsule"));
-  // No pill/toy capsule kind
+  assert.ok(kinds.has("jackpot_cube"));
+  assert.ok(kinds.has("treasure_chest"));
   assert.equal(kinds.has("neon_capsule" as never), false);
   const ys = layout.map((p) => p.position[1]);
   assert.ok(Math.max(...ys) - Math.min(...ys) > 0.02);
 });
 
-// ── Claw machine UI removed ────────────────────────────────────────────
-console.log("\n(j) claw machine UI deleted");
+// ── Premium industrial machine structure ───────────────────────────────
+console.log("\n(j) premium industrial claw machine");
 
-test("ClawMachine / ClawScene / PrizeMeshes components no longer ship", () => {
+test("ClawScene ships massive industrial hollow cabinet + hydraulic claw", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
-  const root = path.join(__dirname, "..", "..", "..");
-  assert.equal(fs.existsSync(path.join(root, "components", "ClawMachine.tsx")), false);
-  assert.equal(fs.existsSync(path.join(root, "components", "claw", "ClawScene.tsx")), false);
-  assert.equal(fs.existsSync(path.join(root, "components", "claw", "ClawCanvas.tsx")), false);
-  assert.equal(fs.existsSync(path.join(root, "components", "claw", "PrizeMeshes.tsx")), false);
+  const scenePath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "components",
+    "claw",
+    "ClawScene.tsx"
+  );
+  const src = fs.readFileSync(scenePath, "utf8");
+  assert.ok(src.includes('CABINET_SHELL_MODE = "hollow-open-front"'));
+  assert.ok(src.includes("Hollow cabinet"));
+  assert.ok(src.includes("GlassPanel"));
+  assert.ok(src.includes("meshPhysicalMaterial"));
+  assert.ok(src.includes("HydraulicBlade") || src.includes("hydraulic"));
+  assert.ok(src.includes("CLAW_BLADES") || src.includes("fingers"));
+  assert.ok(src.includes("FIATCLAW ARCADE"));
+  assert.ok(src.includes("CoolingFan") || src.includes("motor"));
+  assert.ok(src.includes("buildPrizePileLayout") || src.includes("PrizePile"));
+  assert.ok(src.includes("premium-industrial") || src.includes("cyberpunk"));
+});
+
+test("PrizeMeshes ships premium crypto collectibles", () => {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const meshPath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "components",
+    "claw",
+    "PrizeMeshes.tsx"
+  );
+  const src = fs.readFileSync(meshPath, "utf8");
+  assert.ok(src.includes("FiatClawToken"));
+  assert.ok(src.includes("SolToken"));
+  assert.ok(src.includes("VaultBox"));
+  assert.ok(src.includes("MysteryCrate"));
+  assert.ok(src.includes("NftCapsule") || src.includes("nft"));
+  assert.ok(src.includes("JackpotCube"));
+  assert.ok(src.includes("TreasureChest"));
+});
+
+test("ClawMachine ships premium console controls", () => {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const machinePath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "components",
+    "ClawMachine.tsx"
+  );
+  const src = fs.readFileSync(machinePath, "utf8");
+  assert.ok(src.includes('data-claw-action="pull"'));
+  assert.ok(src.includes('data-claw-controls="joystick"'));
+  assert.ok(src.includes('data-claw-dir="left"'));
+  assert.ok(src.includes("OLED") || src.includes("data-claw-status"));
+  assert.ok(src.includes("ClawCanvas") || src.includes("r3f-webgl"));
 });
 
 test("WIN_PROBABILITY never appears in player-facing play page", () => {
@@ -732,7 +789,7 @@ test("WIN_PROBABILITY never appears in player-facing play page", () => {
   const playSrc = fs.readFileSync(playPath, "utf8");
   assert.equal(playSrc.includes("WIN_PROBABILITY"), false);
   assert.equal(/\b20\s*%/.test(playSrc), false, "no 20% on play page");
-  assert.equal(playSrc.includes("ClawMachine"), false, "no ClawMachine import");
+  assert.ok(playSrc.includes("ClawMachine"), "play mounts ClawMachine");
 });
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);

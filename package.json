@@ -11,6 +11,9 @@
     "test:game": "tsx lib/game/__tests__/game-logic.test.ts"
   },
   "dependencies": {
+    "@react-three/drei": "^9.117.3",
+    "@react-three/fiber": "^8.17.10",
+    "@react-three/postprocessing": "^2.16.3",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-phantom": "^0.9.24",
     "@solana/wallet-adapter-react": "^0.15.35",
@@ -21,12 +24,14 @@
     "bs58": "^6.0.0",
     "next": "^14.2.5",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/react": "18.2.79",
     "@types/react-dom": "18.2.25",
+    "@types/three": "^0.170.0",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"
   }

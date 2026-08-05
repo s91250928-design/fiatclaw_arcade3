@@ -1,6 +1,6 @@
 /**
- * Premium Web3 collectible pile layout — adult crypto arcade, not toys.
- * $FIATCLAW coins, SOL, NFT capsules, mystery crates, vaults, jackpot cube.
+ * Dense premium Web3 prize chamber layout.
+ * Hundreds of stacked crypto collectibles — adult industrial palette only.
  */
 
 export type MoneyPrizeKind =
@@ -9,9 +9,9 @@ export type MoneyPrizeKind =
   | "nft_capsule"
   | "mystery_crate"
   | "vault_box"
+  | "treasure_chest"
   | "metal_collectible"
   | "jackpot_cube"
-  // legacy aliases kept for held-prize / mesh fallbacks
   | "sol_bar"
   | "sol_crystal"
   | "jackpot_hex"
@@ -42,54 +42,69 @@ function mulberry(seed: number): () => number {
 }
 
 /**
- * Dense lower-band pile of premium metallic crypto prizes.
- * Palette: black / gunmetal / dark chrome + red / cyan / purple accents only.
+ * Fill the chamber floor densely — ~120+ items, multi-layer stack, no empty voids.
  */
 export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   const rnd = mulberry(seed);
   const out: PrizeVisualSpec[] = [];
-  const count = 44;
+  const count = 128;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();
-    if (r < 0.26) return "fiatclaw_token";
-    if (r < 0.44) return "sol_token";
-    if (r < 0.56) return "vault_box";
-    if (r < 0.66) return "mystery_crate";
-    if (r < 0.76) return "nft_capsule";
-    if (r < 0.88) return "metal_collectible";
-    if (r < 0.96) return "sol_bar";
+    if (r < 0.38) return "fiatclaw_token";
+    if (r < 0.58) return "sol_token";
+    if (r < 0.68) return "nft_capsule";
+    if (r < 0.76) return "mystery_crate";
+    if (r < 0.84) return "vault_box";
+    if (r < 0.9) return "treasure_chest";
+    if (r < 0.96) return "metal_collectible";
+    if (r < 0.99) return "sol_bar";
     return "jackpot_cube";
   };
 
+  // Layered grid with jitter — fills floor + mid height of lower chamber third
+  const cols = 12;
+  const depthRows = 8;
   for (let i = 0; i < count; i++) {
-    const kind = pickKind();
-    const col = i % 7;
-    const row = Math.floor(i / 7);
-    const x = -0.95 + col * 0.3 + (rnd() - 0.5) * 0.12;
-    const z = -0.5 + row * 0.17 + (rnd() - 0.5) * 0.09;
+    const kind = i === 0 ? "jackpot_cube" : pickKind(); // legendary center bias later
+    const col = i % cols;
+    const row = Math.floor(i / cols) % depthRows;
+    const layer = Math.floor(i / (cols * depthRows));
+
+    const x = -1.15 + (col / (cols - 1)) * 2.3 + (rnd() - 0.5) * 0.1;
+    const z = -0.65 + (row / (depthRows - 1)) * 1.25 + (rnd() - 0.5) * 0.08;
     const yBase =
-      0.05 +
-      rnd() * 0.08 +
-      (kind === "vault_box" || kind === "mystery_crate" ? 0.04 : 0) +
-      (kind === "jackpot_cube" ? 0.06 : 0) +
-      (row % 2) * 0.015;
+      0.04 +
+      layer * 0.09 +
+      rnd() * 0.06 +
+      (kind === "vault_box" || kind === "mystery_crate" || kind === "treasure_chest"
+        ? 0.04
+        : 0) +
+      (kind === "jackpot_cube" ? 0.08 : 0);
+
+    // Push jackpot near center on first special slot
+    const position: [number, number, number] =
+      kind === "jackpot_cube" && i === 0
+        ? [0, 0.22, 0.05]
+        : [x, yBase, z];
 
     const scale =
       kind === "jackpot_cube"
-        ? 0.95 + rnd() * 0.2
-        : kind === "vault_box" || kind === "mystery_crate"
-          ? 0.8 + rnd() * 0.25
-          : kind === "fiatclaw_token" || kind === "sol_token"
-            ? 0.9 + rnd() * 0.28
-            : 0.7 + rnd() * 0.4;
+        ? 1.15
+        : kind === "treasure_chest" || kind === "vault_box"
+          ? 0.75 + rnd() * 0.3
+          : kind === "mystery_crate"
+            ? 0.7 + rnd() * 0.28
+            : kind === "fiatclaw_token" || kind === "sol_token"
+              ? 0.7 + rnd() * 0.45
+              : 0.65 + rnd() * 0.4;
 
     const rewardKind =
       kind === "fiatclaw_token"
         ? "claw"
         : kind === "jackpot_cube" || kind === "jackpot_hex"
           ? "jackpot"
-          : kind === "mystery_crate" || kind === "nft_capsule"
+          : kind === "mystery_crate" || kind === "nft_capsule" || kind === "treasure_chest"
             ? "mystery"
             : "sol";
 
@@ -97,53 +112,57 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
       kind,
       rewardKind,
       scale,
-      position: [x, yBase, z],
+      position,
       seed: i * 19 + seed,
-      bob: rnd() > 0.35,
+      bob: rnd() > 0.4 || kind === "jackpot_cube",
       spin:
         kind === "fiatclaw_token" ||
         kind === "sol_token" ||
         kind === "metal_collectible" ||
-        rnd() > 0.5,
+        kind === "jackpot_cube" ||
+        rnd() > 0.55,
     });
   }
   return out;
 }
 
 export function isMoneyPrizeKind(kind: MoneyPrizeKind): boolean {
-  const all: MoneyPrizeKind[] = [
-    "fiatclaw_token",
-    "sol_token",
-    "nft_capsule",
-    "mystery_crate",
-    "vault_box",
-    "metal_collectible",
-    "jackpot_cube",
-    "sol_bar",
-    "sol_crystal",
-    "jackpot_hex",
-    "crystal_purple",
-    "crystal_red",
-    "crystal_cyan",
-    "crystal_gold",
-  ];
-  return all.includes(kind);
+  return (
+    kind === "fiatclaw_token" ||
+    kind === "sol_token" ||
+    kind === "nft_capsule" ||
+    kind === "mystery_crate" ||
+    kind === "vault_box" ||
+    kind === "treasure_chest" ||
+    kind === "metal_collectible" ||
+    kind === "jackpot_cube" ||
+    kind === "sol_bar" ||
+    kind === "sol_crystal" ||
+    kind === "jackpot_hex" ||
+    kind.startsWith("crystal_")
+  );
 }
 
 export function layoutFillsLowerBand(layout: PrizeVisualSpec[]): boolean {
-  if (layout.length < 28) return false;
-  const maxY = Math.max(...layout.map((p) => p.position[1]));
-  return maxY < 0.35;
+  if (layout.length < 60) return false;
+  // Dense fill: most mass in lower third of chamber (y < 0.55)
+  const low = layout.filter((p) => p.position[1] < 0.55).length;
+  return low / layout.length > 0.7;
 }
 
 export function layoutHasRequiredKinds(layout: PrizeVisualSpec[]): boolean {
   const kinds = new Set(layout.map((p) => p.kind));
-  const need = [
-    "fiatclaw_token",
-    "sol_token",
-    "vault_box",
-    "mystery_crate",
-    "nft_capsule",
-  ] as const;
-  return need.every((k) => kinds.has(k));
+  return (
+    kinds.has("fiatclaw_token") &&
+    kinds.has("sol_token") &&
+    kinds.has("vault_box") &&
+    kinds.has("mystery_crate") &&
+    kinds.has("nft_capsule") &&
+    kinds.has("jackpot_cube") &&
+    kinds.has("treasure_chest")
+  );
+}
+
+export function layoutIsDense(layout: PrizeVisualSpec[]): boolean {
+  return layout.length >= 100;
 }

@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { ClawMachine } from "@/components/ClawMachine";
 import {
   buyPlaysClaw,
   buyPlaysSol,
@@ -17,7 +18,6 @@ import {
   advancePullClick,
   canClickPull,
   canMoveClaw,
-  clawStatusLabel,
   pullRecoverySequence,
   type ClawPhase,
 } from "@/lib/game/claw-phases";
@@ -514,13 +514,13 @@ export default function PlayPage() {
           style={{
             position: "relative",
             zIndex: 1,
-            maxWidth: 540,
+            maxWidth: 680,
             margin: "0 auto",
-            padding: "24px 16px 64px",
+            padding: "20px 14px 64px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 16,
+            gap: 14,
           }}
         >
           <div style={{ textAlign: "center", marginBottom: 4 }}>
@@ -640,89 +640,25 @@ export default function PlayPage() {
             </div>
           </div>
 
-          {/* Claw machine UI removed — bare play controls only */}
-          <div
-            data-play-controls="bare"
-            style={{
-              ...glassCard,
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 12,
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div>
-              <p style={monoLabel}>STATUS</p>
-              <p style={{ ...orbitValue, fontSize: 13 }} data-claw-status={clawStatusLabel(phase)}>
-                {clawStatusLabel(phase)}
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button
-                type="button"
-                data-claw-dir="left"
-                disabled={
-                  !wallet.connected ||
-                  !canMoveClaw(phase) ||
-                  availablePlays < 1 ||
-                  busy
-                }
-                onClick={() => onMove("left")}
-                style={ctaGhost(
-                  !wallet.connected ||
-                    !canMoveClaw(phase) ||
-                    availablePlays < 1 ||
-                    busy
-                )}
-              >
-                ←
-              </button>
-              <span style={{ ...monoLabel, minWidth: 48, textAlign: "center" }}>
-                {Math.round(clawX)}
-              </span>
-              <button
-                type="button"
-                data-claw-dir="right"
-                disabled={
-                  !wallet.connected ||
-                  !canMoveClaw(phase) ||
-                  availablePlays < 1 ||
-                  busy
-                }
-                onClick={() => onMove("right")}
-                style={ctaGhost(
-                  !wallet.connected ||
-                    !canMoveClaw(phase) ||
-                    availablePlays < 1 ||
-                    busy
-                )}
-              >
-                →
-              </button>
-            </div>
-            <button
-              type="button"
-              data-claw-action="pull"
-              disabled={
-                busy ||
-                !canClickPull(phase) ||
-                (!wallet.connected &&
-                  phase !== "drop" &&
-                  phase !== "close")
-              }
-              onClick={onDrop}
-              style={ctaPrimary(
-                busy ||
-                  !canClickPull(phase) ||
-                  (!wallet.connected &&
-                    phase !== "drop" &&
-                    phase !== "close")
-              )}
-            >
-              PULL
-            </button>
-          </div>
+          <ClawMachine
+            phase={phase}
+            onDrop={onDrop}
+            disabled={
+              busy ||
+              (!wallet.connected &&
+                canClickPull(phase) &&
+                phase !== "drop" &&
+                phase !== "close")
+            }
+            clawX={clawX}
+            onMove={onMove}
+            canMove={
+              wallet.connected &&
+              canMoveClaw(phase) &&
+              availablePlays > 0 &&
+              !busy
+            }
+          />
 
           {/* BUY PLAYS — landing glass card */}
           <div style={glassCard} data-play-chrome="buy">
