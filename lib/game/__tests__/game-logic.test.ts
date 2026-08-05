@@ -654,15 +654,17 @@ test("visual pile is dense money kinds, lower band, no spheres-only layout", () 
   const layout = buildPrizePileLayout(42);
   assert.ok(layout.length >= 36, `need dense pile, got ${layout.length}`);
   assert.ok(layoutFillsLowerBand(layout));
-  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+SOL+gems+hex");
+  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+SOL+purple crystals");
   assert.ok(layout.every((p) => isMoneyPrizeKind(p.kind)));
-  // Explicit required readable types
+  // Explicit required readable types from prize ref
   const kinds = new Set(layout.map((p) => p.kind));
   assert.ok(kinds.has("fiatclaw_token"));
-  assert.ok(kinds.has("sol_crystal") || kinds.has("sol_bar"));
+  assert.ok(kinds.has("sol_token") || kinds.has("sol_crystal") || kinds.has("sol_bar"));
+  assert.ok(kinds.has("crystal_purple"));
   assert.ok(kinds.has("crystal_red"));
   assert.ok(kinds.has("crystal_cyan"));
-  assert.ok(kinds.has("crystal_gold"));
+  // No pill capsules in money pile
+  assert.equal(kinds.has("neon_capsule" as never), false);
   // height variation
   const ys = layout.map((p) => p.position[1]);
   assert.ok(Math.max(...ys) - Math.min(...ys) > 0.02);
@@ -718,10 +720,15 @@ test("ClawScene ships hollow-open-front shell, not solid fill plate", () => {
     false,
     "must not use simple colored sphere pile"
   );
-  // Metal claw mechanism markers
-  assert.ok(src.includes("Braided cable") || src.includes("cableLen"), "metal cable");
+  // Metal claw mechanism markers — 3-finger red-neon ref
+  assert.ok(src.includes("Braided") || src.includes("cableLen"), "metal cable");
   assert.ok(src.includes("Motor housing") || src.includes("motor"), "motor housing");
-  assert.ok(src.includes("finger") || src.includes("Left finger"), "hinged fingers");
+  assert.ok(
+    src.includes("fingers: 3") || src.includes("ClawFinger"),
+    "3-finger claw"
+  );
+  assert.ok(src.includes("red neon") || src.includes("RED"), "red neon claw accents");
+  assert.ok(src.includes("FIATCLAW ARCADE"), "marquee text");
 });
 
 test("PrizeMeshes ships FIATCLAW token + multi-color gems + SOL forms", () => {
@@ -740,10 +747,52 @@ test("PrizeMeshes ships FIATCLAW token + multi-color gems + SOL forms", () => {
   assert.ok(src.includes("FiatClawToken"), "FIATCLAW token mesh");
   assert.ok(src.includes("FacetedGem") || src.includes("dodecahedron"), "faceted gems");
   assert.ok(src.includes("SolBar") && src.includes("SolCrystal"), "SOL forms");
+  assert.ok(src.includes("SolToken"), "Solana disc token");
   assert.ok(src.includes("JackpotHex"), "jackpot hex");
-  assert.ok(src.includes("crystal_cyan") || src.includes("CYAN"), "multi-color gems");
-  // Not only a single octahedron for everything
+  assert.ok(src.includes("crystal_purple") || src.includes("PURPLE"), "purple crystals");
   assert.ok(src.includes("cylinderGeometry"), "token disc geometry");
+  // No pill capsule mesh
+  assert.equal(src.includes("function NeonCapsule"), false, "no pill capsules");
+});
+
+test("ClawMachine ships large joystick + PULL controls", () => {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const machinePath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "components",
+    "ClawMachine.tsx"
+  );
+  const src = fs.readFileSync(machinePath, "utf8");
+  assert.ok(src.includes('data-claw-action="pull"'), "PULL button");
+  assert.ok(src.includes('data-claw-controls="joystick"'), "joystick");
+  assert.ok(src.includes('data-claw-dir="left"'), "left");
+  assert.ok(src.includes('data-claw-dir="right"'), "right");
+  assert.ok(src.includes("PULL"), "PULL label");
+  assert.ok(src.includes("r3f-webgl") || src.includes("ClawCanvas"), "R3F canvas");
+});
+
+test("WIN_PROBABILITY never appears in player-facing play page", () => {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const playPath = path.join(__dirname, "..", "..", "..", "app", "play", "page.tsx");
+  const machinePath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "components",
+    "ClawMachine.tsx"
+  );
+  const playSrc = fs.readFileSync(playPath, "utf8");
+  const machineSrc = fs.readFileSync(machinePath, "utf8");
+  assert.equal(playSrc.includes("WIN_PROBABILITY"), false);
+  assert.equal(machineSrc.includes("WIN_PROBABILITY"), false);
+  assert.equal(/\b20\s*%/.test(playSrc), false, "no 20% on play page");
+  assert.equal(/\b0\.2\b/.test(playSrc) && playSrc.includes("win"), false);
 });
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);

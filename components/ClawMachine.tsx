@@ -116,7 +116,7 @@ export function ClawMachine({
         width: "100%",
         maxWidth: 500,
         margin: "0 auto",
-        aspectRatio: "10 / 13.5",
+        aspectRatio: "10 / 13.8",
         borderRadius: 24,
         overflow: "hidden",
         border: "1px solid rgba(255,62,92,0.35)",
@@ -136,11 +136,10 @@ export function ClawMachine({
           top: 0,
           left: 0,
           right: 0,
-          bottom: 128,
+          bottom: 148,
         }}
       >
         <ClawCanvas phase={phase} clawX={clawX} />
-        {/* HTML overlays for SECURED / MISS text (clear typography) */}
         {overlay === "SECURED" && (
           <div
             data-claw-overlay="secured"
@@ -195,34 +194,9 @@ export function ClawMachine({
             </div>
           </div>
         )}
-        {/* Marquee label */}
-        <div
-          style={{
-            position: "absolute",
-            top: 10,
-            left: 0,
-            right: 0,
-            textAlign: "center",
-            zIndex: 4,
-            pointerEvents: "none",
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "Orbitron, sans-serif",
-              fontWeight: 700,
-              fontSize: 11,
-              letterSpacing: "0.32em",
-              color: RED,
-              textShadow: "0 0 16px rgba(255,37,68,0.8)",
-            }}
-          >
-            FIATCLAW ARCADE · 3D
-          </span>
-        </div>
       </div>
 
-      {/* Unified FiatClaw control deck (HTML) */}
+      {/* Large joystick + PULL control deck (machine face ref) */}
       <div
         data-claw-controls="deck"
         style={{
@@ -230,49 +204,48 @@ export function ClawMachine({
           bottom: 0,
           left: 0,
           right: 0,
-          height: 128,
+          height: 148,
           zIndex: 10,
           display: "flex",
-          alignItems: "stretch",
+          alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 14px 14px",
-          gap: 10,
+          padding: "14px 16px 16px",
+          gap: 12,
           background: `
             linear-gradient(180deg,
-              #242836 0%,
-              #141820 30%,
-              #0c0e14 70%,
+              #2a303c 0%,
+              #181c26 28%,
+              #0e1016 72%,
               ${BG} 100%)
           `,
-          borderTop: "1px solid rgba(255,62,92,0.35)",
+          borderTop: "1px solid rgba(255,62,92,0.4)",
           boxShadow:
-            "0 -16px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
+            "0 -18px 44px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.12)",
         }}
       >
         <div
           aria-hidden
           style={{
             position: "absolute",
-            top: 5,
-            left: 16,
-            right: 16,
+            top: 6,
+            left: 18,
+            right: 18,
             height: 2,
             borderRadius: 1,
             background: `linear-gradient(90deg, transparent, ${RED}, ${CYAN}, transparent)`,
-            opacity: 0.75,
+            opacity: 0.8,
           }}
         />
 
-        {/* STATUS */}
         <div
           data-claw-status={status}
           style={{
-            minWidth: 96,
-            padding: "10px 12px",
-            borderRadius: 14,
+            minWidth: 92,
+            padding: "12px 12px",
+            borderRadius: 16,
             border: "1px solid rgba(255,255,255,0.1)",
             background:
-              "linear-gradient(160deg, rgba(255,255,255,0.06), rgba(10,12,16,0.95))",
+              "linear-gradient(160deg, rgba(255,255,255,0.07), rgba(10,12,16,0.95))",
             boxShadow:
               "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 18px rgba(255,37,68,0.08)",
             display: "flex",
@@ -286,7 +259,7 @@ export function ClawMachine({
               fontSize: 9,
               letterSpacing: "0.2em",
               color: "#5c6478",
-              marginBottom: 5,
+              marginBottom: 6,
             }}
           >
             STATUS
@@ -294,7 +267,7 @@ export function ClawMachine({
           <div
             style={{
               fontFamily: "Orbitron, sans-serif",
-              fontSize: 11,
+              fontSize: 12,
               letterSpacing: "0.12em",
               color: statusColor,
               textShadow:
@@ -305,7 +278,6 @@ export function ClawMachine({
           </div>
         </div>
 
-        {/* JOYSTICK */}
         <div
           data-claw-controls="joystick"
           style={{
@@ -313,20 +285,21 @@ export function ClawMachine({
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 6,
+            gap: 8,
+            flex: 1,
           }}
         >
           <div
             style={{
               fontFamily: "JetBrains Mono, monospace",
-              fontSize: 8,
-              letterSpacing: "0.18em",
+              fontSize: 9,
+              letterSpacing: "0.2em",
               color: "#5c6478",
             }}
           >
             JOYSTICK
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <button
               type="button"
               aria-label="Left"
@@ -338,16 +311,18 @@ export function ClawMachine({
               ←
             </button>
             <div
+              data-claw-stick="ball"
               style={{
-                width: 40,
-                height: 40,
+                width: 56,
+                height: 56,
                 borderRadius: "50%",
-                background:
-                  "radial-gradient(circle at 32% 28%, #5a6578, #12151c 65%, #040508)",
-                border: `2px solid rgba(34,211,255,${joyOn ? 0.5 : 0.22})`,
+                background: joyOn
+                  ? `radial-gradient(circle at 32% 28%, #ff7a8c, ${RED} 55%, #8a0a1c 100%)`
+                  : "radial-gradient(circle at 32% 28%, #5a6578, #12151c 65%, #040508)",
+                border: `3px solid rgba(255,62,92,${joyOn ? 0.7 : 0.25})`,
                 boxShadow: joyOn
-                  ? "0 0 16px rgba(34,211,255,0.45), 0 4px 0 #06080c"
-                  : "inset 0 3px 8px rgba(0,0,0,0.6), 0 3px 0 #06080c",
+                  ? "0 0 28px rgba(255,37,68,0.65), 0 6px 0 #4a0610, inset 0 2px 0 rgba(255,255,255,0.35)"
+                  : "inset 0 3px 10px rgba(0,0,0,0.65), 0 4px 0 #06080c",
               }}
             />
             <button
@@ -363,7 +338,6 @@ export function ClawMachine({
           </div>
         </div>
 
-        {/* PULL */}
         <button
           type="button"
           data-claw-action="pull"
@@ -373,27 +347,28 @@ export function ClawMachine({
           }}
           disabled={disabled || busy}
           style={{
-            minWidth: 118,
-            padding: "16px 22px",
-            borderRadius: 14,
-            border: "1px solid rgba(255,140,155,0.5)",
+            minWidth: 132,
+            minHeight: 72,
+            padding: "18px 26px",
+            borderRadius: 999,
+            border: "2px solid rgba(255,140,155,0.55)",
             cursor: disabled || busy ? "not-allowed" : "pointer",
             color: "#fff",
             fontFamily: "Orbitron, sans-serif",
-            fontWeight: 700,
-            fontSize: 15,
-            letterSpacing: "0.24em",
+            fontWeight: 800,
+            fontSize: 18,
+            letterSpacing: "0.28em",
             alignSelf: "center",
             background:
               disabled || busy
                 ? "linear-gradient(180deg, #3a3e4a, #1a1c24)"
-                : `linear-gradient(180deg, #FF6A7E 0%, ${RED} 32%, #C4102A 68%, #7a0818 100%)`,
+                : `radial-gradient(circle at 40% 30%, #FF8A9A 0%, ${RED} 42%, #C4102A 78%, #6a0814 100%)`,
             boxShadow:
               disabled || busy
                 ? "none"
-                : "0 0 40px rgba(255,37,68,0.65), 0 6px 0 #4a0610, inset 0 2px 0 rgba(255,255,255,0.35)",
+                : "0 0 48px rgba(255,37,68,0.75), 0 8px 0 #4a0610, inset 0 3px 0 rgba(255,255,255,0.4)",
             opacity: disabled ? 0.45 : 1,
-            transform: busy ? "translateY(3px)" : undefined,
+            transform: busy ? "translateY(4px)" : undefined,
           }}
         >
           {busy ? "···" : "PULL"}
@@ -405,23 +380,23 @@ export function ClawMachine({
 
 function joyBtn(active: boolean): CSSProperties {
   return {
-    width: 46,
-    height: 46,
-    borderRadius: 13,
-    border: "1px solid rgba(34,211,255,0.45)",
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    border: "1px solid rgba(34,211,255,0.5)",
     background: active
       ? "linear-gradient(180deg, #2a4860, #0e1822 60%, #060a10)"
       : "linear-gradient(180deg, #2a2e38, #14161c)",
     color: CYAN,
     fontFamily: "Orbitron, sans-serif",
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: 700,
     cursor: active ? "pointer" : "not-allowed",
     opacity: active ? 1 : 0.35,
     display: "grid",
     placeItems: "center",
     boxShadow: active
-      ? "0 0 18px rgba(34,211,255,0.3), 0 4px 0 #060a10"
+      ? "0 0 20px rgba(34,211,255,0.35), 0 5px 0 #060a10"
       : "inset 0 2px 4px rgba(0,0,0,0.4)",
   };
 }

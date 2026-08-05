@@ -1,6 +1,6 @@
 /**
  * Pure prize visual catalog + dense chamber layout.
- * All types are money-equivalent (SOL / $CLAW / jackpot) — no empty toys.
+ * Money-only: $FIATCLAW tokens, purple/SOL crystals, Solana discs — no toys/pills.
  */
 
 export type MoneyPrizeKind =
@@ -11,7 +11,7 @@ export type MoneyPrizeKind =
   | "fiatclaw_token"
   | "sol_crystal"
   | "sol_bar"
-  | "neon_capsule"
+  | "sol_token"
   | "jackpot_hex";
 
 export interface PrizeVisualSpec {
@@ -37,38 +37,39 @@ function mulberry(seed: number): () => number {
 
 /**
  * Dense pile ~ lower fifth of chamber.
- * Mix: FIATCLAW tokens + SOL forms + multi-color gems + rare jackpot hex.
+ * Mix from refs: black $FIATCLAW coins, purple crystals, Solana purple/cyan discs.
  */
 export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   const rnd = mulberry(seed);
   const out: PrizeVisualSpec[] = [];
-  const count = 40;
+  const count = 48;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();
-    if (r < 0.18) return "fiatclaw_token";
-    if (r < 0.32) return "sol_crystal";
-    if (r < 0.44) return "sol_bar";
-    if (r < 0.54) return "neon_capsule";
-    if (r < 0.66) return "crystal_red";
-    if (r < 0.76) return "crystal_cyan";
-    if (r < 0.86) return "crystal_purple";
-    if (r < 0.94) return "crystal_gold";
+    // Heavy weight on reference pile: tokens + purple crystals + SOL
+    if (r < 0.28) return "fiatclaw_token";
+    if (r < 0.42) return "crystal_purple";
+    if (r < 0.54) return "sol_token";
+    if (r < 0.64) return "sol_crystal";
+    if (r < 0.72) return "sol_bar";
+    if (r < 0.8) return "crystal_red";
+    if (r < 0.88) return "crystal_cyan";
+    if (r < 0.95) return "crystal_gold";
     return "jackpot_hex";
   };
 
   for (let i = 0; i < count; i++) {
     const kind = pickKind();
     // Pack tightly in lower band with jitter (overlap OK)
-    const col = i % 7;
-    const row = Math.floor(i / 7);
-    const x = -0.92 + col * 0.28 + (rnd() - 0.5) * 0.16;
-    const z = -0.48 + row * 0.18 + (rnd() - 0.5) * 0.1;
+    const col = i % 8;
+    const row = Math.floor(i / 8);
+    const x = -1.0 + col * 0.26 + (rnd() - 0.5) * 0.14;
+    const z = -0.52 + row * 0.16 + (rnd() - 0.5) * 0.1;
     const yBase =
-      0.05 +
-      rnd() * 0.09 +
+      0.04 +
+      rnd() * 0.1 +
       (kind === "sol_bar" ? 0.03 : 0) +
-      (kind === "fiatclaw_token" ? 0.02 : 0) +
+      (kind === "fiatclaw_token" || kind === "sol_token" ? 0.02 : 0) +
       (row % 2) * 0.02;
 
     const scale =
@@ -76,18 +77,18 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
         ? 0.9 + rnd() * 0.25
         : kind === "crystal_gold"
           ? 0.85 + rnd() * 0.3
-          : kind === "fiatclaw_token"
-            ? 0.85 + rnd() * 0.35
-            : 0.65 + rnd() * 0.5;
+          : kind === "fiatclaw_token" || kind === "sol_token"
+            ? 0.88 + rnd() * 0.32
+            : kind === "crystal_purple"
+              ? 0.75 + rnd() * 0.45
+              : 0.65 + rnd() * 0.5;
 
     const rewardKind =
       kind === "fiatclaw_token"
         ? "claw"
         : kind === "jackpot_hex"
           ? "jackpot"
-          : kind === "neon_capsule"
-            ? "mystery"
-            : "sol";
+          : "sol";
 
     out.push({
       kind,
@@ -95,10 +96,11 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
       scale,
       position: [x, yBase, z],
       seed: i * 19 + seed,
-      bob: rnd() > 0.3,
+      bob: rnd() > 0.25,
       spin:
-        rnd() > 0.4 ||
+        rnd() > 0.35 ||
         kind === "fiatclaw_token" ||
+        kind === "sol_token" ||
         kind.startsWith("crystal") ||
         kind === "sol_crystal",
     });
@@ -115,7 +117,7 @@ export function isMoneyPrizeKind(kind: MoneyPrizeKind): boolean {
     kind === "fiatclaw_token" ||
     kind === "sol_crystal" ||
     kind === "sol_bar" ||
-    kind === "neon_capsule" ||
+    kind === "sol_token" ||
     kind === "jackpot_hex"
   );
 }
@@ -130,14 +132,11 @@ export function layoutHasRequiredKinds(layout: PrizeVisualSpec[]): boolean {
   const kinds = new Set(layout.map((p) => p.kind));
   const need = [
     "fiatclaw_token",
+    "sol_token",
     "sol_crystal",
-    "sol_bar",
+    "crystal_purple",
     "crystal_red",
     "crystal_cyan",
-    "crystal_purple",
-    "crystal_gold",
-    "neon_capsule",
-    "jackpot_hex",
   ] as const;
   return need.every((k) => kinds.has(k));
 }

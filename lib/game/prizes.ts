@@ -106,7 +106,7 @@ export function defaultPrizeCatalog(stakeLamports = DEFAULT_STAKE_LAMPORTS): Pri
       id: "prize-mystery",
       code: "mystery",
       kind: "mystery",
-      title: "Neon Capsule",
+      title: "Mystery Vault",
       valueLamports: Math.floor((s * 136) / 100),
       clawAmount: 200,
       weight: 6,
