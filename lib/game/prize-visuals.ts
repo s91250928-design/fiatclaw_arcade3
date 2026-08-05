@@ -65,17 +65,20 @@ export const PRIZE_TEXTURES: Record<string, string> = {
 export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   const rnd = mulberry(seed);
   const out: PrizeVisualSpec[] = [];
-  // Dense neat lower pile inside floor disc (radius < glass R)
-  const count = 150;
+  /**
+   * Dense coin-first pile (premium $FIATCLAW + SOL).
+   * Soft “physics” packing: spiral layers with rest height (no Rapier).
+   */
+  const count = 160;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();
-    // Prefer branded coins (etalon pile language)
-    if (r < 0.42) return "fiatclaw_token";
-    if (r < 0.68) return "sol_token";
-    if (r < 0.78) return "crystal";
-    if (r < 0.88) return "nft_capsule";
-    if (r < 0.95) return "mystery_crate";
+    // Heavy brand coins — fewer secondary props
+    if (r < 0.48) return "fiatclaw_token";
+    if (r < 0.78) return "sol_token";
+    if (r < 0.86) return "crystal";
+    if (r < 0.92) return "nft_capsule";
+    if (r < 0.97) return "mystery_crate";
     return "jackpot_cube";
   };
 
@@ -83,23 +86,32 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   out.push({
     kind: "jackpot_cube",
     rewardKind: "jackpot",
-    scale: 1.3,
-    position: [0, 0.14, 0.04],
+    scale: 1.28,
+    position: [0, 0.15, 0.04],
     seed: seed,
     bob: true,
     spin: false,
     texture: PRIZE_TEXTURES.jackpot_cube!,
   });
 
+  // Simple settle: track occupied cells so coins stack without floating
+  const cells = new Map<string, number>();
+  const cellKey = (x: number, z: number) =>
+    `${Math.round(x * 8)},${Math.round(z * 8)}`;
+
   for (let i = 1; i < count; i++) {
     const kind = pickKind();
     const angle = rnd() * Math.PI * 2;
-    // Pack tightly on floor disc — stay inside chamber floor (~1.25)
-    const radius = Math.sqrt(rnd()) * 1.05;
-    const layer = Math.floor(i / 36);
-    const x = Math.cos(angle) * radius + (rnd() - 0.5) * 0.04;
-    const z = Math.sin(angle) * radius * 0.9 + (rnd() - 0.5) * 0.04;
-    const y = 0.03 + layer * 0.055 + rnd() * 0.03;
+    // Pack tightly on floor disc — stay inside chamber floor (~1.2)
+    const radius = Math.sqrt(rnd()) * 1.02;
+    const x = Math.cos(angle) * radius + (rnd() - 0.5) * 0.035;
+    const z = Math.sin(angle) * radius * 0.88 + (rnd() - 0.5) * 0.035;
+    const key = cellKey(x, z);
+    const stack = cells.get(key) ?? 0;
+    cells.set(key, stack + 1);
+    const coinH =
+      kind === "jackpot_cube" ? 0.09 : kind === "crystal" ? 0.07 : 0.055;
+    const y = 0.028 + stack * coinH + rnd() * 0.012;
 
     out.push({
       kind,
@@ -113,13 +125,13 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
               : "sol",
       scale:
         kind === "jackpot_cube"
-          ? 0.95 + rnd() * 0.18
+          ? 0.95 + rnd() * 0.16
           : kind === "crystal"
-            ? 0.7 + rnd() * 0.35
-            : 0.78 + rnd() * 0.32,
+            ? 0.72 + rnd() * 0.32
+            : 0.82 + rnd() * 0.28,
       position: [x, y, z],
       seed: i * 19 + seed,
-      bob: rnd() > 0.45,
+      bob: rnd() > 0.4,
       spin: false,
       texture: PRIZE_TEXTURES[kind] ?? PRIZE_TEXTURES.fiatclaw_token!,
     });

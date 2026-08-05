@@ -189,54 +189,66 @@ function VaultShell() {
       <VaultRing y={-1.32} radius={1.65} tube={0.035} neon={CYAN} />
       <VaultRing y={-1.7} radius={1.85} tube={0.03} neon={RED} />
 
-      {/* Inner floor disc */}
+      {/* Inner floor disc — dark metal + cyan ambient floor wash */}
       <mesh position={[0, -1.28, 0]} receiveShadow>
         <cylinderGeometry args={[1.32, 1.32, 0.06, 48]} />
-        <meshStandardMaterial {...metal("#080a0e", 0.65, 0.55)} />
+        <meshStandardMaterial {...metal("#080a0e", 0.72, 0.48)} />
       </mesh>
       <mesh position={[0, -1.24, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[1.25, 48]} />
         <meshStandardMaterial
-          color="#0c0818"
-          emissive={PURPLE}
-          emissiveIntensity={0.25}
+          color="#080612"
+          emissive={CYAN}
+          emissiveIntensity={0.12}
           transparent
-          opacity={0.7}
+          opacity={0.55}
+        />
+      </mesh>
+      <mesh position={[0, -1.235, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.9, 1.22, 48]} />
+        <meshStandardMaterial
+          color={RED}
+          emissive={RED}
+          emissiveIntensity={0.35}
+          transparent
+          opacity={0.25}
+          side={THREE.DoubleSide}
         />
       </mesh>
 
-      {/* === GLASS CYLINDER BODY (readable volume) === */}
-      {/* Outer slightly thicker rim glass */}
+      {/* === GLASS CYLINDER — premium tempered look === */}
       <mesh position={[0, 0.15, 0]}>
         <cylinderGeometry args={[R + 0.02, R + 0.02, H, 64, 1, true]} />
         <meshPhysicalMaterial
-          color="#9ec4dc"
-          metalness={0.08}
-          roughness={0.1}
-          transmission={0.72}
-          thickness={0.6}
+          color="#7eb8d4"
+          metalness={0.05}
+          roughness={0.06}
+          transmission={0.78}
+          thickness={0.75}
           transparent
-          opacity={0.35}
-          ior={1.48}
+          opacity={0.28}
+          ior={1.5}
           side={THREE.DoubleSide}
           depthWrite={false}
           clearcoat={1}
-          clearcoatRoughness={0.1}
-          envMapIntensity={1.3}
+          clearcoatRoughness={0.06}
+          envMapIntensity={1.6}
+          reflectivity={0.55}
         />
       </mesh>
-      {/* Inner glass skin for double-wall feel */}
       <mesh position={[0, 0.15, 0]}>
         <cylinderGeometry args={[R - 0.04, R - 0.04, H * 0.98, 48, 1, true]} />
         <meshPhysicalMaterial
-          color="#c8e0f0"
+          color="#a8d0e8"
           metalness={0}
-          roughness={0.04}
-          transmission={0.9}
+          roughness={0.03}
+          transmission={0.92}
           transparent
-          opacity={0.1}
+          opacity={0.08}
           side={THREE.DoubleSide}
           depthWrite={false}
+          clearcoat={0.8}
+          clearcoatRoughness={0.08}
         />
       </mesh>
 
@@ -767,9 +779,9 @@ export function ClawScene({ phase, clawX }: ClawSceneProps) {
 
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={0.55}
-          luminanceThreshold={0.72}
-          luminanceSmoothing={0.35}
+          intensity={0.62}
+          luminanceThreshold={0.68}
+          luminanceSmoothing={0.32}
           mipmapBlur
         />
       </EffectComposer>

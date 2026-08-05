@@ -71,15 +71,28 @@ export function AnimatedPrize({
   dim?: number;
 }) {
   const ref = useRef<THREE.Group>(null);
-  useFrame((s) => {
+  const settle = useRef(0.08 + (spec.seed % 17) * 0.012);
+  useFrame((s, dt) => {
     if (!ref.current) return;
     const t = s.clock.elapsedTime;
     const baseY = spec.position[1];
-    // Idle bob only — never spin Y (billboards stay face-camera)
+    // Soft settle drop then rest — fake physics without Rapier
+    if (settle.current > 0.001) {
+      settle.current = THREE.MathUtils.damp(settle.current, 0, 4.5, dt);
+    }
+    const restY = baseY + settle.current;
+    // Gentle bob only — never spin Y (billboards stay face-camera)
     if (spec.bob) {
       ref.current.position.y =
-        baseY + Math.sin(t * 1.05 + spec.seed * 0.15) * 0.014;
+        restY + Math.sin(t * 1.05 + spec.seed * 0.15) * 0.012;
+    } else {
+      ref.current.position.y = restY;
     }
+    // Micro lateral settle for pile life
+    ref.current.position.x =
+      spec.position[0] + Math.sin(t * 0.35 + spec.seed) * 0.004;
+    ref.current.position.z =
+      spec.position[2] + Math.cos(t * 0.28 + spec.seed * 0.2) * 0.004;
   });
 
   const url = spec.texture || textureForKind(spec.kind);
