@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { useWalletUiError } from "@/components/SolanaProvider";
 import { useArcadePlayer } from "@/hooks/useArcadePlayer";
 import {
   RED,
@@ -26,6 +27,7 @@ import {
 export default function ArcadeLobbyPage() {
   const router = useRouter();
   const { setVisible: openWalletModal } = useWalletModal();
+  const { error: walletError } = useWalletUiError();
   const p = useArcadePlayer();
   const busy = p.status === "buying";
 
@@ -461,10 +463,12 @@ export default function ArcadeLobbyPage() {
                         : MUTED,
                 }}
               >
-                {p.message ||
-                  (p.wallet.connected
-                    ? "Lobby ready — buy plays, then PLAY NOW."
-                    : "Connect Phantom or Solflare to use the lobby.")}
+                {walletError
+                  ? `Wallet: ${walletError}`
+                  : p.message ||
+                    (p.wallet.connected
+                      ? "Lobby ready — buy plays, then PLAY NOW."
+                      : "Connect Phantom or Solflare to use the lobby.")}
               </p>
             </div>
           </section>

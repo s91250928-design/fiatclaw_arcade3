@@ -1,30 +1,51 @@
 "use client";
 
 /**
- * Solana wallet root — desktop Phantom extension + mobile deep-link.
- *
- * Uses empty `wallets` so Wallet Standard auto-registers installed wallets
- * (Phantom/Solflare on PC). WalletProvider also injects Mobile Wallet Adapter
- * on mobile. autoConnect=false. RPC from NEXT_PUBLIC_* env.
+ * Solana wallet root: explicit Phantom + Solflare adapters.
+ * autoConnect=false. RPC/cluster from NEXT_PUBLIC_* env.
+ * Always mounts Connection / Wallet / Modal providers.
  */
 
-import React, { useCallback, useMemo, type ReactNode } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ConnectionProvider,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
 import {
   WalletAdapterNetwork,
-  type Adapter,
   type WalletError,
 } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { clusterApiUrl } from "@solana/web3.js";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
+import { WalletConnectAfterSelect } from "@/components/WalletConnectAfterSelect";
 
 interface Props {
   children: ReactNode;
+}
+
+type WalletUiCtx = {
+  error: string | null;
+  setError: (msg: string | null) => void;
+};
+
+const WalletUiContext = createContext<WalletUiCtx>({
+  error: null,
+  setError: () => {},
+});
+
+export function useWalletUiError() {
+  return useContext(WalletUiContext);
 }
 
 function resolveNetwork(): WalletAdapterNetwork {
@@ -37,6 +58,7 @@ function resolveNetwork(): WalletAdapterNetwork {
 }
 
 export function SolanaProvider({ children }: Props) {
+  const [error, setError] = useState<string | null>(null);
   const network = useMemo(() => resolveNetwork(), []);
 
   const endpoint = useMemo(() => {
@@ -46,27 +68,47 @@ export function SolanaProvider({ children }: Props) {
   }, [network]);
 
   /**
-   * Empty list = Wallet Standard discovers Phantom/Solflare extensions on PC.
-   * Do NOT also mount legacy PhantomWalletAdapter — duplicates break desktop connect.
-   * Mobile Wallet Adapter is added automatically by WalletProvider on mobile UA.
+   * OBJECTIVE: always list Phantom + Solflare in the modal.
+   * Adapters are constructed in useMemo only (no window at module scope).
+   * Wallet Standard may also surface Phantom; legacy dupes are filtered by name
+   * inside wallet-adapter-react — Solflare still appears via SolflareWalletAdapter.
    */
-  const wallets = useMemo<Adapter[]>(() => [], []);
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter({ network }),
+    ],
+    [network]
+  );
 
-  const onError = useCallback((error: WalletError) => {
-    // WalletNotSelected / WalletNotReady are common; keep UI alive
-    console.error("[FiatClaw wallet]", error?.name, error?.message ?? error);
+  const onError = useCallback((err: WalletError) => {
+    const msg = err?.message || err?.name || "Wallet error";
+    console.error("[FiatClaw wallet]", err?.name, msg);
+    // Surface to UI (not silent)
+    setError(msg);
   }, []);
 
+  const uiValue = useMemo(
+    () => ({ error, setError }),
+    [error]
+  );
+
   return (
-    <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed" }}>
-      <WalletProvider
-        wallets={wallets}
-        autoConnect={false}
-        onError={onError}
-        localStorageKey="fiatclaw-wallet"
-      >
-        <WalletModalProvider>{children}</WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+    <WalletUiContext.Provider value={uiValue}>
+      <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed" }}>
+        <WalletProvider
+          wallets={wallets}
+          autoConnect={false}
+          onError={onError}
+          localStorageKey="fiatclaw-wallet"
+        >
+          <WalletModalProvider>
+            {/* Modal only select()s — this calls connect() after user picks a wallet */}
+            <WalletConnectAfterSelect />
+            {children}
+          </WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
+    </WalletUiContext.Provider>
   );
 }

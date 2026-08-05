@@ -916,7 +916,7 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     lobbySrc.includes("lobby-grid") || lobbySrc.includes("lobby-main"),
     "lobby uses responsive layout classes"
   );
-  // Provider: Wallet Standard path (empty wallets) + modal; autoConnect false
+  // Provider: explicit Phantom + Solflare; autoConnect false; modal
   const providerSrc = fs.readFileSync(
     path.join(root, "components", "SolanaProvider.tsx"),
     "utf8"
@@ -926,14 +926,27 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     providerSrc.includes("autoConnect={false}") ||
       providerSrc.includes("autoConnect: false")
   );
-  // Standard discovery (empty wallets array) — PC Phantom extension path
   assert.ok(
-    providerSrc.includes("useMemo") &&
-      (providerSrc.includes("[]") || providerSrc.includes("Adapter[]")),
-    "wallets list for Standard discovery"
+    providerSrc.includes("PhantomWalletAdapter"),
+    "Phantom adapter registered"
   );
+  assert.ok(
+    providerSrc.includes("SolflareWalletAdapter"),
+    "Solflare adapter registered"
+  );
+  assert.ok(providerSrc.includes("useMemo"), "wallets via useMemo");
   assert.ok(providerSrc.includes("ConnectionProvider"));
   assert.ok(providerSrc.includes("WalletProvider"));
+  // select() alone does not connect — bridge must call connect()
+  const bridgePath = path.join(
+    root,
+    "components",
+    "WalletConnectAfterSelect.tsx"
+  );
+  assert.ok(fs.existsSync(bridgePath), "WalletConnectAfterSelect exists");
+  const bridgeSrc = fs.readFileSync(bridgePath, "utf8");
+  assert.ok(bridgeSrc.includes("connect()"), "bridge calls connect after select");
+  assert.ok(bridgeSrc.includes("userOpenedModal") || bridgeSrc.includes("visible"));
   const btnSrc = fs.readFileSync(
     path.join(root, "components", "WalletConnectButton.tsx"),
     "utf8"
@@ -941,6 +954,10 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
   assert.ok(
     btnSrc.includes("WalletMultiButton") || btnSrc.includes("useWalletModal"),
     "connect UI opens adapter surface"
+  );
+  assert.ok(
+    btnSrc.includes("data-wallet-error") || btnSrc.includes("useWalletUiError"),
+    "wallet errors surface in UI"
   );
   assert.ok(btnSrc.includes('"use client"'));
   const css = fs.readFileSync(path.join(root, "app", "globals.css"), "utf8");

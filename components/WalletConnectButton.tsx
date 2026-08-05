@@ -1,7 +1,7 @@
 /**
- * Connect wallet — official WalletMultiButton (modal → Phantom extension on PC,
- * mobile deep-link via Wallet Standard / MWA).
- * Client-only mount avoids SSR/hydration issues with wallet adapters.
+ * Connect button — WalletMultiButton opens modal (Phantom + Solflare).
+ * Connect-after-select is handled by WalletConnectAfterSelect.
+ * Shows wallet error text under the button when connect fails on PC.
  */
 
 "use client";
@@ -9,14 +9,20 @@
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWalletUiError } from "@/components/SolanaProvider";
 
 export function WalletConnectButton() {
   const [mounted, setMounted] = useState(false);
   const { publicKey, connected, wallets } = useWallet();
+  const { error, setError } = useWalletUiError();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (connected) setError(null);
+  }, [connected, setError]);
 
   if (!mounted) {
     return (
@@ -32,16 +38,46 @@ export function WalletConnectButton() {
     );
   }
 
+  const names = wallets.map((w) => w.adapter.name);
+
   return (
     <div
       data-wallet-connect="ready"
       data-wallet-connected={connected ? "true" : "false"}
       data-wallet-address={publicKey?.toBase58() ?? ""}
       data-wallet-count={String(wallets.length)}
-      data-wallet-names={wallets.map((w) => w.adapter.name).join(",")}
-      style={{ display: "inline-flex", flexShrink: 0, position: "relative", zIndex: 30 }}
+      data-wallet-names={names.join(",")}
+      data-has-phantom={names.includes("Phantom") ? "true" : "false"}
+      data-has-solflare={names.includes("Solflare") ? "true" : "false"}
+      style={{
+        display: "inline-flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        flexShrink: 0,
+        position: "relative",
+        zIndex: 30,
+        gap: 4,
+        maxWidth: "100%",
+      }}
     >
       <WalletMultiButton style={btnStyle} className="fiatclaw-wallet-btn" />
+      {error && (
+        <p
+          data-wallet-error
+          role="alert"
+          style={{
+            margin: 0,
+            maxWidth: 220,
+            fontFamily: "JetBrains Mono, monospace",
+            fontSize: 10,
+            lineHeight: 1.35,
+            color: "#FF6B7A",
+            textAlign: "right",
+          }}
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }
