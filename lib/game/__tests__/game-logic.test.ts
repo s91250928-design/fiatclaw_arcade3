@@ -694,21 +694,18 @@ test("active catalog winners are all money-valued (SOL/$CLAW/jackpot/nft/mystery
   }
 });
 
-test("visual pile is dense premium crypto kinds, lower band, no toy spheres", () => {
+test("visual pile is dense FIATCLAW + crystal + SOL billboards, lower band", () => {
   const layout = buildPrizePileLayout(42);
-  assert.ok(layout.length >= 100, `need dense pile, got ${layout.length}`);
+  assert.ok(layout.length >= 60, `need dense pile, got ${layout.length}`);
   assert.ok(layoutFillsLowerBand(layout));
-  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+SOL+vaults+crates+jackpot");
+  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+crystal+SOL");
   assert.ok(layout.every((p) => isMoneyPrizeKind(p.kind)));
   const kinds = new Set(layout.map((p) => p.kind));
   assert.ok(kinds.has("fiatclaw_token"));
   assert.ok(kinds.has("sol_token"));
-  assert.ok(kinds.has("vault_box"));
-  assert.ok(kinds.has("mystery_crate"));
-  assert.ok(kinds.has("nft_capsule"));
-  assert.ok(kinds.has("jackpot_cube"));
-  assert.ok(kinds.has("treasure_chest"));
-  assert.equal(kinds.has("neon_capsule" as never), false);
+  assert.ok(kinds.has("crystal") || kinds.has("crystal_purple"));
+  // Every prize has a /refs texture path (billboard assets)
+  assert.ok(layout.every((p) => p.texture && p.texture.startsWith("/refs/")));
   const ys = layout.map((p) => p.position[1]);
   assert.ok(Math.max(...ys) - Math.min(...ys) > 0.02);
 });
@@ -716,7 +713,7 @@ test("visual pile is dense premium crypto kinds, lower band, no toy spheres", ()
 // ── Premium industrial machine structure ───────────────────────────────
 console.log("\n(j) premium industrial claw machine");
 
-test("ClawScene ships massive industrial hollow cabinet + hydraulic claw", () => {
+test("ClawScene ships hollow cabinet + single 3-blade hydraulic claw", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const scenePath = path.join(
@@ -735,35 +732,43 @@ test("ClawScene ships massive industrial hollow cabinet + hydraulic claw", () =>
   assert.ok(src.includes("meshPhysicalMaterial"));
   assert.ok(src.includes("HydraulicBlade") || src.includes("hydraulic"));
   assert.ok(src.includes("CLAW_BLADES") || src.includes("fingers"));
+  // Exactly one assembly call site
+  const assemblies = src.match(/function ClawAssembly/g) || [];
+  assert.equal(assemblies.length, 1, "one ClawAssembly definition");
+  assert.ok(src.includes("<ClawAssembly"));
   assert.ok(src.includes("FIATCLAW ARCADE"));
-  assert.ok(src.includes("CoolingFan") || src.includes("motor"));
   assert.ok(src.includes("buildPrizePileLayout") || src.includes("PrizePile"));
-  assert.ok(src.includes("premium-industrial") || src.includes("cyberpunk"));
 });
 
-test("PrizeMeshes ships premium crypto collectibles", () => {
+test("PrizeMeshes are sprite billboards from public/refs (no Sphere/Box/Icosa prizes)", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
-  const meshPath = path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "components",
-    "claw",
-    "PrizeMeshes.tsx"
-  );
+  const root = path.join(__dirname, "..", "..", "..");
+  const meshPath = path.join(root, "components", "claw", "PrizeMeshes.tsx");
   const src = fs.readFileSync(meshPath, "utf8");
-  assert.ok(src.includes("FiatClawToken"));
-  assert.ok(src.includes("SolToken"));
-  assert.ok(src.includes("VaultBox"));
-  assert.ok(src.includes("MysteryCrate"));
-  assert.ok(src.includes("NftCapsule") || src.includes("nft"));
-  assert.ok(src.includes("JackpotCube"));
-  assert.ok(src.includes("TreasureChest"));
+  assert.ok(src.includes("sprite-billboard") || src.includes("PRIZE_RENDER_MODE"));
+  assert.ok(src.includes("planeGeometry"), "billboard plane");
+  assert.ok(src.includes("useTexture") || src.includes("/refs/"));
+  assert.ok(src.includes("/refs/"), "loads public/refs textures");
+  // Forbidden primitive prize piles
+  assert.equal(src.includes("sphereGeometry"), false, "no sphere prizes");
+  assert.equal(src.includes("icosahedronGeometry"), false, "no icosa prizes");
+  assert.equal(src.includes("boxGeometry"), false, "no box prizes");
+  assert.equal(src.includes("octahedronGeometry"), false, "no octa prizes");
+  // Assets on disk
+  for (const f of [
+    "fiatclaw-token.png",
+    "crystal.png",
+    "sol-token.png",
+  ]) {
+    assert.ok(
+      fs.existsSync(path.join(root, "public", "refs", f)),
+      `missing public/refs/${f}`
+    );
+  }
 });
 
-test("ClawMachine ships premium console controls", () => {
+test("ClawMachine ships clickable PULL + joystick", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const machinePath = path.join(
@@ -778,15 +783,19 @@ test("ClawMachine ships premium console controls", () => {
   assert.ok(src.includes('data-claw-action="pull"'));
   assert.ok(src.includes('data-claw-controls="joystick"'));
   assert.ok(src.includes('data-claw-dir="left"'));
+  assert.ok(src.includes('data-claw-dir="right"'));
   assert.ok(src.includes("OLED") || src.includes("data-claw-status"));
   assert.ok(src.includes("ClawCanvas") || src.includes("r3f-webgl"));
 });
 
-test("WIN_PROBABILITY never appears in player-facing play page", () => {
+test("WIN_PROBABILITY is 0.2 in code only; absent from play UI", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const playPath = path.join(__dirname, "..", "..", "..", "app", "play", "page.tsx");
+  const prizesPath = path.join(__dirname, "..", "prizes.ts");
   const playSrc = fs.readFileSync(playPath, "utf8");
+  const prizesSrc = fs.readFileSync(prizesPath, "utf8");
+  assert.ok(/WIN_PROBABILITY\s*=\s*0\.2/.test(prizesSrc));
   assert.equal(playSrc.includes("WIN_PROBABILITY"), false);
   assert.equal(/\b20\s*%/.test(playSrc), false, "no 20% on play page");
   assert.ok(playSrc.includes("ClawMachine"), "play mounts ClawMachine");

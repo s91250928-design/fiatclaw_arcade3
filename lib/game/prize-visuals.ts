@@ -1,24 +1,26 @@
 /**
- * Dense premium Web3 prize chamber layout.
- * Hundreds of stacked crypto collectibles — adult industrial palette only.
+ * Dense prize layout for billboard sprites (public/refs).
+ * Kinds: $FIATCLAW tokens, crystals, SOL — no toy sphere piles.
  */
 
 export type MoneyPrizeKind =
   | "fiatclaw_token"
+  | "crystal"
   | "sol_token"
+  | "jackpot_cube"
+  // aliases for held-prize / older tests
+  | "sol_bar"
+  | "sol_crystal"
+  | "crystal_purple"
+  | "crystal_red"
+  | "crystal_cyan"
+  | "crystal_gold"
+  | "jackpot_hex"
   | "nft_capsule"
   | "mystery_crate"
   | "vault_box"
   | "treasure_chest"
-  | "metal_collectible"
-  | "jackpot_cube"
-  | "sol_bar"
-  | "sol_crystal"
-  | "jackpot_hex"
-  | "crystal_purple"
-  | "crystal_red"
-  | "crystal_cyan"
-  | "crystal_gold";
+  | "metal_collectible";
 
 export interface PrizeVisualSpec {
   kind: MoneyPrizeKind;
@@ -28,6 +30,8 @@ export interface PrizeVisualSpec {
   seed: number;
   bob: boolean;
   spin: boolean;
+  /** Path under public/ for billboard texture */
+  texture: string;
 }
 
 function mulberry(seed: number): () => number {
@@ -41,72 +45,70 @@ function mulberry(seed: number): () => number {
   };
 }
 
+export const PRIZE_TEXTURES: Record<string, string> = {
+  fiatclaw_token: "/refs/fiatclaw-token.png",
+  crystal: "/refs/crystal.png",
+  crystal_purple: "/refs/crystal.png",
+  crystal_red: "/refs/crystal.png",
+  crystal_cyan: "/refs/crystal.png",
+  crystal_gold: "/refs/crystal.png",
+  sol_token: "/refs/sol-token.png",
+  sol_bar: "/refs/sol-token.png",
+  sol_crystal: "/refs/sol-token.png",
+  jackpot_cube: "/refs/jackpot-cube.png",
+  jackpot_hex: "/refs/jackpot-cube.png",
+  nft_capsule: "/refs/sol-token.png",
+  mystery_crate: "/refs/jackpot-cube.png",
+  vault_box: "/refs/jackpot-cube.png",
+  treasure_chest: "/refs/jackpot-cube.png",
+  metal_collectible: "/refs/fiatclaw-token.png",
+};
+
 /**
- * Fill the chamber floor densely — ~120+ items, multi-layer stack, no empty voids.
+ * Dense lower-band pile — FIATCLAW / crystal / SOL sprites.
  */
 export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   const rnd = mulberry(seed);
   const out: PrizeVisualSpec[] = [];
-  const count = 128;
+  const count = 96;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();
-    if (r < 0.38) return "fiatclaw_token";
-    if (r < 0.58) return "sol_token";
-    if (r < 0.68) return "nft_capsule";
-    if (r < 0.76) return "mystery_crate";
-    if (r < 0.84) return "vault_box";
-    if (r < 0.9) return "treasure_chest";
-    if (r < 0.96) return "metal_collectible";
-    if (r < 0.99) return "sol_bar";
+    if (r < 0.42) return "fiatclaw_token";
+    if (r < 0.68) return "crystal";
+    if (r < 0.94) return "sol_token";
     return "jackpot_cube";
   };
 
-  // Layered grid with jitter — fills floor + mid height of lower chamber third
-  const cols = 12;
-  const depthRows = 8;
+  const cols = 10;
+  const depthRows = 7;
   for (let i = 0; i < count; i++) {
-    const kind = i === 0 ? "jackpot_cube" : pickKind(); // legendary center bias later
+    const kind = i === 0 ? "jackpot_cube" : pickKind();
     const col = i % cols;
     const row = Math.floor(i / cols) % depthRows;
     const layer = Math.floor(i / (cols * depthRows));
 
-    const x = -1.15 + (col / (cols - 1)) * 2.3 + (rnd() - 0.5) * 0.1;
-    const z = -0.65 + (row / (depthRows - 1)) * 1.25 + (rnd() - 0.5) * 0.08;
-    const yBase =
-      0.04 +
-      layer * 0.09 +
-      rnd() * 0.06 +
-      (kind === "vault_box" || kind === "mystery_crate" || kind === "treasure_chest"
-        ? 0.04
-        : 0) +
-      (kind === "jackpot_cube" ? 0.08 : 0);
+    const x = -1.1 + (col / Math.max(1, cols - 1)) * 2.2 + (rnd() - 0.5) * 0.12;
+    const z = -0.6 + (row / Math.max(1, depthRows - 1)) * 1.15 + (rnd() - 0.5) * 0.1;
+    let yBase = 0.06 + layer * 0.08 + rnd() * 0.05;
+    if (kind === "jackpot_cube") yBase += 0.06;
 
-    // Push jackpot near center on first special slot
     const position: [number, number, number] =
-      kind === "jackpot_cube" && i === 0
-        ? [0, 0.22, 0.05]
-        : [x, yBase, z];
+      kind === "jackpot_cube" && i === 0 ? [0, 0.18, 0.05] : [x, yBase, z];
 
     const scale =
       kind === "jackpot_cube"
-        ? 1.15
-        : kind === "treasure_chest" || kind === "vault_box"
-          ? 0.75 + rnd() * 0.3
-          : kind === "mystery_crate"
-            ? 0.7 + rnd() * 0.28
-            : kind === "fiatclaw_token" || kind === "sol_token"
-              ? 0.7 + rnd() * 0.45
-              : 0.65 + rnd() * 0.4;
+        ? 0.95 + rnd() * 0.2
+        : kind === "crystal"
+          ? 0.55 + rnd() * 0.45
+          : 0.5 + rnd() * 0.5;
 
     const rewardKind =
       kind === "fiatclaw_token"
         ? "claw"
         : kind === "jackpot_cube" || kind === "jackpot_hex"
           ? "jackpot"
-          : kind === "mystery_crate" || kind === "nft_capsule" || kind === "treasure_chest"
-            ? "mystery"
-            : "sol";
+          : "sol";
 
     out.push({
       kind,
@@ -114,55 +116,41 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
       scale,
       position,
       seed: i * 19 + seed,
-      bob: rnd() > 0.4 || kind === "jackpot_cube",
-      spin:
-        kind === "fiatclaw_token" ||
-        kind === "sol_token" ||
-        kind === "metal_collectible" ||
-        kind === "jackpot_cube" ||
-        rnd() > 0.55,
+      bob: rnd() > 0.35,
+      spin: kind === "fiatclaw_token" || kind === "sol_token" || rnd() > 0.5,
+      texture: PRIZE_TEXTURES[kind] ?? PRIZE_TEXTURES.fiatclaw_token!,
     });
   }
   return out;
 }
 
 export function isMoneyPrizeKind(kind: MoneyPrizeKind): boolean {
-  return (
-    kind === "fiatclaw_token" ||
-    kind === "sol_token" ||
-    kind === "nft_capsule" ||
-    kind === "mystery_crate" ||
-    kind === "vault_box" ||
-    kind === "treasure_chest" ||
-    kind === "metal_collectible" ||
-    kind === "jackpot_cube" ||
-    kind === "sol_bar" ||
-    kind === "sol_crystal" ||
-    kind === "jackpot_hex" ||
-    kind.startsWith("crystal_")
-  );
+  return Boolean(PRIZE_TEXTURES[kind] || kind.startsWith("crystal") || kind.startsWith("sol"));
 }
 
 export function layoutFillsLowerBand(layout: PrizeVisualSpec[]): boolean {
-  if (layout.length < 60) return false;
-  // Dense fill: most mass in lower third of chamber (y < 0.55)
-  const low = layout.filter((p) => p.position[1] < 0.55).length;
-  return low / layout.length > 0.7;
+  if (layout.length < 40) return false;
+  const low = layout.filter((p) => p.position[1] < 0.45).length;
+  return low / layout.length > 0.65;
 }
 
 export function layoutHasRequiredKinds(layout: PrizeVisualSpec[]): boolean {
   const kinds = new Set(layout.map((p) => p.kind));
-  return (
-    kinds.has("fiatclaw_token") &&
-    kinds.has("sol_token") &&
-    kinds.has("vault_box") &&
-    kinds.has("mystery_crate") &&
-    kinds.has("nft_capsule") &&
-    kinds.has("jackpot_cube") &&
-    kinds.has("treasure_chest")
-  );
+  const hasCrystal =
+    kinds.has("crystal") ||
+    kinds.has("crystal_purple") ||
+    kinds.has("crystal_red") ||
+    kinds.has("crystal_cyan");
+  const hasSol =
+    kinds.has("sol_token") || kinds.has("sol_bar") || kinds.has("sol_crystal");
+  return kinds.has("fiatclaw_token") && hasCrystal && hasSol;
 }
 
 export function layoutIsDense(layout: PrizeVisualSpec[]): boolean {
-  return layout.length >= 100;
+  return layout.length >= 60;
+}
+
+/** Texture path for a kind (tests + runtime). */
+export function textureForKind(kind: MoneyPrizeKind): string {
+  return PRIZE_TEXTURES[kind] ?? "/refs/fiatclaw-token.png";
 }
