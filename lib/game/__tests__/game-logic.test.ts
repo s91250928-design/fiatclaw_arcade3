@@ -756,6 +756,19 @@ test("ClawScene ships glass cylinder vault + single 3-blade industrial claw", ()
   assert.equal(src.includes("#fff0f4"), false, "no pink-white claw key light");
   assert.equal(src.includes("#f0f4ff"), false, "no white spotlight wash");
   assert.ok(src.includes("#FF3E5C") && src.includes("#22D3FF"), "red+cyan neon");
+  // Contained thin claw (not fat scale that pierces glass)
+  assert.ok(
+    src.includes("inside-glass-cylinder") || src.includes("maxTravelX"),
+    "containment markers"
+  );
+  // Thin finger capsules (radius ≤ 0.03) — not fat 0.06+ weight
+  assert.ok(
+    src.includes("capsuleGeometry args={[0.022") ||
+      src.includes("capsuleGeometry args={[0.02"),
+    "thin finger capsules"
+  );
+  assert.equal(src.includes("scale={2.05}"), false, "no oversize 2.05 claw scale");
+  assert.equal(src.includes("boxGeometry args={[2.1"), false, "no wide rail piercing glass");
 });
 
 test("PrizeMeshes are sprite billboards from public/refs (no Sphere/Box/Icosa prizes)", () => {

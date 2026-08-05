@@ -49,26 +49,27 @@ function useSlipped(phase: ClawPhase) {
   return slipped.current;
 }
 
+/** Max X travel so claw stays inside glass radius (~1.45). */
 function mapClawX(pct: number) {
-  return ((Math.min(88, Math.max(12, pct)) - 50) / 38) * 0.75;
+  return ((Math.min(86, Math.max(14, pct)) - 50) / 36) * 0.48;
 }
 
 function targetClawY(phase: ClawPhase) {
   switch (phase) {
     case "drop":
     case "close":
-      return 0.05;
+      return 0.15;
     case "lift":
     case "hold":
     case "win":
-      return 0.62;
+      return 0.55;
     case "slip":
-      return 0.25;
+      return 0.28;
     case "return":
     case "lose":
-      return 0.58;
+      return 0.5;
     default:
-      return 0.62;
+      return 0.55;
   }
 }
 
@@ -388,8 +389,8 @@ function PrizePile({ phase }: { phase: ClawPhase }) {
 }
 
 /**
- * SOLID industrial 3-blade claw — mid-tone brushed steel (readable, not void).
- * Thick C-lobes + hydraulics; no pure-white emissive wash.
+ * Thin elegant industrial 3-blade finger (etalon proportions).
+ * Slim capsules — never fat weight / stick-neon.
  */
 function MetalBlade({
   fingerRef,
@@ -398,75 +399,62 @@ function MetalBlade({
   fingerRef: React.MutableRefObject<THREE.Group | null>;
   yaw: number;
 }) {
-  // Lower metalness + mid albedo so form reads under red/cyan fill
   const steel = {
-    color: STEEL,
-    metalness: 0.62,
-    roughness: 0.38,
-    envMapIntensity: 0.9,
-  } as const;
-  const steelHi = {
     color: CHROME,
-    metalness: 0.7,
-    roughness: 0.32,
+    metalness: 0.72,
+    roughness: 0.28,
   } as const;
   return (
     <group rotation={[0, yaw, 0]}>
-      <group ref={fingerRef as React.Ref<THREE.Group>} position={[0.09, 0, 0]}>
-        {/* Shoulder block */}
-        <mesh position={[0.035, 0, 0]} castShadow>
-          <boxGeometry args={[0.12, 0.1, 0.1]} />
-          <meshStandardMaterial color={STEEL_DARK} metalness={0.65} roughness={0.4} />
+      <group ref={fingerRef as React.Ref<THREE.Group>} position={[0.04, 0, 0]}>
+        {/* Slim shoulder */}
+        <mesh position={[0.015, 0, 0]} castShadow>
+          <boxGeometry args={[0.045, 0.04, 0.038]} />
+          <meshStandardMaterial color={STEEL_DARK} metalness={0.7} roughness={0.35} />
         </mesh>
-        {/* Hydraulic piston */}
-        <mesh position={[0.08, -0.05, 0.05]} rotation={[0, 0, 0.45]} castShadow>
-          <cylinderGeometry args={[0.028, 0.026, 0.14, 12]} />
-          <meshStandardMaterial color="#3a4250" metalness={0.75} roughness={0.35} />
+        {/* Thin hydraulic rod */}
+        <mesh position={[0.04, -0.03, 0.02]} rotation={[0, 0, 0.42]} castShadow>
+          <cylinderGeometry args={[0.008, 0.008, 0.08, 8]} />
+          <meshStandardMaterial color={STEEL} metalness={0.75} roughness={0.3} />
         </mesh>
-        <mesh position={[0.1, -0.12, 0.05]} rotation={[0, 0, 0.45]} castShadow>
-          <cylinderGeometry args={[0.014, 0.014, 0.1, 10]} />
-          <meshStandardMaterial color={CHROME} metalness={0.8} roughness={0.25} />
-        </mesh>
-        {/* Upper arm — thick readable steel */}
-        <mesh position={[0.12, -0.1, 0]} rotation={[0, 0, 0.5]} castShadow>
-          <capsuleGeometry args={[0.068, 0.15, 8, 22]} />
-          <meshStandardMaterial {...steelHi} />
-        </mesh>
-        {/* Knuckle */}
-        <mesh position={[0.19, -0.24, 0]} castShadow>
-          <sphereGeometry args={[0.062, 20, 20]} />
+        {/* Upper arm — thin elegant */}
+        <mesh position={[0.055, -0.06, 0]} rotation={[0, 0, 0.48]} castShadow>
+          <capsuleGeometry args={[0.022, 0.1, 6, 14]} />
           <meshStandardMaterial {...steel} />
         </mesh>
-        {/* Red joint ring */}
-        <mesh position={[0.19, -0.24, 0]} rotation={[Math.PI / 2, 0, 0.3]}>
-          <torusGeometry args={[0.068, 0.014, 10, 28]} />
+        {/* Knuckle */}
+        <mesh position={[0.09, -0.145, 0]} castShadow>
+          <sphereGeometry args={[0.024, 14, 14]} />
+          <meshStandardMaterial color={STEEL} metalness={0.7} roughness={0.32} />
+        </mesh>
+        <mesh position={[0.09, -0.145, 0]} rotation={[Math.PI / 2, 0, 0.25]}>
+          <torusGeometry args={[0.028, 0.005, 8, 16]} />
           <meshStandardMaterial
             color={RED}
             emissive={RED}
-            emissiveIntensity={1.6}
+            emissiveIntensity={1.4}
             toneMapped={false}
           />
         </mesh>
-        {/* Mid C-curve */}
-        <mesh position={[0.24, -0.4, 0]} rotation={[0, 0, 1.0]} castShadow>
-          <capsuleGeometry args={[0.062, 0.16, 8, 22]} />
-          <meshStandardMaterial {...steelHi} />
+        {/* Mid C-curve — thin */}
+        <mesh position={[0.115, -0.24, 0]} rotation={[0, 0, 0.95]} castShadow>
+          <capsuleGeometry args={[0.02, 0.1, 6, 14]} />
+          <meshStandardMaterial {...steel} />
         </mesh>
         {/* Tip hook */}
-        <mesh position={[0.2, -0.54, 0.02]} rotation={[0.22, 0, 1.4]} castShadow>
-          <capsuleGeometry args={[0.048, 0.11, 6, 16]} />
-          <meshStandardMaterial color={STEEL_DARK} metalness={0.68} roughness={0.4} />
-        </mesh>
-        {/* Grip pad */}
-        <mesh position={[0.14, -0.44, 0]} rotation={[0, 0, 1.15]}>
-          <boxGeometry args={[0.055, 0.09, 0.04]} />
-          <meshStandardMaterial color="#1a1014" metalness={0.25} roughness={0.8} />
+        <mesh position={[0.1, -0.33, 0.01]} rotation={[0.2, 0, 1.35]} castShadow>
+          <capsuleGeometry args={[0.016, 0.07, 5, 12]} />
+          <meshStandardMaterial color={STEEL_DARK} metalness={0.68} roughness={0.35} />
         </mesh>
       </group>
     </group>
   );
 }
 
+/**
+ * Slim 3-blade claw — strictly inside glass cylinder (R≈1.45).
+ * Compact gantry under ceiling; thin fingers; red/cyan fill only.
+ */
 function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
   const slipped = useSlipped(phase);
   const hold = clawShouldHoldPrize(phase, slipped);
@@ -477,7 +465,7 @@ function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
   const f2 = useRef<THREE.Group>(null);
   const prize = useRef<THREE.Group>(null);
   const fall = useRef(0);
-  const cableScale = useRef(0.5);
+  const cableScale = useRef(0.45);
 
   const x = mapClawX(clawX);
   const yTarget = targetClawY(phase);
@@ -497,8 +485,8 @@ function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
       dt
     );
 
-    // Readable 3-lobe open silhouette above pile
-    const openAng = open ? 0.34 : 0.08;
+    // Modest open — tips stay inside chamber
+    const openAng = open ? 0.22 : 0.05;
     for (const fr of [f0, f1, f2]) {
       if (fr.current) {
         fr.current.rotation.z = THREE.MathUtils.damp(
@@ -512,10 +500,10 @@ function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
 
     const targetCable =
       phase === "drop" || phase === "close"
-        ? 0.82
+        ? 0.75
         : phase === "slip"
-          ? 0.5
-          : 0.28;
+          ? 0.48
+          : 0.3;
     cableScale.current = THREE.MathUtils.damp(
       cableScale.current,
       targetCable,
@@ -527,11 +515,11 @@ function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
       if (hold) {
         fall.current = 0;
         prize.current.visible = true;
-        prize.current.position.set(0, -0.58, 0.04);
+        prize.current.position.set(0, -0.38, 0.02);
       } else if (phase === "slip" || phase === "lose") {
         prize.current.visible = true;
         fall.current += dt * 2.3;
-        prize.current.position.y = -0.58 - fall.current;
+        prize.current.position.y = -0.38 - fall.current;
         if (fall.current > 1.5) prize.current.visible = false;
       } else {
         prize.current.visible = false;
@@ -540,146 +528,131 @@ function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
     }
   });
 
-  const baseCable = 0.85;
+  const baseCable = 0.7;
 
   return (
     <group
       ref={group}
-      position={[0, 1.0, 0.4]}
-      scale={2.05}
+      position={[0, 0.85, 0.05]}
+      scale={1.15}
       userData={{
         clawBlades: CLAW_BLADES,
         style: "solid-metal-3blade",
+        containment: "inside-glass-cylinder",
+        maxTravelX: 0.48,
       }}
     >
-      {/* Heavy multi-rail gantry (etalon ceiling mech) */}
-      <mesh position={[0, 0.52, 0]} castShadow>
-        <boxGeometry args={[0.9, 0.28, 0.55]} />
-        <meshStandardMaterial {...metal("#12161e", 0.94, 0.2)} />
+      {/* Compact ceiling carriage — stays under crown, inside R */}
+      <mesh position={[0, 0.42, 0]} castShadow>
+        <boxGeometry args={[0.42, 0.14, 0.28]} />
+        <meshStandardMaterial {...metal("#12161e", 0.92, 0.25)} />
       </mesh>
-      <mesh position={[0, 0.62, 0]} castShadow>
-        <boxGeometry args={[2.1, 0.1, 0.16]} />
-        <meshStandardMaterial {...metal(GUNMETAL, 0.93, 0.22)} />
+      <mesh position={[0, 0.5, 0]} castShadow>
+        <boxGeometry args={[0.95, 0.06, 0.1]} />
+        <meshStandardMaterial {...metal(GUNMETAL, 0.9, 0.28)} />
       </mesh>
-      <mesh position={[0, 0.66, 0]}>
-        <boxGeometry args={[2.05, 0.016, 0.05]} />
+      <mesh position={[0, 0.54, 0]}>
+        <boxGeometry args={[0.9, 0.012, 0.035]} />
         <meshStandardMaterial
           color={CYAN}
           emissive={CYAN}
-          emissiveIntensity={1.5}
+          emissiveIntensity={1.3}
           toneMapped={false}
         />
       </mesh>
-      {/* Hydraulic tubes left/right */}
-      {[-0.28, 0.28].map((sx) => (
-        <group key={sx}>
-          <mesh position={[sx, 0.4, 0.12]} rotation={[0.2, 0, 0]} castShadow>
-            <cylinderGeometry args={[0.035, 0.04, 0.35, 12]} />
-            <meshStandardMaterial {...metal("#1a2030", 0.9, 0.3)} />
-          </mesh>
-          <mesh position={[sx, 0.22, 0.16]} castShadow>
-            <sphereGeometry args={[0.04, 12, 12]} />
-            <meshStandardMaterial {...metal(STEEL, 0.9, 0.28)} />
-          </mesh>
-        </group>
+      {/* Slim hydraulic tubes */}
+      {[-0.14, 0.14].map((sx) => (
+        <mesh
+          key={sx}
+          position={[sx, 0.32, 0.06]}
+          rotation={[0.15, 0, 0]}
+          castShadow
+        >
+          <cylinderGeometry args={[0.016, 0.018, 0.22, 10]} />
+          <meshStandardMaterial {...metal("#1a2030", 0.88, 0.32)} />
+        </mesh>
       ))}
       {/* Cable reel */}
-      <mesh position={[0, 0.38, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <cylinderGeometry args={[0.1, 0.1, 0.14, 20]} />
-        <meshStandardMaterial {...metal("#2a303c", 0.92, 0.24)} />
+      <mesh position={[0, 0.3, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.055, 0.055, 0.08, 16]} />
+        <meshStandardMaterial {...metal("#2a303c", 0.9, 0.28)} />
       </mesh>
 
-      {/* Thick braided steel cable */}
+      {/* Steel cable */}
       <mesh
-        position={[0, 0.28 - (baseCable * cableScale.current) / 2, 0]}
+        position={[0, 0.22 - (baseCable * cableScale.current) / 2, 0]}
         scale={[1, cableScale.current, 1]}
       >
-        <cylinderGeometry args={[0.038, 0.034, baseCable, 16]} />
-        <meshStandardMaterial color="#14161a" metalness={0.94} roughness={0.28} />
-      </mesh>
-      {/* Cable guide rings */}
-      <mesh
-        position={[0, 0.28 - baseCable * cableScale.current * 0.35, 0]}
-        rotation={[Math.PI / 2, 0, 0]}
-      >
-        <torusGeometry args={[0.05, 0.012, 8, 16]} />
-        <meshStandardMaterial {...metal(STEEL, 0.9, 0.28)} />
+        <cylinderGeometry args={[0.016, 0.014, baseCable, 12]} />
+        <meshStandardMaterial color="#1a1c20" metalness={0.92} roughness={0.3} />
       </mesh>
 
-      {/* Motor housing + 3 solid metal blades */}
+      {/* Slim motor + 3 thin blades */}
       <group
-        position={[0, 0.28 - baseCable * cableScale.current - 0.1, 0]}
+        position={[0, 0.22 - baseCable * cableScale.current - 0.06, 0]}
         userData={{ fingers: CLAW_BLADES, motor: true }}
       >
-        {/* Cable clamp */}
-        <mesh position={[0, 0.14, 0]} castShadow>
-          <cylinderGeometry args={[0.06, 0.08, 0.1, 16]} />
-          <meshStandardMaterial {...metal("#1a1e28", 0.93, 0.22)} />
+        <mesh position={[0, 0.08, 0]} castShadow>
+          <cylinderGeometry args={[0.035, 0.04, 0.06, 14]} />
+          <meshStandardMaterial {...metal("#1a1e28", 0.9, 0.28)} />
         </mesh>
-        {/* Motor body — mid industrial (readable, not black void) */}
+        {/* Compact motor — not fat weight */}
         <mesh castShadow>
-          <cylinderGeometry args={[0.22, 0.24, 0.34, 36]} />
-          <meshStandardMaterial color="#2a323e" metalness={0.7} roughness={0.35} />
+          <cylinderGeometry args={[0.1, 0.11, 0.18, 28]} />
+          <meshStandardMaterial color="#2a323e" metalness={0.72} roughness={0.32} />
         </mesh>
-        <mesh position={[0, 0.15, 0]} castShadow>
-          <cylinderGeometry args={[0.2, 0.22, 0.07, 32]} />
-          <meshStandardMaterial color={STEEL} metalness={0.65} roughness={0.35} />
+        <mesh position={[0, 0.08, 0]} castShadow>
+          <cylinderGeometry args={[0.09, 0.1, 0.04, 24]} />
+          <meshStandardMaterial color={STEEL} metalness={0.7} roughness={0.3} />
         </mesh>
-        {/* Red neon collar rings */}
-        <mesh position={[0, 0.06, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.235, 0.018, 12, 48]} />
+        {/* Red neon collars */}
+        <mesh position={[0, 0.03, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.112, 0.01, 10, 32]} />
           <meshStandardMaterial
             color={RED}
             emissive={RED}
-            emissiveIntensity={1.5}
+            emissiveIntensity={1.4}
             toneMapped={false}
           />
         </mesh>
-        <mesh position={[0, -0.06, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.238, 0.015, 12, 48]} />
+        <mesh position={[0, -0.03, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.114, 0.008, 10, 32]} />
           <meshStandardMaterial
             color={RED}
             emissive={RED}
-            emissiveIntensity={1.3}
+            emissiveIntensity={1.2}
             toneMapped={false}
           />
         </mesh>
-        {/* Collar + pivot — mid steel so form reads */}
-        <mesh position={[0, -0.22, 0]} castShadow>
-          <cylinderGeometry args={[0.15, 0.12, 0.11, 28]} />
-          <meshStandardMaterial color={STEEL_DARK} metalness={0.68} roughness={0.38} />
+        <mesh position={[0, -0.12, 0]} castShadow>
+          <cylinderGeometry args={[0.07, 0.055, 0.06, 20]} />
+          <meshStandardMaterial color={STEEL_DARK} metalness={0.7} roughness={0.35} />
         </mesh>
-        <mesh position={[0, -0.32, 0]} castShadow>
-          <sphereGeometry args={[0.095, 24, 24]} />
-          <meshStandardMaterial color={CHROME} metalness={0.72} roughness={0.3} />
+        <mesh position={[0, -0.18, 0]} castShadow>
+          <sphereGeometry args={[0.045, 18, 18]} />
+          <meshStandardMaterial color={CHROME} metalness={0.75} roughness={0.28} />
         </mesh>
 
-        {/* Exactly 3 thick steel C-blades — front L/R + rear */}
-        <group position={[0, -0.3, 0]}>
-          <MetalBlade fingerRef={f0} yaw={-1.0} />
-          <MetalBlade fingerRef={f1} yaw={1.0} />
+        {/* Exactly 3 thin metal blades */}
+        <group position={[0, -0.18, 0]}>
+          <MetalBlade fingerRef={f0} yaw={-0.95} />
+          <MetalBlade fingerRef={f1} yaw={0.95} />
           <MetalBlade fingerRef={f2} yaw={Math.PI} />
-          {/* Strong dual neon fill so metal body reads — never pure white */}
+          {/* Soft red/cyan fill — no white */}
           <pointLight
-            position={[0.15, -0.15, 0.35]}
-            intensity={2.2}
+            position={[0.1, -0.1, 0.2]}
+            intensity={1.4}
             color={CYAN}
-            distance={2.2}
+            distance={1.4}
           />
           <pointLight
-            position={[-0.15, -0.2, 0.3]}
-            intensity={2.0}
+            position={[-0.1, -0.12, 0.18]}
+            intensity={1.3}
             color={RED}
-            distance={2.0}
-          />
-          <pointLight
-            position={[0, -0.35, 0.15]}
-            intensity={1.2}
-            color={CYAN}
-            distance={1.6}
+            distance={1.3}
           />
           <group ref={prize} visible={false}>
-            <PrizeMeshByKind kind="fiatclaw_token" scale={hold ? 1.35 : 1} />
+            <PrizeMeshByKind kind="fiatclaw_token" scale={hold ? 1.1 : 0.9} />
           </group>
         </group>
       </group>

@@ -65,39 +65,41 @@ export const PRIZE_TEXTURES: Record<string, string> = {
 export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   const rnd = mulberry(seed);
   const out: PrizeVisualSpec[] = [];
-  // Dense lower pile — etalon-style packed floor
-  const count = 165;
+  // Dense neat lower pile inside floor disc (radius < glass R)
+  const count = 150;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();
-    if (r < 0.38) return "fiatclaw_token";
-    if (r < 0.6) return "sol_token";
-    if (r < 0.72) return "crystal";
-    if (r < 0.84) return "nft_capsule";
-    if (r < 0.93) return "mystery_crate";
+    // Prefer branded coins (etalon pile language)
+    if (r < 0.42) return "fiatclaw_token";
+    if (r < 0.68) return "sol_token";
+    if (r < 0.78) return "crystal";
+    if (r < 0.88) return "nft_capsule";
+    if (r < 0.95) return "mystery_crate";
     return "jackpot_cube";
   };
 
-  // center jackpot
+  // center jackpot cube
   out.push({
     kind: "jackpot_cube",
     rewardKind: "jackpot",
-    scale: 1.45,
-    position: [0, 0.18, 0.05],
+    scale: 1.3,
+    position: [0, 0.14, 0.04],
     seed: seed,
     bob: true,
-    spin: true,
+    spin: false,
     texture: PRIZE_TEXTURES.jackpot_cube!,
   });
 
   for (let i = 1; i < count; i++) {
     const kind = pickKind();
     const angle = rnd() * Math.PI * 2;
-    const radius = Math.sqrt(rnd()) * 1.18;
-    const layer = Math.floor(i / 32);
-    const x = Math.cos(angle) * radius + (rnd() - 0.5) * 0.06;
-    const z = Math.sin(angle) * radius * 0.88 + (rnd() - 0.5) * 0.06;
-    const y = 0.04 + layer * 0.065 + rnd() * 0.04;
+    // Pack tightly on floor disc — stay inside chamber floor (~1.25)
+    const radius = Math.sqrt(rnd()) * 1.05;
+    const layer = Math.floor(i / 36);
+    const x = Math.cos(angle) * radius + (rnd() - 0.5) * 0.04;
+    const z = Math.sin(angle) * radius * 0.9 + (rnd() - 0.5) * 0.04;
+    const y = 0.03 + layer * 0.055 + rnd() * 0.03;
 
     out.push({
       kind,
@@ -111,13 +113,13 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
               : "sol",
       scale:
         kind === "jackpot_cube"
-          ? 1.05 + rnd() * 0.2
+          ? 0.95 + rnd() * 0.18
           : kind === "crystal"
-            ? 0.75 + rnd() * 0.4
-            : 0.85 + rnd() * 0.4,
+            ? 0.7 + rnd() * 0.35
+            : 0.78 + rnd() * 0.32,
       position: [x, y, z],
       seed: i * 19 + seed,
-      bob: rnd() > 0.35,
+      bob: rnd() > 0.45,
       spin: false,
       texture: PRIZE_TEXTURES[kind] ?? PRIZE_TEXTURES.fiatclaw_token!,
     });
