@@ -771,6 +771,46 @@ test("PrizeMeshes are sprite billboards from public/refs (no Sphere/Box/Icosa pr
   }
 });
 
+test("Prize emblems: $FIATCLAW 3-blade claw + SOL bars (no V crow-foot art)", () => {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const root = path.join(__dirname, "..", "..", "..");
+  const genPath = path.join(root, "scripts", "generate-prize-art.mjs");
+  const gen = fs.readFileSync(genPath, "utf8");
+  // Generator must draw industrial 3-blade claw emblem
+  assert.ok(
+    gen.includes("drawFiatClawEmblem") || gen.includes("Three curved blades"),
+    "generator draws 3-blade claw emblem"
+  );
+  assert.ok(gen.includes("$FIATCLAW"), "FIATCLAW label in generator");
+  assert.ok(gen.includes("#9945FF") && gen.includes("#14F195"), "Solana bar colors");
+  // Forbidden old V-arrow crow-foot (3 lines from bottom tip only)
+  assert.equal(
+    gen.includes("ctx.moveTo(128, 175)") && gen.includes("ctx.lineTo(95, 105)"),
+    false,
+    "must not use old V-arrow stroke paths"
+  );
+  // Shipped textures exist and are non-trivial PNGs
+  const refs = path.join(root, "public", "refs");
+  for (const f of [
+    "fiatclaw-token.png",
+    "sol-token.png",
+    "jackpot-cube.png",
+    "nft-box.png",
+    "mystery-box.png",
+    "crystal.png",
+  ]) {
+    const p = path.join(refs, f);
+    assert.ok(fs.existsSync(p), `missing ${f}`);
+    const st = fs.statSync(p);
+    assert.ok(st.size > 4000, `${f} too small (${st.size}) — likely broken art`);
+  }
+  // prize-visuals maps to correct paths
+  const vis = fs.readFileSync(path.join(root, "lib", "game", "prize-visuals.ts"), "utf8");
+  assert.ok(vis.includes('fiatclaw_token: "/refs/fiatclaw-token.png"'));
+  assert.ok(vis.includes('sol_token: "/refs/sol-token.png"'));
+});
+
 test("Dashboard hosts clickable PULL + joystick; machine mounts canvas", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
