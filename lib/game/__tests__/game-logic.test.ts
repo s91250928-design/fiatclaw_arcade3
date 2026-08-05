@@ -713,7 +713,7 @@ test("visual pile is dense FIATCLAW + crystal + SOL billboards, lower band", () 
 // ── Premium industrial machine structure ───────────────────────────────
 console.log("\n(j) premium industrial claw machine");
 
-test("ClawScene ships cylindrical vault + single 3-blade industrial claw", () => {
+test("ClawScene ships glass cylinder vault + single 3-blade industrial claw", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const scenePath = path.join(
@@ -727,18 +727,20 @@ test("ClawScene ships cylindrical vault + single 3-blade industrial claw", () =>
   );
   const src = fs.readFileSync(scenePath, "utf8");
   assert.ok(src.includes('CABINET_SHELL_MODE = "hollow-open-front"'));
+  assert.ok(src.includes("VaultShell") || src.includes("glass-cylinder"));
+  assert.ok(src.includes("meshPhysicalMaterial"), "glass cylinder body");
+  assert.ok(src.includes("cylinderGeometry"), "cylindrical chamber");
+  assert.ok(src.includes("CLAW_BLADES") || src.includes("fingers"));
   assert.ok(
-    src.includes("VaultShell") ||
-      src.includes("Hollow") ||
-      src.includes("cylindrical")
+    src.includes("claw-industrial") ||
+      src.includes("claw-sprite") ||
+      src.includes("ClawAssembly")
   );
-  assert.ok(src.includes("meshPhysicalMaterial"), "glass");
-  assert.ok(src.includes("ClawBlade") || src.includes("CLAW_BLADES"));
-  assert.ok(src.includes("fingers") || src.includes("CLAW_BLADES"));
   const assemblies = src.match(/function ClawAssembly/g) || [];
   assert.equal(assemblies.length, 1, "one ClawAssembly definition");
   assert.ok(src.includes("<ClawAssembly"));
   assert.ok(src.includes("buildPrizePileLayout") || src.includes("PrizePile"));
+  assert.ok(src.includes("InteriorFog") || src.includes("fog"));
 });
 
 test("PrizeMeshes are sprite billboards from public/refs (no Sphere/Box/Icosa prizes)", () => {
