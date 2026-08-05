@@ -866,23 +866,30 @@ export default function PlayPage() {
                 style={{
                   width: "100%",
                   marginTop: 18,
-                  minHeight: 72,
+                  minHeight: 78,
                   borderRadius: 14,
-                  border: "2px solid rgba(255,120,140,0.55)",
+                  border: pullOn
+                    ? "2px solid rgba(255,140,160,0.95)"
+                    : "2px solid rgba(255,62,92,0.45)",
                   cursor: pullOn ? "pointer" : "not-allowed",
                   color: "#fff",
                   fontFamily: "Orbitron, sans-serif",
                   fontWeight: 800,
-                  fontSize: 18,
-                  letterSpacing: "0.28em",
-                  background: !pullOn
-                    ? "linear-gradient(180deg, #2a2e38, #12141a)"
-                    : `radial-gradient(circle at 40% 28%, #FF8A9A 0%, ${RED} 40%, #A01028 75%, #3a0610 100%)`,
-                  boxShadow: !pullOn
-                    ? "none"
-                    : "0 0 48px rgba(255,37,68,0.7), 0 8px 0 #2a040c, inset 0 2px 0 rgba(255,255,255,0.35)",
-                  opacity: !wallet.connected && phase !== "drop" && phase !== "close" ? 0.5 : 1,
+                  fontSize: 20,
+                  letterSpacing: "0.32em",
+                  // Always red-neon chrome (etalon) — dim when locked
+                  background: pullOn
+                    ? `radial-gradient(circle at 40% 22%, #FF9AAB 0%, ${RED} 38%, #B01028 72%, #2a040c 100%)`
+                    : `linear-gradient(180deg, #5a1828 0%, #3a0a14 45%, #1a060c 100%)`,
+                  boxShadow: pullOn
+                    ? "0 0 56px rgba(255,37,68,0.85), 0 0 24px rgba(255,62,92,0.55), 0 8px 0 #2a040c, inset 0 2px 0 rgba(255,255,255,0.4)"
+                    : "0 0 22px rgba(255,37,68,0.28), inset 0 1px 0 rgba(255,120,140,0.15)",
+                  opacity:
+                    !wallet.connected && phase !== "drop" && phase !== "close"
+                      ? 0.72
+                      : 1,
                   transition: "transform 0.12s, box-shadow 0.2s",
+                  textShadow: "0 0 18px rgba(255,62,92,0.8)",
                 }}
               >
                 {phase === "drop"

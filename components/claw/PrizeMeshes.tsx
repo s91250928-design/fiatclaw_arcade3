@@ -1,14 +1,13 @@
 "use client";
 
 /**
- * Prize visuals = textured billboard sprites from public/refs only.
- * Textures: /refs/fiatclaw-token.png, /refs/crystal.png, /refs/sol-token.png
- * No Sphere / Box / Icosahedron prize meshes.
+ * Prize visuals = camera-facing billboard sprites from public/refs.
+ * No Sphere/Box/Icosahedron prize meshes. No Y-spin edge-on disappearance.
  */
 
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useTexture } from "@react-three/drei";
+import { Billboard, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import {
   textureForKind,
@@ -16,8 +15,10 @@ import {
   type PrizeVisualSpec,
 } from "@/lib/game/prize-visuals";
 
-/** Structural marker for tests — prizes are sprite billboards. */
+/** Structural marker for tests — prizes are sprite billboards from /refs/. */
 export const PRIZE_RENDER_MODE = "sprite-billboard-refs" as const;
+/** Paths under public/refs (loaded via textureForKind / PRIZE_TEXTURES). */
+export const PRIZE_REF_DIR = "/refs/" as const;
 
 function PrizeBillboard({
   textureUrl,
@@ -33,23 +34,21 @@ function PrizeBillboard({
     map.needsUpdate = true;
   }, [map]);
 
-  // Large readable vault prizes (coins/boxes/crystals)
-  const s = 0.42 * scale;
+  const s = 0.48 * scale;
   return (
-    <mesh castShadow renderOrder={1}>
-      <planeGeometry args={[s, s]} />
-      <meshStandardMaterial
-        map={map}
-        transparent
-        alphaTest={0.08}
-        roughness={0.28}
-        metalness={0.4}
-        emissive="#12080c"
-        emissiveIntensity={0.22}
-        side={THREE.DoubleSide}
-        depthWrite={false}
-      />
-    </mesh>
+    <Billboard follow lockX={false} lockY={false} lockZ={false}>
+      <mesh renderOrder={1}>
+        <planeGeometry args={[s, s]} />
+        <meshBasicMaterial
+          map={map}
+          transparent
+          alphaTest={0.08}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </Billboard>
   );
 }
 
@@ -76,13 +75,10 @@ export function AnimatedPrize({
     if (!ref.current) return;
     const t = s.clock.elapsedTime;
     const baseY = spec.position[1];
+    // Idle bob only — never spin Y (billboards stay face-camera)
     if (spec.bob) {
       ref.current.position.y =
-        baseY + Math.sin(t * 1.1 + spec.seed * 0.15) * 0.016;
-    }
-    // Face camera-ish with gentle spin on Y
-    if (spec.spin) {
-      ref.current.rotation.y = t * (0.2 + (spec.seed % 5) * 0.03) + spec.seed * 0.1;
+        baseY + Math.sin(t * 1.05 + spec.seed * 0.15) * 0.014;
     }
   });
 

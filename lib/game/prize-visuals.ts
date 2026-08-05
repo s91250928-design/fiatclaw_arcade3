@@ -65,7 +65,7 @@ export const PRIZE_TEXTURES: Record<string, string> = {
 export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   const rnd = mulberry(seed);
   const out: PrizeVisualSpec[] = [];
-  const count = 130;
+  const count = 145;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();
