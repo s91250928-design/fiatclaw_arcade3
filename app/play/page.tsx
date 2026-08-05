@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+/**
+ * AAA FiatClaw Arcade dashboard — etalon layout:
+ * left wallet/stats · center vault hero · right controls / how-to-play.
+ */
+
+import { useState, useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { ClawMachine } from "@/components/ClawMachine";
@@ -18,6 +23,7 @@ import {
   advancePullClick,
   canClickPull,
   canMoveClaw,
+  clawStatusLabel,
   pullRecoverySequence,
   type ClawPhase,
 } from "@/lib/game/claw-phases";
@@ -33,6 +39,10 @@ type Status =
   | "error";
 
 const LOSE_COPY = "Better Luck Next Pull.";
+const RED = "#FF3E5C";
+const CYAN = "#22D3FF";
+const MUTED = "#8B93A7";
+const DIM = "#4A5568";
 
 export default function PlayPage() {
   const wallet = useWallet();
@@ -42,7 +52,6 @@ export default function PlayPage() {
   const [playId, setPlayId] = useState<string | null>(null);
   const [phase, setPhase] = useState<ClawPhase>("idle");
   const [clawX, setClawX] = useState(50);
-  /** Server outcome for current pull — set on 1st PULL, used after 3rd. */
   const outcomeRef = useRef<{ won: boolean; message: string } | null>(null);
 
   const [solBalance, setSolBalance] = useState<number | null>(null);
@@ -57,7 +66,6 @@ export default function PlayPage() {
   const [clawPrice, setClawPrice] = useState(500);
   const [buyCount, setBuyCount] = useState(1);
   const [stakeAmt, setStakeAmt] = useState(1000);
-  /** Synchronous lock so double-click cannot burn two plays on 1st PULL. */
   const dropGuardRef = useRef(createDropGuard());
 
   const refreshState = useCallback(async () => {
@@ -99,24 +107,16 @@ export default function PlayPage() {
     return () => clearInterval(t);
   }, [wallet.connected, wallet.publicKey, refreshState]);
 
-  /**
-   * After 3rd PULL click reaches lift — auto hold/slip → return → win/lose → ready.
-   * Does not start a new play; outcome already resolved on click 1.
-   */
   const runRecoveryAfterLift = useCallback(
     (won: boolean, resultMessage: string) => {
       const seq = pullRecoverySequence(won);
-      // hold | slip
       setTimeout(() => setPhase(seq[0]!), 700);
-      // return
       setTimeout(() => setPhase(seq[1]!), 1400);
-      // win | lose
       setTimeout(() => {
         setPhase(seq[2]!);
         setStatus(won ? "success" : "error");
         setMessage(won ? resultMessage : LOSE_COPY);
       }, 2200);
-      // ready
       setTimeout(() => {
         setPhase("ready");
         setPlayId(null);
@@ -131,7 +131,7 @@ export default function PlayPage() {
   );
 
   const onMove = useCallback(
-    (dir: "left" | "right") => {
+    (dir: "left" | "right" | "up" | "down") => {
       if (!canMoveClaw(phase)) return;
       const step = 7;
       if (dir === "left") setClawX((x) => Math.max(14, x - step));
@@ -226,39 +226,25 @@ export default function PlayPage() {
     [wallet.publicKey, stakeAmt]
   );
 
-  /**
-   * 3-click PULL:
-   * 1) ready/idle → arm server + resolve (once) → drop
-   * 2) drop → close (grab)
-   * 3) close → lift → auto recovery (win/lose)
-   */
   const onDrop = useCallback(async () => {
     if (!canClickPull(phase)) return;
     if (isDropUiBusy(status, phase) && phase !== "drop" && phase !== "close") {
       return;
     }
 
-    // Steps 2–3: local only — no second server charge
     if (phase === "drop" || phase === "close") {
       const next = advancePullClick(phase);
       if (!next) return;
       setPhase(next);
-      if (next === "close") {
-        setMessage("Locking claws…");
-      } else if (next === "lift") {
+      if (next === "close") setMessage("Locking claws…");
+      else if (next === "lift") {
         setMessage("Retracting…");
         const outcome = outcomeRef.current;
-        if (outcome) {
-          runRecoveryAfterLift(outcome.won, outcome.message);
-        } else {
-          // Fail-safe: treat as miss if outcome missing
-          runRecoveryAfterLift(false, LOSE_COPY);
-        }
+        runRecoveryAfterLift(outcome?.won ?? false, outcome?.message ?? LOSE_COPY);
       }
       return;
     }
 
-    // Step 1: server arm + resolve (single play burn)
     if (!dropGuardRef.current.tryAcquire()) return;
     if (!wallet.connected || !wallet.publicKey) {
       dropGuardRef.current.release();
@@ -290,14 +276,11 @@ export default function PlayPage() {
       setStatus("playing");
       setMessage("Claw descending — press PULL to grab");
 
-      // Outcome is server-authoritative — never Math.random on client.
       const result = await resolveAttempt(wallet, id);
       setAvailablePlays(result.remainingPlays);
       setJackpot(result.jackpotBalanceLamports);
       setPlayId(id);
       outcomeRef.current = { won: result.won, message: result.message };
-
-      // Click 1 complete → DESCENDING (player clicks again for grab)
       setPhase("drop");
     } catch (e: unknown) {
       dropGuardRef.current.release();
@@ -307,137 +290,91 @@ export default function PlayPage() {
       setPlayId(null);
       outcomeRef.current = null;
     }
-  }, [
-    phase,
-    status,
-    wallet,
-    playId,
-    availablePlays,
-    runRecoveryAfterLift,
-  ]);
+  }, [phase, status, wallet, playId, availablePlays, runRecoveryAfterLift]);
 
   const busy =
     isDropUiBusy(status, phase) && phase !== "drop" && phase !== "close";
+  const joyOn =
+    wallet.connected &&
+    canMoveClaw(phase) &&
+    availablePlays > 0 &&
+    !busy;
+  const pullOn =
+    !busy &&
+    canClickPull(phase) &&
+    (wallet.connected || phase === "drop" || phase === "close");
 
   const jackpotSol = (() => {
     const n = Number(jackpot);
     if (!Number.isFinite(n)) return "—";
     return (n / 1e9).toFixed(4);
   })();
+  const jackpotDisplay =
+    jackpotSol === "—" ? "—" : `${jackpotSol} SOL`;
 
   const solPrice = ((priceLamports * feeMultiplier) / 1e9).toFixed(4);
   const clawCost = Math.ceil(clawPrice * feeMultiplier);
+  const shortWallet = wallet.publicKey
+    ? `${wallet.publicKey.toBase58().slice(0, 4)}…${wallet.publicKey
+        .toBase58()
+        .slice(-4)}`
+    : null;
 
-  /* ── FiatClaw landing tokens ── */
-  const RED = "#FF3E5C";
-  const CYAN = "#22D3FF";
-  const MUTED = "#9BA1AE";
-  const DIM = "#5E6472";
-
-  const glassCard: React.CSSProperties = {
-    width: "100%",
-    maxWidth: 500,
-    padding: "18px 18px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.085)",
+  const panel: CSSProperties = {
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.08)",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.014))",
-    boxShadow:
-      "0 26px 62px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.09), 0 0 40px rgba(255,37,68,0.06)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
+      "linear-gradient(165deg, rgba(255,255,255,0.05), rgba(8,10,14,0.92))",
+    boxShadow: "0 12px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)",
+    padding: "14px 16px",
   };
 
-  const glassCardCyan: React.CSSProperties = {
-    ...glassCard,
-    border: "1px solid rgba(34,211,255,0.22)",
-    boxShadow:
-      "0 26px 62px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.09), 0 0 32px rgba(34,211,255,0.08)",
-  };
-
-  const monoLabel: React.CSSProperties = {
-    fontFamily: "JetBrains Mono, ui-monospace, monospace",
+  const label: CSSProperties = {
+    fontFamily: "JetBrains Mono, monospace",
     fontSize: 9,
-    letterSpacing: "0.22em",
+    letterSpacing: "0.2em",
     color: DIM,
     margin: 0,
-    fontWeight: 500,
   };
 
-  const orbitValue: React.CSSProperties = {
+  const value: CSSProperties = {
     fontFamily: "Orbitron, sans-serif",
-    fontSize: 14,
-    fontWeight: 600,
+    fontSize: 15,
+    fontWeight: 700,
     color: "#EDEEF2",
     margin: "6px 0 0",
-    letterSpacing: "0.04em",
   };
 
-  const ctaPrimary = (off?: boolean): React.CSSProperties => ({
-    padding: "12px 18px",
-    borderRadius: 11,
-    border: "1px solid rgba(255,120,140,0.45)",
-    cursor: off ? "not-allowed" : "pointer",
-    color: "#fff",
-    fontFamily: "Orbitron, Inter, sans-serif",
-    fontWeight: 800,
-    fontSize: 10,
-    letterSpacing: "0.14em",
-    background: off
-      ? "rgba(70,74,88,0.45)"
-      : "linear-gradient(180deg,#FF3E5C,#C4102A 62%,#8C0A1E)",
-    boxShadow: off
-      ? "none"
-      : "0 0 24px rgba(255,37,68,0.4), inset 0 1px 0 rgba(255,255,255,0.3)",
-    opacity: off ? 0.55 : 1,
-    transition: "transform 0.2s, box-shadow 0.2s",
-  });
-
-  const ctaGhost = (off?: boolean): React.CSSProperties => ({
-    padding: "12px 18px",
-    borderRadius: 11,
-    border: "1px solid rgba(34,211,255,0.35)",
-    cursor: off ? "not-allowed" : "pointer",
-    color: CYAN,
-    fontFamily: "Orbitron, Inter, sans-serif",
-    fontWeight: 700,
-    fontSize: 10,
-    letterSpacing: "0.14em",
-    background:
-      "linear-gradient(180deg, rgba(20,36,48,0.95), rgba(8,12,18,0.98))",
-    boxShadow: off
-      ? "none"
-      : "0 0 18px rgba(34,211,255,0.15), inset 0 1px 0 rgba(255,255,255,0.08)",
-    opacity: off ? 0.55 : 1,
-  });
-
-  const fieldInput: React.CSSProperties = {
-    width: 88,
-    padding: "12px 14px",
-    borderRadius: 11,
-    border: "1px solid rgba(34,211,255,0.28)",
-    background: "rgba(4,6,10,0.85)",
-    color: "#EDEEF2",
+  const dpadBtn = (on: boolean): CSSProperties => ({
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    border: `1px solid ${on ? "rgba(255,62,92,0.5)" : "rgba(80,90,110,0.35)"}`,
+    background: on
+      ? "linear-gradient(180deg, #2a1820, #12080c)"
+      : "linear-gradient(180deg, #1a1e28, #0c0e14)",
+    color: on ? RED : MUTED,
     fontFamily: "Orbitron, sans-serif",
-    fontSize: 13,
-    fontWeight: 600,
-    letterSpacing: "0.06em",
-    outline: "none",
-    boxShadow: "inset 0 0 18px rgba(34,211,255,0.06), 0 0 0 1px rgba(0,0,0,0.3)",
-  };
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: on ? "pointer" : "not-allowed",
+    opacity: on ? 1 : 0.4,
+    display: "grid",
+    placeItems: "center",
+  });
 
   return (
     <>
       <link
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
         rel="stylesheet"
       />
       <main
         style={{
           minHeight: "100vh",
-          background: "#0a0b10",
+          background: "#050608",
           color: "#EDEEF2",
-          fontFamily: "Exo 2, Inter, system-ui, sans-serif",
+          fontFamily: "Inter, system-ui, sans-serif",
           position: "relative",
           overflow: "hidden",
         }}
@@ -448,26 +385,24 @@ export default function PlayPage() {
             position: "fixed",
             inset: 0,
             background:
-              "radial-gradient(ellipse 70% 45% at 50% -5%, rgba(255,37,68,0.16), transparent 55%), radial-gradient(ellipse 35% 30% at 90% 70%, rgba(34,211,255,0.06), transparent), radial-gradient(ellipse 30% 25% at 10% 80%, rgba(153,69,255,0.05), transparent)",
+              "radial-gradient(ellipse 60% 50% at 50% 30%, rgba(255,37,68,0.12), transparent 55%), radial-gradient(ellipse 40% 35% at 80% 70%, rgba(34,211,255,0.06), transparent), radial-gradient(ellipse 35% 30% at 15% 80%, rgba(123,63,228,0.07), transparent)",
             pointerEvents: "none",
             zIndex: 0,
           }}
         />
 
+        {/* Top nav */}
         <header
           style={{
             position: "relative",
-            zIndex: 10,
+            zIndex: 20,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 10,
-            padding: "14px clamp(14px,3vw,28px)",
-            height: 64,
-            borderBottom: "1px solid rgba(255,255,255,0.07)",
-            background: "linear-gradient(180deg, rgba(10,11,16,0.92), rgba(10,11,16,0.75))",
-            backdropFilter: "blur(18px) saturate(150%)",
+            padding: "12px 20px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(5,6,8,0.85)",
+            backdropFilter: "blur(16px)",
           }}
         >
           <Link
@@ -475,462 +410,547 @@ export default function PlayPage() {
             style={{
               textDecoration: "none",
               fontFamily: "Orbitron, sans-serif",
-              fontWeight: 700,
-              fontSize: 12,
-              letterSpacing: "0.2em",
+              fontWeight: 800,
+              fontSize: 13,
+              letterSpacing: "0.16em",
               color: RED,
-              textShadow: "0 0 14px rgba(255,37,68,0.45)",
+              textShadow: "0 0 16px rgba(255,37,68,0.5)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
             }}
           >
-            ← FIATCLAW
+            <span style={{ fontSize: 18 }}>⬡</span> FIATCLAW
+            <span style={{ color: MUTED, fontWeight: 500, fontSize: 10 }}>
+              ARCADE
+            </span>
           </Link>
-          <nav style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <nav
+            style={{
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
             {[
+              { href: "/play", label: "ARCADE" },
+              { href: "/stake", label: "STAKING" },
               { href: "/leaderboard", label: "LEADERBOARD" },
-              { href: "/stake", label: "STAKE" },
               { href: "/admin", label: "ADMIN" },
             ].map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 style={{
-                  padding: "8px 11px",
+                  padding: "8px 12px",
                   fontSize: 10,
                   fontWeight: 600,
                   letterSpacing: "0.14em",
                   color: MUTED,
                   textDecoration: "none",
-                  fontFamily: "Inter, sans-serif",
+                  fontFamily: "Orbitron, sans-serif",
                 }}
               >
                 {l.label}
               </Link>
             ))}
+            {shortWallet && (
+              <span
+                style={{
+                  ...label,
+                  color: CYAN,
+                  padding: "6px 10px",
+                  border: "1px solid rgba(34,211,255,0.25)",
+                  borderRadius: 8,
+                }}
+              >
+                {shortWallet}
+              </span>
+            )}
             <WalletConnectButton />
           </nav>
         </header>
 
+        {/* Top stats bar */}
+        <div
+          style={{
+            position: "relative",
+            zIndex: 10,
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 10,
+            padding: "12px 16px 0",
+            maxWidth: 1440,
+            margin: "0 auto",
+          }}
+        >
+          {[
+            {
+              k: "MEGA JACKPOT",
+              v: jackpotDisplay,
+              color: RED,
+              attr: "jackpot",
+            },
+            { k: "ONLINE", v: "—", color: "#14F195", attr: "online" },
+            {
+              k: "PLAYS",
+              v: wallet.connected ? String(availablePlays) : "—",
+              color: CYAN,
+              attr: "plays",
+            },
+            {
+              k: "TIER",
+              v: `${tier}${vip ? " · VIP" : ""}`,
+              color: "#EDEEF2",
+              attr: "tier",
+            },
+          ].map((c) => (
+            <div
+              key={c.k}
+              style={{
+                ...panel,
+                textAlign: "center",
+                padding: "12px 10px",
+              }}
+            >
+              <p style={label}>{c.k}</p>
+              <p
+                style={{ ...value, color: c.color, fontSize: 16 }}
+                data-stat={c.attr}
+              >
+                {c.v}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Main 3-column dashboard */}
         <div
           style={{
             position: "relative",
             zIndex: 1,
-            maxWidth: 680,
-            margin: "0 auto",
-            padding: "20px 14px 64px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
+            display: "grid",
+            gridTemplateColumns: "minmax(220px, 260px) 1fr minmax(220px, 260px)",
             gap: 14,
+            maxWidth: 1440,
+            margin: "0 auto",
+            padding: "14px 16px 32px",
+            alignItems: "stretch",
+            minHeight: "calc(100vh - 160px)",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: 4 }}>
-            <p
-              style={{
-                margin: "0 0 8px",
-                fontFamily: "Orbitron, sans-serif",
-                fontSize: 10,
-                letterSpacing: "0.36em",
-                color: RED,
-                fontWeight: 600,
-                textShadow: "0 0 16px rgba(255,37,68,0.45)",
-              }}
-            >
-              LIVE SESSION
-            </p>
-            <h1
-              style={{
-                margin: 0,
-                fontFamily: "Orbitron, sans-serif",
-                fontWeight: 700,
-                fontSize: "clamp(22px, 5vw, 30px)",
-                letterSpacing: "0.08em",
-                lineHeight: 1.2,
-              }}
-            >
-              CLAW MACHINE
-            </h1>
-          </div>
-
-          {/* Balances — glass grid */}
-          <div
-            data-play-chrome="balances"
-            style={{
-              ...glassCard,
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 0,
-              padding: 0,
-              overflow: "hidden",
-            }}
-          >
-            {[
-              {
-                k: "SOL",
-                v: wallet.connected
-                  ? solBalance == null
-                    ? "…"
-                    : solBalance.toFixed(4)
-                  : "—",
-                color: "#EDEEF2",
-                attr: "sol",
-              },
-              {
-                k: "$CLAW",
-                v: wallet.connected ? clawBalance.toLocaleString() : "—",
-                color: "#EDEEF2",
-                attr: "claw",
-              },
-              {
-                k: "PLAYS",
-                v: wallet.connected ? String(availablePlays) : "—",
-                color: CYAN,
-                attr: "plays",
-              },
-            ].map((cell, i) => (
-              <div
-                key={cell.k}
-                style={{
-                  padding: "16px 14px",
-                  borderRight: i < 2 ? "1px solid rgba(255,255,255,0.06)" : undefined,
-                  textAlign: "center",
-                }}
-              >
-                <p style={monoLabel}>{cell.k}</p>
-                <p
-                  style={{ ...orbitValue, color: cell.color, fontSize: 15 }}
-                  data-balance={cell.attr}
-                >
-                  {cell.v}
+          {/* LEFT */}
+          <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={panel} data-play-chrome="wallet">
+              <p style={{ ...label, color: RED }}>WALLET OVERVIEW</p>
+              <div style={{ marginTop: 12 }}>
+                <p style={label}>TOTAL BALANCE</p>
+                <p style={value} data-balance="sol">
+                  {wallet.connected
+                    ? solBalance == null
+                      ? "…"
+                      : `${solBalance.toFixed(4)} SOL`
+                    : "— SOL"}
                 </p>
               </div>
-            ))}
-          </div>
+              <div style={{ marginTop: 12 }}>
+                <p style={label}>$FIATCLAW BALANCE</p>
+                <p style={value} data-balance="claw">
+                  {wallet.connected ? clawBalance.toLocaleString() : "—"}
+                </p>
+              </div>
+            </div>
 
-          {/* Jackpot bar */}
-          <div
-            data-play-chrome="jackpot"
-            style={{
-              ...glassCardCyan,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "16px 20px",
-            }}
-          >
-            <div>
-              <p style={monoLabel}>LIVE JACKPOT</p>
+            <div style={panel} data-play-chrome="plays">
+              <p style={label}>AVAILABLE PLAYS</p>
+              <p style={{ ...value, fontSize: 28, color: CYAN }} data-balance="plays">
+                {wallet.connected ? availablePlays : "—"}
+              </p>
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  data-buy-action="sol"
+                  disabled={busy || !wallet.connected}
+                  onClick={onBuySol}
+                  style={cta(busy || !wallet.connected)}
+                >
+                  BUY PLAYS
+                </button>
+                <button
+                  type="button"
+                  data-buy-action="claw"
+                  disabled={busy || !wallet.connected}
+                  onClick={onBuyClaw}
+                  style={ctaGhost(busy || !wallet.connected)}
+                >
+                  $CLAW
+                </button>
+              </div>
+              <p style={{ ...label, marginTop: 10, color: MUTED }}>
+                {solPrice} SOL · {clawCost} $CLAW · qty {buyCount}
+              </p>
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <button
+                  type="button"
+                  data-buy-qty="dec"
+                  onClick={() => setBuyCount((n) => Math.max(1, n - 1))}
+                  style={ctaGhost(false)}
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  data-buy-qty="inc"
+                  onClick={() => setBuyCount((n) => Math.min(20, n + 1))}
+                  style={ctaGhost(false)}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  data-buy-action="faucet"
+                  disabled={!wallet.connected}
+                  onClick={onFaucet}
+                  style={ctaGhost(!wallet.connected)}
+                >
+                  FAUCET
+                </button>
+              </div>
+            </div>
+
+            <div style={{ ...panel, borderColor: "rgba(255,62,92,0.35)" }}>
+              <p style={{ ...label, color: RED }}>PROGRESSIVE JACKPOT</p>
               <p
                 style={{
-                  ...orbitValue,
-                  color: "#14F195",
-                  fontSize: 18,
-                  textShadow: "0 0 18px rgba(20,241,149,0.35)",
+                  ...value,
+                  fontSize: 22,
+                  color: RED,
+                  textShadow: "0 0 18px rgba(255,37,68,0.45)",
                 }}
                 data-jackpot="live"
               >
-                {jackpotSol} SOL
+                {jackpotDisplay}
               </p>
+              <p style={{ ...label, marginTop: 8 }}>$FIATCLAW MEGA VAULT</p>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <p style={monoLabel}>TIER</p>
-              <p style={{ ...orbitValue, fontSize: 12, color: MUTED }}>
-                {tier}
-                {vip ? " · VIP" : ""}
+
+            <div style={panel} data-play-chrome="winners">
+              <p style={label}>RECENT WINNERS</p>
+              <p style={{ ...label, marginTop: 12, color: MUTED, lineHeight: 1.6 }}>
+                Live feed unlocks after first on-chain wins.
               </p>
-            </div>
-          </div>
-
-          <ClawMachine
-            phase={phase}
-            onDrop={onDrop}
-            disabled={
-              busy ||
-              (!wallet.connected &&
-                canClickPull(phase) &&
-                phase !== "drop" &&
-                phase !== "close")
-            }
-            clawX={clawX}
-            onMove={onMove}
-            canMove={
-              wallet.connected &&
-              canMoveClaw(phase) &&
-              availablePlays > 0 &&
-              !busy
-            }
-          />
-
-          {/* BUY PLAYS — landing glass card */}
-          <div style={glassCard} data-play-chrome="buy">
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 14,
-              }}
-            >
-              <p
+              <Link
+                href="/leaderboard"
                 style={{
-                  ...monoLabel,
-                  color: RED,
-                  letterSpacing: "0.26em",
+                  display: "inline-block",
+                  marginTop: 12,
+                  fontFamily: "Orbitron, sans-serif",
                   fontSize: 10,
-                }}
-              >
-                BUY PLAYS
-              </p>
-              <span
-                style={{
-                  fontFamily: "JetBrains Mono, monospace",
-                  fontSize: 10,
-                  color: MUTED,
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {solPrice} SOL · {clawCost} $CLAW
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                marginBottom: 16,
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <p style={{ ...monoLabel, marginBottom: 8 }}>QTY</p>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button
-                    type="button"
-                    data-buy-qty="dec"
-                    onClick={() => setBuyCount((n) => Math.max(1, n - 1))}
-                    style={ctaGhost(busy)}
-                    disabled={busy}
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={buyCount}
-                    data-buy-input="qty"
-                    onChange={(e) =>
-                      setBuyCount(
-                        Math.max(1, Math.min(20, Number(e.target.value) || 1))
-                      )
-                    }
-                    style={{ ...fieldInput, width: 72, textAlign: "center" }}
-                  />
-                  <button
-                    type="button"
-                    data-buy-qty="inc"
-                    onClick={() => setBuyCount((n) => Math.min(20, n + 1))}
-                    style={ctaGhost(busy)}
-                    disabled={busy}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 10,
-              }}
-            >
-              <button
-                type="button"
-                data-buy-action="sol"
-                style={ctaPrimary(busy || !wallet.connected)}
-                disabled={busy || !wallet.connected}
-                onClick={onBuySol}
-              >
-                BUY WITH SOL
-              </button>
-              <button
-                type="button"
-                data-buy-action="claw"
-                style={ctaGhost(busy || !wallet.connected)}
-                disabled={busy || !wallet.connected}
-                onClick={onBuyClaw}
-              >
-                BUY WITH $CLAW
-              </button>
-              <button
-                type="button"
-                data-buy-action="faucet"
-                style={ctaGhost(!wallet.connected)}
-                disabled={!wallet.connected}
-                onClick={onFaucet}
-              >
-                FAUCET $CLAW
-              </button>
-            </div>
-          </div>
-
-          {/* STAKE — landing glass card */}
-          <div style={glassCard} data-play-chrome="stake">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 14,
-              }}
-            >
-              <p
-                style={{
-                  ...monoLabel,
+                  letterSpacing: "0.14em",
                   color: CYAN,
-                  letterSpacing: "0.26em",
-                  fontSize: 10,
+                  textDecoration: "none",
                 }}
               >
-                STAKE $CLAW
-              </p>
-              <span
-                style={{
-                  fontFamily: "JetBrains Mono, monospace",
-                  fontSize: 10,
-                  color: MUTED,
-                }}
-              >
-                Staked {stakedClaw.toLocaleString()}
-              </span>
+                VIEW ALL →
+              </Link>
             </div>
-            <p
-              style={{
-                margin: "0 0 14px",
-                fontSize: 12,
-                color: MUTED,
-                lineHeight: 1.5,
-              }}
-            >
-              VIP fee discount only — does not change outcomes.
-            </p>
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                alignItems: "flex-end",
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <p style={{ ...monoLabel, marginBottom: 8 }}>AMOUNT</p>
-                <input
-                  type="number"
-                  min={100}
-                  step={100}
-                  value={stakeAmt}
-                  data-stake-input="amount"
-                  onChange={(e) =>
-                    setStakeAmt(Math.max(1, Number(e.target.value) || 0))
-                  }
-                  style={{ ...fieldInput, width: 120 }}
-                />
-              </div>
-              <button
-                type="button"
-                data-stake-action="stake"
-                style={ctaPrimary(!wallet.connected)}
-                disabled={!wallet.connected}
-                onClick={() => onStake("stake")}
-              >
-                STAKE
-              </button>
-              <button
-                type="button"
-                data-stake-action="unstake"
-                style={ctaGhost(!wallet.connected)}
-                disabled={!wallet.connected}
-                onClick={() => onStake("unstake")}
-              >
-                UNSTAKE
-              </button>
-            </div>
-          </div>
 
-          {/* Session message */}
-          <div
+            <div style={panel} data-play-chrome="stake">
+              <p style={{ ...label, color: "#9945FF" }}>STAKE $FIATCLAW</p>
+              <p style={{ ...label, marginTop: 8, color: MUTED }}>
+                VIP fee discount only — does not change outcomes.
+              </p>
+              <p style={{ ...label, marginTop: 8 }}>
+                Staked {stakedClaw.toLocaleString()}
+              </p>
+              <input
+                type="number"
+                min={100}
+                step={100}
+                value={stakeAmt}
+                data-stake-input="amount"
+                onChange={(e) =>
+                  setStakeAmt(Math.max(1, Number(e.target.value) || 0))
+                }
+                style={{
+                  width: "100%",
+                  marginTop: 10,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(34,211,255,0.25)",
+                  background: "rgba(4,6,10,0.9)",
+                  color: "#EDEEF2",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              />
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button
+                  type="button"
+                  data-stake-action="stake"
+                  disabled={!wallet.connected}
+                  onClick={() => onStake("stake")}
+                  style={cta(!wallet.connected)}
+                >
+                  STAKE
+                </button>
+                <button
+                  type="button"
+                  data-stake-action="unstake"
+                  disabled={!wallet.connected}
+                  onClick={() => onStake("unstake")}
+                  style={ctaGhost(!wallet.connected)}
+                >
+                  UNSTAKE
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          {/* CENTER HERO MACHINE (~70%) */}
+          <section
             style={{
-              ...glassCard,
-              textAlign: "center",
-              padding: "14px 18px",
-              borderColor:
-                status === "success"
-                  ? "rgba(20,241,149,0.35)"
-                  : status === "error"
-                    ? "rgba(255,107,122,0.35)"
-                    : "rgba(255,255,255,0.085)",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 560,
+              gap: 10,
             }}
           >
-            <p
+            <div style={{ flex: 1, minHeight: 520 }}>
+              <ClawMachine
+                phase={phase}
+                onDrop={onDrop}
+                disabled={!pullOn && phase !== "drop" && phase !== "close"}
+                clawX={clawX}
+                onMove={onMove}
+                canMove={joyOn}
+                playsLeft={wallet.connected ? availablePlays : 0}
+                jackpotLabel={jackpotDisplay}
+                externalControls
+              />
+            </div>
+            <div
               style={{
-                margin: 0,
-                fontFamily: "JetBrains Mono, monospace",
-                fontSize: 12,
-                letterSpacing: "0.04em",
-                color:
-                  status === "success"
-                    ? "#14F195"
-                    : status === "error"
-                      ? "#FF6B7A"
-                      : MUTED,
-                minHeight: 18,
+                ...panel,
+                textAlign: "center",
+                padding: "10px 14px",
               }}
               data-play-message
             >
-              {message ||
-                (wallet.connected
-                  ? availablePlays > 0 || phase === "drop" || phase === "close"
-                    ? phase === "drop"
-                      ? "Press PULL again to grab"
-                      : phase === "close"
-                        ? "Press PULL to lift"
-                        : "Move joystick, then PULL ×3: drop · grab · lift"
-                    : "Buy plays to enter the machine"
-                  : "Connect Phantom or Solflare to play")}
-            </p>
-            {playId && (
               <p
                 style={{
-                  margin: "8px 0 0",
+                  margin: 0,
                   fontFamily: "JetBrains Mono, monospace",
-                  fontSize: 10,
-                  color: DIM,
-                  letterSpacing: "0.08em",
+                  fontSize: 12,
+                  color:
+                    status === "success"
+                      ? "#14F195"
+                      : status === "error"
+                        ? "#FF6B7A"
+                        : MUTED,
                 }}
               >
-                ID {playId.slice(0, 12)}…
+                {message ||
+                  (wallet.connected
+                    ? availablePlays > 0 || phase === "drop" || phase === "close"
+                      ? phase === "drop"
+                        ? "Press PULL again to grab"
+                        : phase === "close"
+                          ? "Press PULL to lift"
+                          : "Aim with D-pad · PULL ×3 to play"
+                      : "Buy plays to enter the vault"
+                    : "Connect Phantom or Solflare to play")}
               </p>
-            )}
-          </div>
+            </div>
+          </section>
 
-          <p
-            style={{
-              margin: 0,
-              fontFamily: "JetBrains Mono, monospace",
-              fontSize: 9,
-              letterSpacing: "0.14em",
-              color: DIM,
-              textAlign: "center",
-              lineHeight: 1.6,
-              maxWidth: 380,
-            }}
-          >
-            Outcomes decided server-side. Staking reduces play fees only.
-          </p>
+          {/* RIGHT */}
+          <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={panel}>
+              <p style={{ ...label, color: CYAN }}>HOW TO PLAY</p>
+              <ol
+                style={{
+                  margin: "12px 0 0",
+                  paddingLeft: 18,
+                  color: MUTED,
+                  fontSize: 12,
+                  lineHeight: 1.7,
+                  fontFamily: "Inter, sans-serif",
+                }}
+              >
+                <li>MOVE — aim the claw</li>
+                <li>AIM — hover over prize</li>
+                <li>PULL — drop · grab · lift</li>
+                <li>WIN — claim crypto rewards</li>
+              </ol>
+            </div>
+
+            <div style={panel} data-claw-controls="joystick">
+              <p style={label}>CONTROLS</p>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "44px 44px 44px",
+                  gridTemplateRows: "44px 44px 44px",
+                  gap: 6,
+                  justifyContent: "center",
+                  marginTop: 14,
+                }}
+              >
+                <div />
+                <button
+                  type="button"
+                  aria-label="Up"
+                  disabled={!joyOn}
+                  onClick={() => onMove("up")}
+                  style={dpadBtn(joyOn)}
+                >
+                  ▲
+                </button>
+                <div />
+                <button
+                  type="button"
+                  aria-label="Left"
+                  data-claw-dir="left"
+                  disabled={!joyOn}
+                  onClick={() => onMove("left")}
+                  style={dpadBtn(joyOn)}
+                >
+                  ◀
+                </button>
+                <div
+                  data-claw-stick="ball"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "50%",
+                    background: joyOn
+                      ? `radial-gradient(circle at 32% 28%, #ff7a8c, ${RED} 55%, #5a0814)`
+                      : "radial-gradient(circle at 32% 28%, #3a4250, #12151c)",
+                    border: `2px solid ${joyOn ? "rgba(255,62,92,0.7)" : "rgba(80,90,110,0.3)"}`,
+                    boxShadow: joyOn
+                      ? "0 0 20px rgba(255,37,68,0.5)"
+                      : "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label="Right"
+                  data-claw-dir="right"
+                  disabled={!joyOn}
+                  onClick={() => onMove("right")}
+                  style={dpadBtn(joyOn)}
+                >
+                  ▶
+                </button>
+                <div />
+                <button
+                  type="button"
+                  aria-label="Down"
+                  disabled={!joyOn}
+                  onClick={() => onMove("down")}
+                  style={dpadBtn(joyOn)}
+                >
+                  ▼
+                </button>
+                <div />
+              </div>
+
+              <button
+                type="button"
+                data-claw-action="pull"
+                disabled={!pullOn}
+                onClick={onDrop}
+                style={{
+                  width: "100%",
+                  marginTop: 18,
+                  minHeight: 72,
+                  borderRadius: 14,
+                  border: "2px solid rgba(255,120,140,0.55)",
+                  cursor: pullOn ? "pointer" : "not-allowed",
+                  color: "#fff",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontWeight: 800,
+                  fontSize: 18,
+                  letterSpacing: "0.28em",
+                  background: !pullOn
+                    ? "linear-gradient(180deg, #2a2e38, #12141a)"
+                    : `radial-gradient(circle at 40% 28%, #FF8A9A 0%, ${RED} 40%, #A01028 75%, #3a0610 100%)`,
+                  boxShadow: !pullOn
+                    ? "none"
+                    : "0 0 48px rgba(255,37,68,0.7), 0 8px 0 #2a040c, inset 0 2px 0 rgba(255,255,255,0.35)",
+                  opacity: !wallet.connected && phase !== "drop" && phase !== "close" ? 0.5 : 1,
+                  transition: "transform 0.12s, box-shadow 0.2s",
+                }}
+              >
+                {phase === "drop"
+                  ? "GRAB"
+                  : phase === "close"
+                    ? "LIFT"
+                    : busy
+                      ? "···"
+                      : "PULL"}
+              </button>
+              <p
+                style={{
+                  ...label,
+                  textAlign: "center",
+                  marginTop: 10,
+                  color: MUTED,
+                }}
+              >
+                USE 1 PLAY · STATUS {clawStatusLabel(phase)}
+              </p>
+            </div>
+
+            <div style={panel}>
+              <p style={label}>SESSION</p>
+              <p style={{ ...value, fontSize: 12, color: MUTED, marginTop: 8 }}>
+                Outcomes decided server-side. Staking reduces play fees only.
+              </p>
+            </div>
+          </aside>
         </div>
       </main>
     </>
   );
+}
+
+function cta(off: boolean): CSSProperties {
+  return {
+    flex: 1,
+    padding: "11px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,120,140,0.45)",
+    cursor: off ? "not-allowed" : "pointer",
+    color: "#fff",
+    fontFamily: "Orbitron, sans-serif",
+    fontWeight: 800,
+    fontSize: 10,
+    letterSpacing: "0.12em",
+    background: off
+      ? "rgba(70,74,88,0.45)"
+      : "linear-gradient(180deg,#FF3E5C,#C4102A 62%,#8C0A1E)",
+    boxShadow: off ? "none" : "0 0 20px rgba(255,37,68,0.35)",
+    opacity: off ? 0.55 : 1,
+  };
+}
+
+function ctaGhost(off: boolean): CSSProperties {
+  return {
+    flex: 1,
+    padding: "11px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(34,211,255,0.35)",
+    cursor: off ? "not-allowed" : "pointer",
+    color: CYAN,
+    fontFamily: "Orbitron, sans-serif",
+    fontWeight: 700,
+    fontSize: 10,
+    letterSpacing: "0.12em",
+    background: "linear-gradient(180deg, rgba(20,36,48,0.95), rgba(8,12,18,0.98))",
+    opacity: off ? 0.55 : 1,
+  };
 }

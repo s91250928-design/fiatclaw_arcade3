@@ -10,18 +10,18 @@ interface Props {
   clawX: number;
 }
 
-/** Full-viewport industrial cabinet camera framing. */
+/** Cinematic vault camera — hero framing like etalon cylindrical chamber. */
 export default function ClawCanvas({ phase, clawX }: Props) {
   return (
     <div
       data-claw-webgl="r3f"
-      data-claw-style="premium-industrial-cyberpunk-2035"
+      data-claw-style="crypto-vault-aaa"
       style={{
         position: "absolute",
         inset: 0,
-        borderRadius: 16,
         overflow: "hidden",
-        background: "#020304",
+        background:
+          "radial-gradient(ellipse 80% 70% at 50% 45%, #1a0820 0%, #050608 55%, #020304 100%)",
       }}
     >
       <Canvas
@@ -29,10 +29,10 @@ export default function ClawCanvas({ phase, clawX }: Props) {
         dpr={[1, 1.75]}
         gl={{
           antialias: true,
-          alpha: false,
+          alpha: true,
           powerPreference: "high-performance",
         }}
-        camera={{ position: [0, 0.15, 6.8], fov: 32, near: 0.1, far: 50 }}
+        camera={{ position: [0, 0.35, 7.4], fov: 32, near: 0.1, far: 60 }}
         style={{ width: "100%", height: "100%" }}
       >
         <Suspense fallback={null}>

@@ -33,8 +33,8 @@ function PrizeBillboard({
     map.needsUpdate = true;
   }, [map]);
 
-  // Larger billboards so the pile reads as coins/crystals, not dust
-  const s = 0.28 * scale;
+  // Large billboards — readable coin pile in vault
+  const s = 0.34 * scale;
   return (
     <mesh castShadow renderOrder={1}>
       <planeGeometry args={[s, s]} />

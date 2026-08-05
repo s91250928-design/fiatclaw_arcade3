@@ -19,7 +19,7 @@ fs.mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({
-  viewport: { width: 1280, height: 1600 },
+  viewport: { width: 1440, height: 1100 },
   deviceScaleFactor: 1,
 });
 
@@ -38,8 +38,18 @@ try {
       console.warn("Machine selector not found — still capturing page");
     });
 
-  // Allow WebGL / R3F to paint a few frames
-  await page.waitForTimeout(4000);
+  // Wait for WebGL canvas (not just loading text)
+  await page
+    .waitForFunction(
+      () => {
+        const c = document.querySelector("canvas");
+        return c && c.width > 100 && c.height > 100;
+      },
+      { timeout: 45_000 }
+    )
+    .catch(() => console.warn("canvas size wait timed out"));
+  // Allow WebGL / R3F to paint
+  await page.waitForTimeout(5000);
 
   await page.screenshot({
     path: outFile,

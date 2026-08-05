@@ -1,19 +1,18 @@
 "use client";
 
 /**
- * Massive premium Web3 claw machine shell + industrial control console.
- * OLED · metal LED-ring joystick · illuminated PULL · emergency stop.
+ * Hero 3D vault viewport — dashboard wraps controls around this.
+ * Machine fills the frame; status strip at bottom (etalon-style).
  */
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   canClickPull,
   canMoveClaw,
   clawOverlayText,
   clawStatusLabel,
   isClawBusyPhase,
-  pullClickStep,
   type ClawPhase,
 } from "@/lib/game/claw-phases";
 
@@ -29,29 +28,33 @@ const ClawCanvas = dynamic(() => import("./claw/ClawCanvas"), {
         inset: 0,
         display: "grid",
         placeItems: "center",
-        background: "#020304",
+        background: "radial-gradient(circle at 50% 40%, #1a0a14 0%, #050608 70%)",
         color: "#FF3E5C",
         fontFamily: "Orbitron, sans-serif",
         fontSize: 11,
         letterSpacing: "0.36em",
       }}
     >
-      SYSTEMS ONLINE…
+      VAULT SYSTEMS ONLINE…
     </div>
   ),
 });
 
 const RED = "#FF3E5C";
 const CYAN = "#22D3FF";
-const BG = "#06080c";
 
 interface Props {
   phase: ClawPhase;
   onDrop: () => void;
   disabled?: boolean;
   clawX?: number;
-  onMove?: (dir: "left" | "right") => void;
+  onMove?: (dir: "left" | "right" | "up" | "down") => void;
   canMove?: boolean;
+  /** Plays remaining label for machine strip */
+  playsLeft?: number;
+  jackpotLabel?: string;
+  /** When true, omit bottom control deck (dashboard hosts controls) */
+  externalControls?: boolean;
 }
 
 export function ClawMachine({
@@ -61,6 +64,9 @@ export function ClawMachine({
   clawX: controlledX,
   onMove,
   canMove = false,
+  playsLeft = 0,
+  jackpotLabel = "—",
+  externalControls = true,
 }: Props) {
   const [internalX, setInternalX] = useState(50);
   const clawX = controlledX ?? internalX;
@@ -69,28 +75,16 @@ export function ClawMachine({
   const overlay = clawOverlayText(phase);
   const joyOn = Boolean(canMove && canMoveClaw(phase) && !disabled);
   const pullOn = Boolean(!disabled && canClickPull(phase));
-  const step = pullClickStep(phase);
-
-  const statusColor =
-    phase === "win"
-      ? "#14F195"
-      : phase === "lose" || phase === "slip"
-        ? "#FF6B7A"
-        : animating || step > 0
-          ? CYAN
-          : "#E8EAF0";
 
   const move = useCallback(
-    (dir: "left" | "right") => {
+    (dir: "left" | "right" | "up" | "down") => {
       if (!joyOn) return;
       if (onMove) {
         onMove(dir);
         return;
       }
-      const s = 6.5;
-      setInternalX((x) =>
-        dir === "left" ? Math.max(12, x - s) : Math.min(88, x + s)
-      );
+      if (dir === "left") setInternalX((x) => Math.max(12, x - 6.5));
+      if (dir === "right") setInternalX((x) => Math.min(88, x + 6.5));
     },
     [joyOn, onMove]
   );
@@ -112,40 +106,31 @@ export function ClawMachine({
     return () => window.removeEventListener("keydown", onKey);
   }, [pullOn, move, onDrop]);
 
-  const pullLabel =
-    step === 1 ? "GRAB" : step === 2 ? "LIFT" : animating ? "···" : "PULL";
-
   return (
     <div
       data-claw-machine="r3f-webgl"
-      data-claw-style="premium-industrial-cyberpunk-2035"
-      data-claw-pull-step={String(step)}
+      data-claw-style="crypto-vault-aaa"
       style={{
         position: "relative",
         width: "100%",
-        maxWidth: 640,
-        margin: "0 auto",
-        aspectRatio: "10 / 15",
-        borderRadius: 18,
+        height: "100%",
+        minHeight: 520,
+        borderRadius: 16,
         overflow: "hidden",
-        border: "1px solid rgba(255,62,92,0.32)",
+        border: "1px solid rgba(255,62,92,0.25)",
         boxShadow: `
           0 0 0 1px rgba(255,255,255,0.04) inset,
-          0 0 120px rgba(255,37,68,0.14),
-          0 0 80px rgba(34,211,255,0.1),
-          0 48px 100px rgba(0,0,0,0.9)
+          0 0 80px rgba(255,37,68,0.12),
+          0 0 120px rgba(34,211,255,0.08),
+          0 40px 100px rgba(0,0,0,0.85)
         `,
-        background: BG,
+        background: "#040508",
       }}
     >
-      {/* Massive 3D chamber — nearly full card */}
       <div
         style={{
           position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 168,
+          inset: externalControls ? "0 0 72px 0" : "0 0 148px 0",
         }}
       >
         <ClawCanvas phase={phase} clawX={clawX} />
@@ -160,17 +145,17 @@ export function ClawMachine({
               pointerEvents: "none",
               zIndex: 5,
               background:
-                "radial-gradient(circle at 50% 40%, rgba(255,37,68,0.32), transparent 55%)",
+                "radial-gradient(circle at 50% 45%, rgba(255,37,68,0.35), transparent 55%)",
             }}
           >
             <div
               style={{
                 fontFamily: "Orbitron, sans-serif",
                 fontWeight: 800,
-                fontSize: 32,
-                letterSpacing: "0.3em",
+                fontSize: 34,
+                letterSpacing: "0.28em",
                 color: "#fff",
-                textShadow: `0 0 32px ${RED}, 0 0 64px ${RED}`,
+                textShadow: `0 0 40px ${RED}, 0 0 80px ${RED}`,
               }}
             >
               SECURED
@@ -194,263 +179,132 @@ export function ClawMachine({
               style={{
                 fontFamily: "Orbitron, sans-serif",
                 fontWeight: 600,
-                fontSize: 18,
-                letterSpacing: "0.3em",
-                color: "#5a6270",
+                fontSize: 16,
+                letterSpacing: "0.2em",
+                color: "#8a92a0",
+                textAlign: "center",
+                maxWidth: 280,
+                lineHeight: 1.5,
               }}
             >
-              MISS
+              Better Luck Next Pull.
             </div>
           </div>
         )}
       </div>
 
-      {/* Premium industrial console */}
+      {/* Machine status strip (etalon center-bottom) */}
       <div
-        data-claw-controls="deck"
+        data-claw-status-strip
         style={{
           position: "absolute",
-          bottom: 0,
           left: 0,
           right: 0,
-          height: 168,
-          zIndex: 10,
+          bottom: 0,
+          height: 72,
           display: "grid",
-          gridTemplateColumns: "1fr auto 1fr auto",
+          gridTemplateColumns: "1.2fr 0.8fr 1.2fr",
           alignItems: "center",
-          gap: 12,
-          padding: "16px 18px 18px",
-          background: `
-            linear-gradient(180deg,
-              #1c222e 0%,
-              #0e121a 40%,
-              #06080c 100%)
-          `,
-          borderTop: "1px solid rgba(255,62,92,0.4)",
-          boxShadow:
-            "0 -24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06)",
+          gap: 8,
+          padding: "0 18px",
+          background:
+            "linear-gradient(180deg, rgba(12,14,20,0.92), rgba(6,8,12,0.98))",
+          borderTop: "1px solid rgba(255,62,92,0.28)",
+          zIndex: 6,
         }}
       >
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: `linear-gradient(90deg, transparent, ${RED}99, ${CYAN}77, transparent)`,
-          }}
-        />
-
-        {/* OLED */}
-        <div
-          data-claw-status={status}
-          style={{
-            padding: "12px 14px",
-            borderRadius: 12,
-            border: "1px solid rgba(34,211,255,0.22)",
-            background:
-              "linear-gradient(165deg, rgba(6,18,26,0.98), rgba(2,4,8,0.99))",
-            boxShadow: "inset 0 0 28px rgba(34,211,255,0.07)",
-            minWidth: 120,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "JetBrains Mono, monospace",
-              fontSize: 8,
-              letterSpacing: "0.26em",
-              color: "#2a3848",
-              marginBottom: 4,
-            }}
-          >
-            OLED · CORE
-          </div>
-          <div
-            style={{
-              fontFamily: "Orbitron, sans-serif",
-              fontSize: 14,
-              letterSpacing: "0.14em",
-              color: statusColor,
-              textShadow: `0 0 12px ${statusColor}88`,
-            }}
-          >
-            {status}
-          </div>
+        <div>
           <div
             style={{
               fontFamily: "JetBrains Mono, monospace",
               fontSize: 9,
-              letterSpacing: "0.12em",
-              color: "#243040",
+              letterSpacing: "0.18em",
+              color: "#4a5568",
+            }}
+          >
+            MACHINE
+          </div>
+          <div
+            style={{
+              fontFamily: "Orbitron, sans-serif",
+              fontSize: 12,
+              letterSpacing: "0.08em",
+              color: "#E8EAF0",
               marginTop: 4,
             }}
           >
-            {step > 0 ? `SEQ ${step}/3` : "ARMED"}
+            FIATCLAW VAULT 01
+          </div>
+          <div
+            data-claw-status={status}
+            style={{
+              fontFamily: "JetBrains Mono, monospace",
+              fontSize: 10,
+              color: animating ? CYAN : RED,
+              marginTop: 2,
+            }}
+          >
+            {status}
           </div>
         </div>
-
-        {/* Joystick + LED ring */}
-        <div
-          data-claw-controls="joystick"
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
+        <div style={{ textAlign: "center" }}>
           <div
             style={{
               fontFamily: "JetBrains Mono, monospace",
-              fontSize: 8,
-              letterSpacing: "0.24em",
-              color: "#2a3848",
+              fontSize: 9,
+              letterSpacing: "0.18em",
+              color: "#4a5568",
             }}
           >
-            JOYSTICK
+            PLAYS LEFT
           </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <button
-              type="button"
-              aria-label="Left"
-              data-claw-dir="left"
-              disabled={!joyOn}
-              onClick={() => move("left")}
-              style={metalBtn(joyOn)}
-            >
-              ←
-            </button>
-            <div style={{ position: "relative", width: 68, height: 68 }}>
-              <div
-                style={{
-                  position: "absolute",
-                  inset: -5,
-                  borderRadius: "50%",
-                  border: `2px solid ${joyOn ? CYAN : "rgba(34,211,255,0.12)"}`,
-                  boxShadow: joyOn
-                    ? `0 0 22px ${CYAN}99, inset 0 0 14px ${CYAN}44`
-                    : "none",
-                }}
-              />
-              <div
-                data-claw-stick="ball"
-                style={{
-                  width: 68,
-                  height: 68,
-                  borderRadius: "50%",
-                  background: joyOn
-                    ? `radial-gradient(circle at 30% 26%, #ff8a9a, ${RED} 48%, #4a0810 100%)`
-                    : "radial-gradient(circle at 30% 26%, #4a5568, #10141c 60%, #040508)",
-                  border: `3px solid ${joyOn ? "rgba(255,62,92,0.75)" : "rgba(70,80,100,0.35)"}`,
-                  boxShadow: joyOn
-                    ? "0 0 32px rgba(255,37,68,0.6), 0 7px 0 #2a040c, inset 0 2px 0 rgba(255,255,255,0.32)"
-                    : "inset 0 4px 14px rgba(0,0,0,0.75), 0 4px 0 #040608",
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              aria-label="Right"
-              data-claw-dir="right"
-              disabled={!joyOn}
-              onClick={() => move("right")}
-              style={metalBtn(joyOn)}
-            >
-              →
-            </button>
+          <div
+            style={{
+              fontFamily: "Orbitron, sans-serif",
+              fontSize: 22,
+              fontWeight: 700,
+              color: "#fff",
+              marginTop: 2,
+            }}
+            data-balance="plays-strip"
+          >
+            {playsLeft}
           </div>
         </div>
+        <div style={{ textAlign: "right" }}>
+          <div
+            style={{
+              fontFamily: "JetBrains Mono, monospace",
+              fontSize: 9,
+              letterSpacing: "0.18em",
+              color: "#4a5568",
+            }}
+          >
+            PRIZE POOL
+          </div>
+          <div
+            style={{
+              fontFamily: "Orbitron, sans-serif",
+              fontSize: 13,
+              color: "#14F195",
+              marginTop: 4,
+              textShadow: "0 0 12px rgba(20,241,149,0.35)",
+            }}
+          >
+            {jackpotLabel}
+          </div>
+        </div>
+      </div>
 
-        {/* Emergency stop (visual / no-op abort) */}
-        <button
-          type="button"
-          data-claw-action="e-stop"
-          title="Emergency stop"
-          onClick={() => {
-            /* visual only — does not burn plays */
-          }}
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: "50%",
-            border: "2px solid rgba(255,80,80,0.55)",
-            background:
-              "radial-gradient(circle at 35% 30%, #ff6a6a, #8a1010 70%, #3a0606)",
-            boxShadow: "0 0 16px rgba(255,40,40,0.35), inset 0 2px 0 rgba(255,255,255,0.2)",
-            cursor: "pointer",
-            fontFamily: "Orbitron, sans-serif",
-            fontSize: 8,
-            fontWeight: 700,
-            letterSpacing: "0.06em",
-            color: "#fff",
-            justifySelf: "end",
-          }}
-        >
-          E
-        </button>
-
-        {/* Illuminated PULL */}
+      {/* Hidden hooks for keyboard when external controls host UI */}
+      {!externalControls && (
         <button
           type="button"
           data-claw-action="pull"
-          data-pull-step={String(step)}
-          onClick={() => {
-            if (!pullOn) return;
-            onDrop();
-          }}
-          disabled={!pullOn}
-          style={{
-            minWidth: 140,
-            minHeight: 80,
-            padding: "18px 24px",
-            borderRadius: 999,
-            border: "2px solid rgba(255,130,150,0.5)",
-            cursor: pullOn ? "pointer" : "not-allowed",
-            color: "#fff",
-            fontFamily: "Orbitron, sans-serif",
-            fontWeight: 800,
-            fontSize: 16,
-            letterSpacing: "0.22em",
-            background: !pullOn
-              ? "linear-gradient(180deg, #2a2e38, #10141a)"
-              : `radial-gradient(circle at 38% 26%, #FF8A9A 0%, ${RED} 38%, #A01028 72%, #3a0610 100%)`,
-            boxShadow: !pullOn
-              ? "inset 0 2px 10px rgba(0,0,0,0.55)"
-              : "0 0 56px rgba(255,37,68,0.75), 0 9px 0 #2a040c, inset 0 3px 0 rgba(255,255,255,0.38)",
-            opacity: disabled ? 0.4 : 1,
-            transform: animating ? "translateY(5px)" : undefined,
-            transition: "transform 0.12s, box-shadow 0.2s",
-            justifySelf: "end",
-          }}
-        >
-          {pullLabel}
-        </button>
-      </div>
+          style={{ display: "none" }}
+          onClick={onDrop}
+        />
+      )}
     </div>
   );
-}
-
-function metalBtn(active: boolean): CSSProperties {
-  return {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
-    border: "1px solid rgba(34,211,255,0.4)",
-    background: active
-      ? "linear-gradient(180deg, #2a4058, #0c141c 55%, #060a10)"
-      : "linear-gradient(180deg, #2a2e38, #12141a)",
-    color: CYAN,
-    fontFamily: "Orbitron, sans-serif",
-    fontSize: 18,
-    fontWeight: 700,
-    cursor: active ? "pointer" : "not-allowed",
-    opacity: active ? 1 : 0.28,
-    display: "grid",
-    placeItems: "center",
-    boxShadow: active
-      ? "0 0 18px rgba(34,211,255,0.35), 0 4px 0 #060a10"
-      : "inset 0 2px 6px rgba(0,0,0,0.5)",
-  };
 }

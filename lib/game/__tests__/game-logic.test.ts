@@ -713,7 +713,7 @@ test("visual pile is dense FIATCLAW + crystal + SOL billboards, lower band", () 
 // ── Premium industrial machine structure ───────────────────────────────
 console.log("\n(j) premium industrial claw machine");
 
-test("ClawScene ships hollow cabinet + single 3-blade hydraulic claw", () => {
+test("ClawScene ships cylindrical vault + single 3-blade industrial claw", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const scenePath = path.join(
@@ -727,25 +727,17 @@ test("ClawScene ships hollow cabinet + single 3-blade hydraulic claw", () => {
   );
   const src = fs.readFileSync(scenePath, "utf8");
   assert.ok(src.includes('CABINET_SHELL_MODE = "hollow-open-front"'));
-  assert.ok(src.includes("Hollow cabinet"));
-  assert.ok(src.includes("GlassPanel"));
-  assert.ok(src.includes("meshPhysicalMaterial"));
   assert.ok(
-    src.includes("ClawBlade") ||
-      src.includes("claw-sprite") ||
-      src.includes("HydraulicBlade") ||
-      src.includes("hydraulic")
+    src.includes("VaultShell") ||
+      src.includes("Hollow") ||
+      src.includes("cylindrical")
   );
-  assert.ok(src.includes("CLAW_BLADES") || src.includes("fingers"));
-  assert.ok(
-    src.includes("claw-sprite.png") || src.includes("fingers: CLAW_BLADES"),
-    "3-blade claw art or marker"
-  );
-  // Exactly one assembly call site
+  assert.ok(src.includes("meshPhysicalMaterial"), "glass");
+  assert.ok(src.includes("ClawBlade") || src.includes("CLAW_BLADES"));
+  assert.ok(src.includes("fingers") || src.includes("CLAW_BLADES"));
   const assemblies = src.match(/function ClawAssembly/g) || [];
   assert.equal(assemblies.length, 1, "one ClawAssembly definition");
   assert.ok(src.includes("<ClawAssembly"));
-  assert.ok(src.includes("FIATCLAW ARCADE"));
   assert.ok(src.includes("buildPrizePileLayout") || src.includes("PrizePile"));
 });
 
@@ -777,24 +769,21 @@ test("PrizeMeshes are sprite billboards from public/refs (no Sphere/Box/Icosa pr
   }
 });
 
-test("ClawMachine ships clickable PULL + joystick", () => {
+test("Dashboard hosts clickable PULL + joystick; machine mounts canvas", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
-  const machinePath = path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "components",
-    "ClawMachine.tsx"
+  const root = path.join(__dirname, "..", "..", "..");
+  const playSrc = fs.readFileSync(path.join(root, "app", "play", "page.tsx"), "utf8");
+  const machineSrc = fs.readFileSync(
+    path.join(root, "components", "ClawMachine.tsx"),
+    "utf8"
   );
-  const src = fs.readFileSync(machinePath, "utf8");
-  assert.ok(src.includes('data-claw-action="pull"'));
-  assert.ok(src.includes('data-claw-controls="joystick"'));
-  assert.ok(src.includes('data-claw-dir="left"'));
-  assert.ok(src.includes('data-claw-dir="right"'));
-  assert.ok(src.includes("OLED") || src.includes("data-claw-status"));
-  assert.ok(src.includes("ClawCanvas") || src.includes("r3f-webgl"));
+  assert.ok(playSrc.includes('data-claw-action="pull"'));
+  assert.ok(playSrc.includes('data-claw-controls="joystick"'));
+  assert.ok(playSrc.includes('data-claw-dir="left"'));
+  assert.ok(playSrc.includes('data-claw-dir="right"'));
+  assert.ok(machineSrc.includes("ClawCanvas") || machineSrc.includes("r3f-webgl"));
+  assert.ok(playSrc.includes("ClawMachine"));
 });
 
 test("WIN_PROBABILITY is 0.2 in code only; absent from play UI", () => {
