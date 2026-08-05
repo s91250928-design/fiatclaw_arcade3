@@ -16,8 +16,8 @@ fs.mkdirSync(outDir, { recursive: true });
 const S = 256;
 
 /**
- * Draw etalon-style 3-blade claw emblem (motor + 3 curved fingers).
- * Must read as industrial claw — never a V / crow-foot.
+ * Draw etalon-style 3-blade claw emblem (motor + 3 RED curved fingers).
+ * Matches photo: red glowing industrial claw on black coin — never a V.
  */
 function drawFiatClawEmblem(ctx, cx, cy, scale) {
   const s = scale;
@@ -26,78 +26,75 @@ function drawFiatClawEmblem(ctx, cx, cy, scale) {
   ctx.scale(s, s);
 
   // Cable
-  ctx.strokeStyle = "#c8cdd6";
+  ctx.strokeStyle = "#6a7080";
   ctx.lineWidth = 5;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(0, -78);
-  ctx.lineTo(0, -52);
+  ctx.moveTo(0, -72);
+  ctx.lineTo(0, -48);
   ctx.stroke();
 
-  // Motor housing (dark + chrome band)
-  ctx.fillStyle = "#1a1e28";
+  // Motor housing dark + red rim
+  ctx.fillStyle = "#12161e";
   ctx.beginPath();
-  ctx.roundRect(-22, -52, 44, 36, 8);
+  ctx.roundRect(-24, -48, 48, 38, 9);
   ctx.fill();
   ctx.strokeStyle = "#FF3E5C";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3.5;
   ctx.shadowColor = "#FF3E5C";
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 14;
   ctx.stroke();
   ctx.shadowBlur = 0;
-  // chrome top cap
-  ctx.fillStyle = "#d8dde6";
+  // dark steel top
+  ctx.fillStyle = "#4a5260";
   ctx.beginPath();
-  ctx.ellipse(0, -52, 18, 7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -48, 18, 7, 0, 0, Math.PI * 2);
   ctx.fill();
-  // red collar rings
+  // red collar
   ctx.strokeStyle = "#FF3E5C";
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.ellipse(0, -28, 20, 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -24, 21, 6, 0, 0, Math.PI * 2);
   ctx.stroke();
 
   // Pivot hub
-  ctx.fillStyle = "#e8ecf2";
+  ctx.fillStyle = "#5a6270";
   ctx.beginPath();
-  ctx.arc(0, -14, 10, 0, Math.PI * 2);
+  ctx.arc(0, -10, 11, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "#FF3E5C";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = "#FF3E5C";
+  ctx.shadowBlur = 8;
   ctx.stroke();
+  ctx.shadowBlur = 0;
 
-  // Three curved blades (L / center / R) — thick C-shape fingers
-  const blades = [
-    { open: -0.55, color: "#d0d6e0" },
-    { open: 0.0, color: "#e8ecf2" },
-    { open: 0.55, color: "#c4cad4" },
-  ];
-  for (const b of blades) {
+  // Three RED curved blades (etalon coin face)
+  const blades = [-0.58, 0.0, 0.58];
+  for (const open of blades) {
     ctx.save();
-    ctx.rotate(b.open);
-    // upper segment
-    ctx.strokeStyle = b.color;
-    ctx.lineWidth = 11;
+    ctx.rotate(open);
+    ctx.strokeStyle = "#FF3E5C";
+    ctx.shadowColor = "#FF3E5C";
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 12;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();
-    ctx.moveTo(4, -10);
-    ctx.quadraticCurveTo(28, 8, 22, 38);
+    ctx.moveTo(5, -6);
+    ctx.quadraticCurveTo(30, 10, 24, 40);
     ctx.stroke();
-    // tip curve inward
-    ctx.lineWidth = 9;
+    ctx.lineWidth = 10;
     ctx.beginPath();
-    ctx.moveTo(22, 38);
-    ctx.quadraticCurveTo(14, 52, 2, 56);
+    ctx.moveTo(24, 40);
+    ctx.quadraticCurveTo(14, 54, 0, 58);
     ctx.stroke();
-    // red joint accent
-    ctx.fillStyle = "#FF3E5C";
-    ctx.shadowColor = "#FF3E5C";
-    ctx.shadowBlur = 6;
-    ctx.beginPath();
-    ctx.arc(14, 12, 4.5, 0, Math.PI * 2);
-    ctx.fill();
     ctx.shadowBlur = 0;
+    // joint glow
+    ctx.fillStyle = "#FF6B82";
+    ctx.beginPath();
+    ctx.arc(16, 14, 5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 

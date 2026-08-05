@@ -65,15 +65,16 @@ export const PRIZE_TEXTURES: Record<string, string> = {
 export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   const rnd = mulberry(seed);
   const out: PrizeVisualSpec[] = [];
-  const count = 145;
+  // Dense lower pile — etalon-style packed floor
+  const count = 165;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();
-    if (r < 0.34) return "fiatclaw_token";
-    if (r < 0.54) return "sol_token";
-    if (r < 0.7) return "crystal";
-    if (r < 0.82) return "nft_capsule";
-    if (r < 0.92) return "mystery_crate";
+    if (r < 0.38) return "fiatclaw_token";
+    if (r < 0.6) return "sol_token";
+    if (r < 0.72) return "crystal";
+    if (r < 0.84) return "nft_capsule";
+    if (r < 0.93) return "mystery_crate";
     return "jackpot_cube";
   };
 
@@ -81,8 +82,8 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   out.push({
     kind: "jackpot_cube",
     rewardKind: "jackpot",
-    scale: 1.35,
-    position: [0, 0.16, 0.05],
+    scale: 1.45,
+    position: [0, 0.18, 0.05],
     seed: seed,
     bob: true,
     spin: true,
@@ -92,11 +93,11 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   for (let i = 1; i < count; i++) {
     const kind = pickKind();
     const angle = rnd() * Math.PI * 2;
-    const radius = Math.sqrt(rnd()) * 1.15;
-    const layer = Math.floor(i / 28);
-    const x = Math.cos(angle) * radius + (rnd() - 0.5) * 0.08;
-    const z = Math.sin(angle) * radius * 0.85 + (rnd() - 0.5) * 0.08;
-    const y = 0.05 + layer * 0.07 + rnd() * 0.05;
+    const radius = Math.sqrt(rnd()) * 1.18;
+    const layer = Math.floor(i / 32);
+    const x = Math.cos(angle) * radius + (rnd() - 0.5) * 0.06;
+    const z = Math.sin(angle) * radius * 0.88 + (rnd() - 0.5) * 0.06;
+    const y = 0.04 + layer * 0.065 + rnd() * 0.04;
 
     out.push({
       kind,
@@ -110,14 +111,14 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
               : "sol",
       scale:
         kind === "jackpot_cube"
-          ? 1.0 + rnd() * 0.2
+          ? 1.05 + rnd() * 0.2
           : kind === "crystal"
-            ? 0.7 + rnd() * 0.5
-            : 0.75 + rnd() * 0.45,
+            ? 0.75 + rnd() * 0.4
+            : 0.85 + rnd() * 0.4,
       position: [x, y, z],
       seed: i * 19 + seed,
-      bob: rnd() > 0.3,
-      spin: kind === "fiatclaw_token" || kind === "sol_token" || rnd() > 0.45,
+      bob: rnd() > 0.35,
+      spin: false,
       texture: PRIZE_TEXTURES[kind] ?? PRIZE_TEXTURES.fiatclaw_token!,
     });
   }

@@ -34,7 +34,7 @@ function PrizeBillboard({
     map.needsUpdate = true;
   }, [map]);
 
-  const s = 0.48 * scale;
+  const s = 0.52 * scale;
   return (
     <Billboard follow lockX={false} lockY={false} lockZ={false}>
       <mesh renderOrder={1}>

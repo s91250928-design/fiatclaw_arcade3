@@ -741,6 +741,21 @@ test("ClawScene ships glass cylinder vault + single 3-blade industrial claw", ()
   assert.ok(src.includes("<ClawAssembly"));
   assert.ok(src.includes("buildPrizePileLayout") || src.includes("PrizePile"));
   assert.ok(src.includes("InteriorFog") || src.includes("fog"));
+  assert.ok(src.includes("solid-metal-3blade"), "solid metal 3-blade claw");
+  // Dark-neon lighting: no pure-white hero lights / white ceiling projector
+  assert.equal(
+    src.includes('color="#ffffff"') || src.includes("color='#ffffff'"),
+    false,
+    "no pure-white point lights"
+  );
+  assert.equal(
+    src.includes('emissive="#ffffff"') || src.includes("emissive='#ffffff'"),
+    false,
+    "no pure-white emissive ceiling arc"
+  );
+  assert.equal(src.includes("#fff0f4"), false, "no pink-white claw key light");
+  assert.equal(src.includes("#f0f4ff"), false, "no white spotlight wash");
+  assert.ok(src.includes("#FF3E5C") && src.includes("#22D3FF"), "red+cyan neon");
 });
 
 test("PrizeMeshes are sprite billboards from public/refs (no Sphere/Box/Icosa prizes)", () => {
