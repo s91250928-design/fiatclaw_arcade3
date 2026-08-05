@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * Arcade-grade money prizes matching the FiatClaw prize-pile reference.
- * $FIATCLAW black/red tokens, purple faceted crystals, Solana purple/cyan discs.
- * No pills / toy capsules.
+ * Premium crypto collectibles — gunmetal / dark chrome / black metal.
+ * No bright toy palette. Red neon + cyan + deep purple accents only.
  */
 
 import { useMemo, useRef } from "react";
@@ -13,374 +12,276 @@ import type { MoneyPrizeKind, PrizeVisualSpec } from "@/lib/game/prize-visuals";
 
 const RED = "#FF3E5C";
 const CYAN = "#22D3FF";
-const GOLD = "#FFC24B";
-const PURPLE = "#9945FF";
-const SOL_GREEN = "#14F195";
-const BLACK = "#0a0b10";
+const PURPLE = "#7B3FE4";
+const GUNMETAL = "#2a2e36";
+const CHROME = "#8a919e";
+const BLACK = "#0a0b0e";
+const CARBON = "#12141a";
 
-/** Multi-part faceted gem: dual octa + dodeca crown + glow core */
-function FacetedGem({
-  color,
-  emissive,
-  scale = 1,
-  tall = false,
-}: {
-  color: string;
-  emissive: string;
-  scale?: number;
-  /** Elongated crystal like the reference amethyst points */
-  tall?: boolean;
-}) {
-  const yScale = tall ? 1.55 : 1;
+function matMetal(
+  color: string,
+  metalness = 0.92,
+  roughness = 0.22,
+  emissive?: string,
+  ei = 0
+) {
   return (
-    <group scale={scale}>
-      <mesh
-        castShadow
-        position={[0, 0.09 * yScale, 0]}
-        rotation={[0.15, Math.PI / 5, 0.08]}
-        scale={[1, yScale, 1]}
-      >
-        <octahedronGeometry args={[0.1, 1]} />
-        <meshStandardMaterial
-          color={color}
-          metalness={0.45}
-          roughness={0.08}
-          emissive={emissive}
-          emissiveIntensity={0.45}
-          flatShading
-        />
-      </mesh>
-      <mesh
-        castShadow
-        position={[0, 0.02, 0]}
-        rotation={[0, Math.PI / 7, 0]}
-        scale={[0.75, 0.55 * yScale, 0.75]}
-      >
-        <octahedronGeometry args={[0.1, 0]} />
-        <meshStandardMaterial
-          color={color}
-          metalness={0.5}
-          roughness={0.1}
-          emissive={emissive}
-          emissiveIntensity={0.28}
-          flatShading
-        />
-      </mesh>
-      <mesh
-        castShadow
-        position={[0, 0.155 * yScale, 0]}
-        scale={[0.5, 0.28 * yScale, 0.5]}
-      >
-        <dodecahedronGeometry args={[0.09, 0]} />
-        <meshStandardMaterial
-          color={color}
-          metalness={0.55}
-          roughness={0.06}
-          emissive={emissive}
-          emissiveIntensity={0.35}
-          flatShading
-        />
-      </mesh>
-      <mesh position={[0, 0.09 * yScale, 0]}>
-        <sphereGeometry args={[0.035, 12, 12]} />
-        <meshStandardMaterial
-          color={emissive}
-          emissive={emissive}
-          emissiveIntensity={2.2}
-          toneMapped={false}
-          transparent
-          opacity={0.9}
-        />
-      </mesh>
-      <mesh
-        position={[0.03, 0.14 * yScale, 0.04]}
-        rotation={[-0.5, 0.4, 0]}
-      >
-        <planeGeometry args={[0.04, 0.025]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.45} />
-      </mesh>
-    </group>
+    <meshStandardMaterial
+      color={color}
+      metalness={metalness}
+      roughness={roughness}
+      emissive={emissive ?? "#000000"}
+      emissiveIntensity={ei}
+      toneMapped={emissive ? false : true}
+    />
   );
 }
 
-/** Volumetric $FIATCLAW coin — black metal + red neon claw (prize ref) */
+/** Black $FIATCLAW coin with red 3-blade emboss */
 function FiatClawToken({ scale = 1 }: { scale?: number }) {
   return (
-    <group scale={scale} rotation={[1.15, 0.2, 0.15]}>
+    <group scale={scale} rotation={[1.2, 0.15, 0.1]}>
       <mesh castShadow>
-        <cylinderGeometry args={[0.115, 0.115, 0.042, 48]} />
-        <meshStandardMaterial
-          color={BLACK}
-          metalness={0.92}
-          roughness={0.2}
-          emissive={RED}
-          emissiveIntensity={0.1}
-        />
+        <cylinderGeometry args={[0.12, 0.12, 0.038, 48]} />
+        {matMetal(BLACK, 0.95, 0.18, RED, 0.08)}
       </mesh>
-      <mesh position={[0, 0.022, 0]}>
-        <cylinderGeometry args={[0.118, 0.112, 0.01, 48]} />
-        <meshStandardMaterial color="#1a0a10" metalness={0.88} roughness={0.22} />
-      </mesh>
-      {/* Outer neon rim */}
-      <mesh position={[0, 0.0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.112, 0.01, 10, 48]} />
-        <meshStandardMaterial
-          color={RED}
-          emissive={RED}
-          emissiveIntensity={2}
-          toneMapped={false}
-        />
-      </mesh>
-      <mesh position={[0, 0.022, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.095, 48]} />
-        <meshStandardMaterial color="#0e0608" metalness={0.78} roughness={0.28} />
-      </mesh>
-      <mesh position={[0, 0.024, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.07, 0.082, 40]} />
-        <meshStandardMaterial
-          color={RED}
-          emissive={RED}
-          emissiveIntensity={1.1}
-          toneMapped={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      {/* Embossed 3-finger claw logo */}
-      <group position={[0, 0.028, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <mesh position={[0, -0.02, 0.002]}>
-          <boxGeometry args={[0.07, 0.016, 0.008]} />
-          <meshStandardMaterial
-            color={RED}
-            emissive={RED}
-            emissiveIntensity={1.4}
-            toneMapped={false}
-          />
-        </mesh>
-        <mesh position={[-0.025, 0.015, 0.002]} rotation={[0, 0, 0.35]}>
-          <boxGeometry args={[0.014, 0.055, 0.008]} />
-          <meshStandardMaterial
-            color={RED}
-            emissive={RED}
-            emissiveIntensity={1.35}
-            toneMapped={false}
-          />
-        </mesh>
-        <mesh position={[0, 0.02, 0.002]}>
-          <boxGeometry args={[0.016, 0.06, 0.008]} />
-          <meshStandardMaterial
-            color={RED}
-            emissive={RED}
-            emissiveIntensity={1.45}
-            toneMapped={false}
-          />
-        </mesh>
-        <mesh position={[0.025, 0.015, 0.002]} rotation={[0, 0, -0.35]}>
-          <boxGeometry args={[0.014, 0.055, 0.008]} />
-          <meshStandardMaterial
-            color={RED}
-            emissive={RED}
-            emissiveIntensity={1.35}
-            toneMapped={false}
-          />
-        </mesh>
-        <mesh position={[0, 0.048, 0.003]}>
-          <sphereGeometry args={[0.01, 10, 10]} />
-          <meshStandardMaterial
-            color={CYAN}
-            emissive={CYAN}
-            emissiveIntensity={1.5}
-            toneMapped={false}
-          />
-        </mesh>
-      </group>
-    </group>
-  );
-}
-
-/** Solana disc — purple body + cyan/green S mark (prize ref) */
-function SolToken({ scale = 1 }: { scale?: number }) {
-  return (
-    <group scale={scale} rotation={[1.05, -0.15, 0.1]}>
-      <mesh castShadow>
-        <cylinderGeometry args={[0.1, 0.1, 0.038, 40]} />
-        <meshStandardMaterial
-          color="#1a0a2e"
-          metalness={0.88}
-          roughness={0.22}
-          emissive={PURPLE}
-          emissiveIntensity={0.35}
-        />
-      </mesh>
-      <mesh position={[0, 0.0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.098, 0.009, 8, 40]} />
-        <meshStandardMaterial
-          color={PURPLE}
-          emissive={PURPLE}
-          emissiveIntensity={1.6}
-          toneMapped={false}
-        />
+      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.118, 0.008, 10, 48]} />
+        {matMetal(RED, 0.6, 0.2, RED, 1.8)}
       </mesh>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.085, 40]} />
-        <meshStandardMaterial
-          color="#12061f"
-          metalness={0.8}
-          roughness={0.25}
-          emissive={PURPLE}
-          emissiveIntensity={0.25}
-        />
+        <circleGeometry args={[0.1, 48]} />
+        {matMetal("#0c0e12", 0.88, 0.25)}
       </mesh>
-      {/* Stylized "S" from three diagonal bars (Solana mark) */}
-      <group position={[0, 0.024, 0]} rotation={[-Math.PI / 2, 0, 0.35]}>
-        <mesh position={[0, 0.028, 0.002]}>
-          <boxGeometry args={[0.07, 0.018, 0.008]} />
-          <meshStandardMaterial
-            color={CYAN}
-            emissive={CYAN}
-            emissiveIntensity={1.8}
-            toneMapped={false}
-          />
+      <group position={[0, 0.026, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0, -0.018, 0.002]}>
+          <boxGeometry args={[0.065, 0.014, 0.006]} />
+          {matMetal(RED, 0.5, 0.15, RED, 1.6)}
         </mesh>
-        <mesh position={[0, 0, 0.002]}>
-          <boxGeometry args={[0.07, 0.018, 0.008]} />
-          <meshStandardMaterial
-            color={PURPLE}
-            emissive={PURPLE}
-            emissiveIntensity={1.6}
-            toneMapped={false}
-          />
-        </mesh>
-        <mesh position={[0, -0.028, 0.002]}>
-          <boxGeometry args={[0.07, 0.018, 0.008]} />
-          <meshStandardMaterial
-            color={SOL_GREEN}
-            emissive={SOL_GREEN}
-            emissiveIntensity={1.5}
-            toneMapped={false}
-          />
-        </mesh>
+        {([-0.022, 0, 0.022] as const).map((px, i) => (
+          <mesh
+            key={i}
+            position={[px, 0.018, 0.002]}
+            rotation={[0, 0, px * -12]}
+          >
+            <boxGeometry args={[0.012, 0.05, 0.006]} />
+            {matMetal(RED, 0.5, 0.15, RED, 1.5)}
+          </mesh>
+        ))}
       </group>
     </group>
   );
 }
 
-/** Solana-readable crystal (green + purple) */
-function SolCrystal({ scale = 1 }: { scale?: number }) {
+/** Dark SOL disc — purple/cyan metal, not toy green */
+function SolToken({ scale = 1 }: { scale?: number }) {
   return (
-    <group scale={scale}>
-      <mesh castShadow position={[0, 0.1, 0]} rotation={[0.25, 0.6, 0.1]}>
-        <icosahedronGeometry args={[0.1, 1]} />
-        <meshStandardMaterial
-          color={SOL_GREEN}
-          metalness={0.5}
-          roughness={0.12}
-          emissive={CYAN}
-          emissiveIntensity={0.35}
-          flatShading
-        />
+    <group scale={scale} rotation={[1.1, -0.2, 0.05]}>
+      <mesh castShadow>
+        <cylinderGeometry args={[0.105, 0.105, 0.036, 40]} />
+        {matMetal("#12081c", 0.92, 0.2, PURPLE, 0.25)}
       </mesh>
-      <mesh position={[0, 0.1, 0]} rotation={[0.25, 0.6, 0.1]}>
-        <icosahedronGeometry args={[0.045, 0]} />
-        <meshStandardMaterial
-          color={PURPLE}
-          emissive={PURPLE}
-          emissiveIntensity={1.4}
-          toneMapped={false}
-        />
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.102, 0.007, 8, 40]} />
+        {matMetal(CYAN, 0.7, 0.18, CYAN, 1.4)}
       </mesh>
-      <mesh position={[0.04, 0.12, 0.04]} rotation={[0.5, 0.2, 0.8]}>
-        <boxGeometry args={[0.02, 0.08, 0.012]} />
-        <meshStandardMaterial
-          color={PURPLE}
-          metalness={0.8}
-          roughness={0.15}
-          emissive={PURPLE}
-          emissiveIntensity={0.6}
-        />
-      </mesh>
+      <group position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0.3]}>
+        {[0.026, 0, -0.026].map((py, i) => (
+          <mesh key={i} position={[0, py, 0.002]}>
+            <boxGeometry args={[0.065, 0.015, 0.006]} />
+            {matMetal(i === 1 ? PURPLE : CYAN, 0.6, 0.15, i === 1 ? PURPLE : CYAN, 1.5)}
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
 
-/** SOL ingot / bar with chamfers */
-function SolBar({ scale = 1 }: { scale?: number }) {
+/** Premium NFT capsule — dark glass + metal bands */
+function NftCapsule({ scale = 1 }: { scale?: number }) {
   return (
-    <group scale={scale} rotation={[0, 0.45, 0.08]}>
-      <mesh castShadow position={[0, 0.045, 0]}>
-        <boxGeometry args={[0.17, 0.055, 0.085]} />
-        <meshStandardMaterial
-          color={PURPLE}
-          metalness={0.92}
-          roughness={0.18}
-          emissive={SOL_GREEN}
-          emissiveIntensity={0.18}
-        />
-      </mesh>
-      <mesh position={[0, 0.078, 0]}>
-        <boxGeometry args={[0.15, 0.018, 0.07]} />
-        <meshStandardMaterial
-          color="#c4b5fd"
-          metalness={0.88}
-          roughness={0.14}
+    <group scale={scale} rotation={[0.4, 0.3, 0.5]}>
+      <mesh castShadow>
+        <capsuleGeometry args={[0.045, 0.09, 8, 16]} />
+        <meshPhysicalMaterial
+          color="#0a1018"
+          metalness={0.35}
+          roughness={0.12}
+          transmission={0.35}
+          thickness={0.4}
+          transparent
+          opacity={0.85}
           emissive={CYAN}
           emissiveIntensity={0.2}
         />
       </mesh>
-      <mesh position={[0, 0.045, 0.045]}>
-        <boxGeometry args={[0.16, 0.01, 0.01]} />
-        <meshStandardMaterial
-          color={CYAN}
-          emissive={CYAN}
-          emissiveIntensity={1.6}
-          toneMapped={false}
-        />
+      <mesh position={[0, 0.05, 0]}>
+        <torusGeometry args={[0.046, 0.006, 8, 20]} />
+        {matMetal(CHROME, 0.95, 0.15, CYAN, 0.8)}
       </mesh>
-      <mesh position={[0, 0.045, -0.045]}>
-        <boxGeometry args={[0.16, 0.01, 0.01]} />
-        <meshStandardMaterial
-          color={SOL_GREEN}
-          emissive={SOL_GREEN}
-          emissiveIntensity={1.2}
-          toneMapped={false}
-        />
+      <mesh position={[0, -0.05, 0]}>
+        <torusGeometry args={[0.046, 0.006, 8, 20]} />
+        {matMetal(GUNMETAL, 0.9, 0.2, RED, 0.5)}
+      </mesh>
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[0.02, 0.04, 0.02]} />
+        {matMetal(PURPLE, 0.7, 0.2, PURPLE, 1.2)}
       </mesh>
     </group>
   );
 }
 
-function JackpotHex({ scale = 1 }: { scale?: number }) {
+/** Mystery crate — carbon-black crate with red seal */
+function MysteryCrate({ scale = 1 }: { scale?: number }) {
+  return (
+    <group scale={scale} rotation={[0, 0.4, 0.05]}>
+      <mesh castShadow position={[0, 0.055, 0]}>
+        <boxGeometry args={[0.14, 0.1, 0.12]} />
+        {matMetal(CARBON, 0.75, 0.4)}
+      </mesh>
+      <mesh position={[0, 0.108, 0]}>
+        <boxGeometry args={[0.145, 0.012, 0.125]} />
+        {matMetal(GUNMETAL, 0.9, 0.25)}
+      </mesh>
+      <mesh position={[0, 0.055, 0.062]}>
+        <boxGeometry args={[0.08, 0.02, 0.008]} />
+        {matMetal(RED, 0.5, 0.2, RED, 1.4)}
+      </mesh>
+      <mesh position={[0, 0.055, 0.065]}>
+        <boxGeometry args={[0.04, 0.04, 0.006]} />
+        {matMetal("#0e0e12", 0.85, 0.3, PURPLE, 0.4)}
+      </mesh>
+      {/* Corner rivets */}
+      {([-0.055, 0.055] as const).map((rx) =>
+        ([-0.04, 0.04] as const).map((rz) => (
+          <mesh key={`${rx}${rz}`} position={[rx, 0.1, rz]}>
+            <sphereGeometry args={[0.008, 8, 8]} />
+            {matMetal(CHROME, 0.95, 0.15)}
+          </mesh>
+        ))
+      )}
+    </group>
+  );
+}
+
+/** Crypto vault box — dark chrome safe */
+function VaultBox({ scale = 1 }: { scale?: number }) {
+  return (
+    <group scale={scale} rotation={[0, -0.35, 0]}>
+      <mesh castShadow position={[0, 0.05, 0]}>
+        <boxGeometry args={[0.15, 0.09, 0.11]} />
+        {matMetal("#1a1e26", 0.94, 0.2)}
+      </mesh>
+      <mesh position={[0, 0.05, 0.056]}>
+        <boxGeometry args={[0.1, 0.06, 0.008]} />
+        {matMetal(GUNMETAL, 0.9, 0.22)}
+      </mesh>
+      <mesh position={[0.02, 0.05, 0.062]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.012, 16]} />
+        {matMetal(CHROME, 0.95, 0.12, CYAN, 0.6)}
+      </mesh>
+      <mesh position={[-0.04, 0.05, 0.062]}>
+        <boxGeometry args={[0.03, 0.012, 0.006]} />
+        {matMetal(RED, 0.5, 0.2, RED, 1.2)}
+      </mesh>
+    </group>
+  );
+}
+
+/** Metallic collectible bar / ingot */
+function MetalCollectible({ scale = 1 }: { scale?: number }) {
+  return (
+    <group scale={scale} rotation={[0.1, 0.5, 0.1]}>
+      <mesh castShadow position={[0, 0.04, 0]}>
+        <boxGeometry args={[0.16, 0.05, 0.08]} />
+        {matMetal("#3a404c", 0.96, 0.14)}
+      </mesh>
+      <mesh position={[0, 0.068, 0]}>
+        <boxGeometry args={[0.14, 0.012, 0.065]} />
+        {matMetal(CHROME, 0.95, 0.12, CYAN, 0.25)}
+      </mesh>
+      <mesh position={[0, 0.04, 0.042]}>
+        <boxGeometry args={[0.15, 0.008, 0.006]} />
+        {matMetal(RED, 0.5, 0.2, RED, 1.0)}
+      </mesh>
+    </group>
+  );
+}
+
+/** SOL metal bar */
+function SolBar({ scale = 1 }: { scale?: number }) {
+  return (
+    <group scale={scale} rotation={[0, 0.45, 0.08]}>
+      <mesh castShadow position={[0, 0.042, 0]}>
+        <boxGeometry args={[0.16, 0.05, 0.078]} />
+        {matMetal("#1a1028", 0.93, 0.16, PURPLE, 0.2)}
+      </mesh>
+      <mesh position={[0, 0.042, 0.04]}>
+        <boxGeometry args={[0.15, 0.008, 0.006]} />
+        {matMetal(CYAN, 0.6, 0.15, CYAN, 1.4)}
+      </mesh>
+      <mesh position={[0, 0.042, -0.04]}>
+        <boxGeometry args={[0.15, 0.008, 0.006]} />
+        {matMetal(PURPLE, 0.6, 0.15, PURPLE, 1.2)}
+      </mesh>
+    </group>
+  );
+}
+
+/** Legendary jackpot cube — dark with red/cyan edge glow */
+function JackpotCube({ scale = 1 }: { scale?: number }) {
   return (
     <group scale={scale}>
-      <mesh castShadow position={[0, 0.07, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.115, 0.115, 0.075, 6]} />
-        <meshStandardMaterial
-          color="#14060a"
-          metalness={0.85}
-          roughness={0.2}
-          emissive={RED}
-          emissiveIntensity={0.45}
-          flatShading
-        />
+      <mesh castShadow position={[0, 0.07, 0]}>
+        <boxGeometry args={[0.13, 0.13, 0.13]} />
+        {matMetal("#0c0e14", 0.9, 0.18, RED, 0.35)}
       </mesh>
-      <mesh position={[0, 0.112, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.09, 0.09, 0.02, 6]} />
-        <meshStandardMaterial
-          color={GOLD}
-          metalness={0.9}
-          roughness={0.15}
-          emissive={GOLD}
-          emissiveIntensity={0.8}
-          toneMapped={false}
-          flatShading
-        />
+      {/* Edge neon strips */}
+      {(
+        [
+          [0, 0.135, 0, [0.132, 0.008, 0.132]],
+          [0, 0.005, 0, [0.132, 0.008, 0.132]],
+        ] as const
+      ).map(([x, y, z, args], i) => (
+        <mesh key={i} position={[x, y, z]}>
+          <boxGeometry args={args as [number, number, number]} />
+          {matMetal(i === 0 ? RED : CYAN, 0.5, 0.15, i === 0 ? RED : CYAN, 2)}
+        </mesh>
+      ))}
+      <mesh position={[0, 0.07, 0.068]}>
+        <boxGeometry args={[0.06, 0.06, 0.008]} />
+        {matMetal(BLACK, 0.85, 0.25, RED, 1.0)}
       </mesh>
-      <mesh position={[0, 0.07, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.118, 0.012, 6, 6]} />
+      {/* Hex badge */}
+      <mesh position={[0, 0.07, 0.072]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.028, 0.028, 0.006, 6]} />
+        {matMetal(CHROME, 0.95, 0.12, CYAN, 1.2)}
+      </mesh>
+    </group>
+  );
+}
+
+/** Soft metallic gem (dark, not toy candy) */
+function DarkGem({
+  color,
+  emissive,
+  scale = 1,
+}: {
+  color: string;
+  emissive: string;
+  scale?: number;
+}) {
+  return (
+    <group scale={scale}>
+      <mesh castShadow position={[0, 0.08, 0]} rotation={[0.2, 0.4, 0.1]}>
+        <octahedronGeometry args={[0.09, 0]} />
         <meshStandardMaterial
-          color={CYAN}
-          emissive={CYAN}
-          emissiveIntensity={1.5}
-          toneMapped={false}
+          color={color}
+          metalness={0.55}
+          roughness={0.12}
+          emissive={emissive}
+          emissiveIntensity={0.35}
+          flatShading
         />
       </mesh>
     </group>
@@ -391,37 +292,41 @@ export function PrizeMeshByKind({
   kind,
   scale = 1,
 }: {
-  kind: MoneyPrizeKind | "crystal" | "neon_capsule";
+  kind: MoneyPrizeKind | "crystal" | "neon_capsule" | "jackpot_hex";
   scale?: number;
 }) {
-  // legacy aliases
-  if (kind === "crystal" || kind === "crystal_red") {
-    return <FacetedGem color={RED} emissive={RED} scale={scale} />;
-  }
-  if (kind === "neon_capsule") {
-    return <SolToken scale={scale} />;
-  }
   switch (kind) {
-    case "crystal_cyan":
-      return <FacetedGem color={CYAN} emissive={CYAN} scale={scale} />;
-    case "crystal_purple":
-      return (
-        <FacetedGem color={PURPLE} emissive={PURPLE} scale={scale} tall />
-      );
-    case "crystal_gold":
-      return <FacetedGem color={GOLD} emissive={GOLD} scale={scale} />;
     case "fiatclaw_token":
       return <FiatClawToken scale={scale} />;
     case "sol_token":
       return <SolToken scale={scale} />;
+    case "nft_capsule":
+    case "neon_capsule":
+      return <NftCapsule scale={scale} />;
+    case "mystery_crate":
+      return <MysteryCrate scale={scale} />;
+    case "vault_box":
+      return <VaultBox scale={scale} />;
+    case "metal_collectible":
+      return <MetalCollectible scale={scale} />;
+    case "jackpot_cube":
+    case "jackpot_hex":
+      return <JackpotCube scale={scale} />;
     case "sol_bar":
       return <SolBar scale={scale} />;
     case "sol_crystal":
-      return <SolCrystal scale={scale} />;
-    case "jackpot_hex":
-      return <JackpotHex scale={scale} />;
+      return <DarkGem color="#0e1820" emissive={CYAN} scale={scale} />;
+    case "crystal_purple":
+    case "crystal":
+      return <DarkGem color="#1a0a28" emissive={PURPLE} scale={scale} />;
+    case "crystal_red":
+      return <DarkGem color="#1a080c" emissive={RED} scale={scale} />;
+    case "crystal_cyan":
+      return <DarkGem color="#061820" emissive={CYAN} scale={scale} />;
+    case "crystal_gold":
+      return <DarkGem color="#1c1810" emissive="#8a7a40" scale={scale} />;
     default:
-      return <FacetedGem color={RED} emissive={RED} scale={scale} />;
+      return <FiatClawToken scale={scale} />;
   }
 }
 
@@ -439,12 +344,12 @@ export function AnimatedPrize({
     const baseY = spec.position[1];
     if (spec.bob) {
       ref.current.position.y =
-        baseY + Math.sin(t * 1.25 + spec.seed * 0.17) * 0.022;
+        baseY + Math.sin(t * 1.1 + spec.seed * 0.17) * 0.018;
     }
     if (spec.spin) {
-      ref.current.rotation.y = t * (0.28 + (spec.seed % 7) * 0.04) + spec.seed;
+      ref.current.rotation.y = t * (0.22 + (spec.seed % 7) * 0.03) + spec.seed;
       if (spec.kind === "fiatclaw_token" || spec.kind === "sol_token") {
-        ref.current.rotation.x = 1.1 + Math.sin(t * 0.6 + spec.seed) * 0.08;
+        ref.current.rotation.x = 1.15 + Math.sin(t * 0.5 + spec.seed) * 0.06;
       }
     }
   });
@@ -460,14 +365,13 @@ export function AnimatedPrize({
   );
 }
 
-/** Shared materials for metal claw parts */
 export function useMetalMat() {
   return useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#c5ccd8",
-        metalness: 0.92,
-        roughness: 0.22,
+        color: "#8a919e",
+        metalness: 0.94,
+        roughness: 0.2,
       }),
     []
   );

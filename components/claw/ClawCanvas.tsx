@@ -10,21 +10,18 @@ interface Props {
   clawX: number;
 }
 
-/**
- * Client-only WebGL canvas — camera framed for full cabinet face (machine ref),
- * not a zoomed-in low-poly chamber (photo 4).
- */
+/** Full industrial cabinet framing — premium 2035 arcade machine. */
 export default function ClawCanvas({ phase, clawX }: Props) {
   return (
     <div
       data-claw-webgl="r3f"
-      data-claw-refs="machine+claw+prizes"
+      data-claw-style="premium-industrial-2035"
       style={{
         position: "absolute",
         inset: 0,
-        borderRadius: 22,
+        borderRadius: 20,
         overflow: "hidden",
-        background: "#050608",
+        background: "#030406",
       }}
     >
       <Canvas
@@ -35,7 +32,7 @@ export default function ClawCanvas({ phase, clawX }: Props) {
           alpha: false,
           powerPreference: "high-performance",
         }}
-        camera={{ position: [0, 0.05, 6.6], fov: 34, near: 0.1, far: 40 }}
+        camera={{ position: [0, 0.02, 7.0], fov: 32, near: 0.1, far: 50 }}
         style={{ width: "100%", height: "100%" }}
       >
         <Suspense fallback={null}>

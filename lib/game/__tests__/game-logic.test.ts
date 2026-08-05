@@ -694,22 +694,20 @@ test("active catalog winners are all money-valued (SOL/$CLAW/jackpot/nft/mystery
   }
 });
 
-test("visual pile is dense money kinds, lower band, no spheres-only layout", () => {
+test("visual pile is dense premium crypto kinds, lower band, no toy spheres", () => {
   const layout = buildPrizePileLayout(42);
   assert.ok(layout.length >= 36, `need dense pile, got ${layout.length}`);
   assert.ok(layoutFillsLowerBand(layout));
-  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+SOL+purple crystals");
+  assert.ok(layoutHasRequiredKinds(layout), "must include FIATCLAW+SOL+vaults+crates");
   assert.ok(layout.every((p) => isMoneyPrizeKind(p.kind)));
-  // Explicit required readable types from prize ref
   const kinds = new Set(layout.map((p) => p.kind));
   assert.ok(kinds.has("fiatclaw_token"));
-  assert.ok(kinds.has("sol_token") || kinds.has("sol_crystal") || kinds.has("sol_bar"));
-  assert.ok(kinds.has("crystal_purple"));
-  assert.ok(kinds.has("crystal_red"));
-  assert.ok(kinds.has("crystal_cyan"));
-  // No pill capsules in money pile
+  assert.ok(kinds.has("sol_token"));
+  assert.ok(kinds.has("vault_box"));
+  assert.ok(kinds.has("mystery_crate"));
+  assert.ok(kinds.has("nft_capsule"));
+  // No pill/toy capsule kind
   assert.equal(kinds.has("neon_capsule" as never), false);
-  // height variation
   const ys = layout.map((p) => p.position[1]);
   assert.ok(Math.max(...ys) - Math.min(...ys) > 0.02);
 });
@@ -776,15 +774,16 @@ test("ClawScene ships hollow-open-front shell, not solid fill plate", () => {
   );
   assert.ok(src.includes("RED") || src.includes("#FF3E5C"), "red neon claw accents");
   assert.ok(src.includes("FIATCLAW ARCADE"), "marquee text");
-  // Ref-driven textures (not photo-4 low-poly only)
   assert.ok(
-    src.includes("claw-ref") || src.includes("prizes-pile") || src.includes("useChromaTexture"),
-    "must use ref textures"
+    src.includes("premium-industrial") ||
+      src.includes("hydraulic") ||
+      src.includes("CoolingFan"),
+    "premium industrial machine style"
   );
   assert.ok(src.includes("PrizePile") || src.includes("buildPrizePileLayout"), "prize pile");
 });
 
-test("PrizeMeshes ships FIATCLAW token + multi-color gems + SOL forms", () => {
+test("PrizeMeshes ships premium crypto collectibles (not toys)", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const meshPath = path.join(
@@ -798,13 +797,12 @@ test("PrizeMeshes ships FIATCLAW token + multi-color gems + SOL forms", () => {
   );
   const src = fs.readFileSync(meshPath, "utf8");
   assert.ok(src.includes("FiatClawToken"), "FIATCLAW token mesh");
-  assert.ok(src.includes("FacetedGem") || src.includes("dodecahedron"), "faceted gems");
-  assert.ok(src.includes("SolBar") && src.includes("SolCrystal"), "SOL forms");
   assert.ok(src.includes("SolToken"), "Solana disc token");
-  assert.ok(src.includes("JackpotHex"), "jackpot hex");
-  assert.ok(src.includes("crystal_purple") || src.includes("PURPLE"), "purple crystals");
+  assert.ok(src.includes("VaultBox") || src.includes("vault"), "crypto vault");
+  assert.ok(src.includes("MysteryCrate") || src.includes("mystery"), "mystery crate");
+  assert.ok(src.includes("NftCapsule") || src.includes("nft"), "NFT capsule");
+  assert.ok(src.includes("JackpotCube") || src.includes("jackpot"), "jackpot cube");
   assert.ok(src.includes("cylinderGeometry"), "token disc geometry");
-  // No pill capsule mesh
   assert.equal(src.includes("function NeonCapsule"), false, "no pill capsules");
 });
 
