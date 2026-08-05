@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "tsx lib/game/__tests__/game-logic.test.ts",
-    "test:game": "tsx lib/game/__tests__/game-logic.test.ts"
+    "test:game": "tsx lib/game/__tests__/game-logic.test.ts",
+    "screenshot:play": "node scripts/screenshot-play.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.117.3",
@@ -32,6 +33,7 @@
     "@types/react": "18.2.79",
     "@types/react-dom": "18.2.25",
     "@types/three": "^0.170.0",
+    "playwright": "^1.62.1",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"
   }
