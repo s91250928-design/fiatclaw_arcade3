@@ -2,12 +2,13 @@
 
 /**
  * FiatClaw Arcade LOBBY (game lobby).
- * No embedded claw machine — PLAY NOW opens /play/game full-screen session.
- * Preserves wallet, buy plays, stake, leaderboard links, balances, jackpot.
+ * Responsive: 1 column <768px. Wallet: Phantom/Solflare via modal.
+ * PLAY NOW opens /play/game when connected + plays > 0.
  */
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { useArcadePlayer } from "@/hooks/useArcadePlayer";
 import {
@@ -24,6 +25,7 @@ import {
 
 export default function ArcadeLobbyPage() {
   const router = useRouter();
+  const { setVisible: openWalletModal } = useWalletModal();
   const p = useArcadePlayer();
   const busy = p.status === "buying";
 
@@ -32,8 +34,10 @@ export default function ArcadeLobbyPage() {
 
   const enterVault = async () => {
     if (!p.wallet.connected) {
-      p.setMessage("Connect wallet first");
+      p.setMessage("Select Phantom or Solflare to continue");
       p.setStatus("error");
+      // Open official wallet modal (extension / mobile deep link)
+      openWalletModal(true);
       return;
     }
     if (p.availablePlays < 1) {
@@ -41,26 +45,43 @@ export default function ArcadeLobbyPage() {
       p.setStatus("error");
       return;
     }
-    // Refresh balances right before handoff so game sees latest plays
     await p.refreshState();
     p.setMessage("Entering vault…");
     router.push("/play/game");
   };
 
+  const playNowStyle: React.CSSProperties = {
+    marginTop: 8,
+    width: "min(100%, 320px)",
+    minHeight: 72,
+    borderRadius: 16,
+    border: canEnterVault
+      ? "2px solid rgba(255,140,160,0.9)"
+      : "2px solid rgba(255,62,92,0.45)",
+    cursor: canEnterVault || !p.wallet.connected ? "pointer" : "not-allowed",
+    color: "#fff",
+    fontFamily: "Orbitron, sans-serif",
+    fontWeight: 800,
+    fontSize: 18,
+    letterSpacing: "0.28em",
+    background: canEnterVault
+      ? `radial-gradient(circle at 40% 22%, #FF9AAB 0%, ${RED} 40%, #B01028 75%, #2a040c 100%)`
+      : !p.wallet.connected
+        ? `linear-gradient(180deg, #5a2030, #2a0a14)`
+        : "linear-gradient(180deg, #3a1820, #1a0a10)",
+    boxShadow: canEnterVault
+      ? "0 0 56px rgba(255,37,68,0.75), 0 10px 0 #2a040c"
+      : "none",
+    textShadow: "0 0 18px rgba(255,62,92,0.8)",
+    opacity: canEnterVault || !p.wallet.connected ? 1 : 0.65,
+    transition: "transform 0.12s, box-shadow 0.2s",
+    touchAction: "manipulation",
+  };
+
   return (
     <>
       <link href={FONTS_HREF} rel="stylesheet" />
-      <main
-        data-arcade-lobby
-        style={{
-          minHeight: "100vh",
-          background: "#050608",
-          color: "#EDEEF2",
-          fontFamily: "Inter, system-ui, sans-serif",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
+      <main data-arcade-lobby className="lobby-main">
         <div
           aria-hidden
           style={{
@@ -73,78 +94,39 @@ export default function ArcadeLobbyPage() {
           }}
         />
 
-        {/* Top nav */}
-        <header
-          style={{
-            position: "relative",
-            zIndex: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "12px 20px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            background: "rgba(5,6,8,0.85)",
-            backdropFilter: "blur(16px)",
-          }}
-        >
-          <Link
-            href="/"
-            style={{
-              textDecoration: "none",
-              fontFamily: "Orbitron, sans-serif",
-              fontWeight: 800,
-              fontSize: 13,
-              letterSpacing: "0.16em",
-              color: RED,
-              textShadow: "0 0 16px rgba(255,37,68,0.5)",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
+        <header className="lobby-header">
+          <Link href="/" className="lobby-brand">
             <span style={{ fontSize: 18 }}>⬡</span> FIATCLAW
-            <span style={{ color: MUTED, fontWeight: 500, fontSize: 10 }}>
+            <span className="lobby-brand-sub" style={{ color: MUTED, fontWeight: 500, fontSize: 10 }}>
               ARCADE
             </span>
           </Link>
-          <nav
-            style={{
-              display: "flex",
-              gap: 6,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            {[
-              { href: "/play", label: "LOBBY" },
-              { href: "/stake", label: "STAKING" },
-              { href: "/leaderboard", label: "LEADERBOARD" },
-              { href: "/admin", label: "ADMIN" },
-            ].map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                style={{
-                  padding: "8px 12px",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: "0.14em",
-                  color: MUTED,
-                  textDecoration: "none",
-                  fontFamily: "Orbitron, sans-serif",
-                }}
-              >
-                {l.label}
-              </Link>
-            ))}
+          <nav className="lobby-nav">
+            <Link href="/play" className="lobby-nav-link">
+              LOBBY
+            </Link>
+            <Link href="/stake" className="lobby-nav-link lobby-nav-link--optional">
+              STAKING
+            </Link>
+            <Link
+              href="/leaderboard"
+              className="lobby-nav-link lobby-nav-link--optional"
+            >
+              LEADERBOARD
+            </Link>
+            <Link href="/admin" className="lobby-nav-link lobby-nav-link--optional">
+              ADMIN
+            </Link>
             {p.shortWallet && (
               <span
+                data-wallet-chip
                 style={{
                   ...label,
                   color: CYAN,
                   padding: "6px 10px",
                   border: "1px solid rgba(34,211,255,0.25)",
                   borderRadius: 8,
+                  flexShrink: 0,
                 }}
               >
                 {p.shortWallet}
@@ -154,19 +136,7 @@ export default function ArcadeLobbyPage() {
           </nav>
         </header>
 
-        {/* Top stats */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 10,
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 10,
-            padding: "12px 16px 0",
-            maxWidth: 1200,
-            margin: "0 auto",
-          }}
-        >
+        <div className="lobby-stats">
           {[
             {
               k: "MEGA JACKPOT",
@@ -207,24 +177,8 @@ export default function ArcadeLobbyPage() {
           ))}
         </div>
 
-        {/* Lobby grid: left economy · center CTA · right meta */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            display: "grid",
-            gridTemplateColumns:
-              "minmax(240px, 280px) 1fr minmax(240px, 280px)",
-            gap: 14,
-            maxWidth: 1200,
-            margin: "0 auto",
-            padding: "14px 16px 40px",
-            alignItems: "stretch",
-            minHeight: "calc(100vh - 160px)",
-          }}
-        >
-          {/* LEFT */}
-          <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="lobby-grid">
+          <aside className="lobby-aside lobby-aside-left">
             <div style={panel} data-play-chrome="wallet">
               <p style={{ ...label, color: RED }}>WALLET OVERVIEW</p>
               <div style={{ marginTop: 12 }}>
@@ -243,6 +197,21 @@ export default function ArcadeLobbyPage() {
                   {p.wallet.connected ? p.clawBalance.toLocaleString() : "—"}
                 </p>
               </div>
+              {!p.wallet.connected && (
+                <button
+                  type="button"
+                  data-wallet-connect="inline"
+                  onClick={() => openWalletModal(true)}
+                  style={{
+                    ...ctaStyle(false),
+                    width: "100%",
+                    marginTop: 14,
+                    minHeight: 48,
+                  }}
+                >
+                  CONNECT PHANTOM / SOLFLARE
+                </button>
+              )}
             </div>
 
             <div style={panel} data-play-chrome="plays">
@@ -356,6 +325,7 @@ export default function ArcadeLobbyPage() {
                   fontFamily: "Orbitron, sans-serif",
                   fontSize: 13,
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
               />
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
@@ -395,35 +365,8 @@ export default function ArcadeLobbyPage() {
             </div>
           </aside>
 
-          {/* CENTER — lobby hero + PLAY NOW */}
-          <section
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 20,
-              minHeight: 480,
-              borderRadius: 20,
-              border: "1px solid rgba(255,62,92,0.25)",
-              background:
-                "radial-gradient(ellipse 70% 55% at 50% 40%, rgba(255,37,68,0.16), transparent 60%), linear-gradient(180deg, rgba(12,10,16,0.95), rgba(4,5,8,0.98))",
-              boxShadow:
-                "0 0 80px rgba(255,37,68,0.12), inset 0 0 60px rgba(0,0,0,0.5)",
-              padding: "40px 28px",
-              textAlign: "center",
-              position: "relative",
-              overflow: "hidden",
-            }}
-            data-lobby-hero
-          >
-            <p
-              style={{
-                ...label,
-                color: CYAN,
-                letterSpacing: "0.28em",
-              }}
-            >
+          <section className="lobby-hero" data-lobby-hero>
+            <p style={{ ...label, color: CYAN, letterSpacing: "0.28em" }}>
               CRYPTO VAULT LOBBY
             </p>
             <h1
@@ -431,7 +374,7 @@ export default function ArcadeLobbyPage() {
                 margin: 0,
                 fontFamily: "Orbitron, sans-serif",
                 fontWeight: 800,
-                fontSize: "clamp(22px, 3.2vw, 36px)",
+                fontSize: "clamp(20px, 5vw, 36px)",
                 letterSpacing: "0.08em",
                 color: "#EDEEF2",
                 textShadow: "0 0 40px rgba(255,62,92,0.35)",
@@ -457,61 +400,42 @@ export default function ArcadeLobbyPage() {
 
             <button
               type="button"
+              className="lobby-play-now"
               data-lobby-action="play-now"
               data-play-now
-              disabled={!canEnterVault}
+              disabled={p.wallet.connected && p.availablePlays < 1}
               onClick={enterVault}
-              style={{
-                marginTop: 8,
-                minWidth: 260,
-                minHeight: 72,
-                borderRadius: 16,
-                border: canEnterVault
-                  ? "2px solid rgba(255,140,160,0.9)"
-                  : "2px solid rgba(255,62,92,0.35)",
-                cursor: canEnterVault ? "pointer" : "not-allowed",
-                color: "#fff",
-                fontFamily: "Orbitron, sans-serif",
-                fontWeight: 800,
-                fontSize: 18,
-                letterSpacing: "0.28em",
-                background: canEnterVault
-                  ? `radial-gradient(circle at 40% 22%, #FF9AAB 0%, ${RED} 40%, #B01028 75%, #2a040c 100%)`
-                  : "linear-gradient(180deg, #3a1820, #1a0a10)",
-                boxShadow: canEnterVault
-                  ? "0 0 56px rgba(255,37,68,0.75), 0 10px 0 #2a040c"
-                  : "none",
-                textShadow: "0 0 18px rgba(255,62,92,0.8)",
-                opacity: canEnterVault ? 1 : 0.65,
-                transition: "transform 0.12s, box-shadow 0.2s",
-              }}
+              style={playNowStyle}
             >
-              PLAY NOW
+              {!p.wallet.connected
+                ? "CONNECT TO PLAY"
+                : p.availablePlays > 0
+                  ? "PLAY NOW"
+                  : "BUY PLAYS FIRST"}
             </button>
             <p style={{ ...label, color: MUTED, marginTop: 4 }}>
               {p.wallet.connected
                 ? p.availablePlays > 0
                   ? `${p.availablePlays} PLAY${p.availablePlays === 1 ? "" : "S"} READY`
                   : "BUY PLAYS TO ENTER"
-                : "CONNECT WALLET TO PLAY"}
+                : "CONNECT PHANTOM OR SOLFLARE"}
             </p>
 
-            {/* Optional deep-link when ready */}
-            <Link
-              href="/play/game"
-              data-lobby-link="game"
-              style={{
-                fontFamily: "Orbitron, sans-serif",
-                fontSize: 10,
-                letterSpacing: "0.14em",
-                color: canEnterVault ? CYAN : MUTED,
-                textDecoration: "none",
-                opacity: canEnterVault ? 1 : 0.5,
-                pointerEvents: canEnterVault ? "auto" : "none",
-              }}
-            >
-              OPEN VAULT SCENE →
-            </Link>
+            {canEnterVault && (
+              <Link
+                href="/play/game"
+                data-lobby-link="game"
+                style={{
+                  fontFamily: "Orbitron, sans-serif",
+                  fontSize: 10,
+                  letterSpacing: "0.14em",
+                  color: CYAN,
+                  textDecoration: "none",
+                }}
+              >
+                OPEN VAULT SCENE →
+              </Link>
+            )}
 
             <div
               style={{
@@ -520,6 +444,7 @@ export default function ArcadeLobbyPage() {
                 maxWidth: 420,
                 marginTop: 12,
                 textAlign: "center",
+                boxSizing: "border-box",
               }}
               data-play-message
             >
@@ -544,8 +469,7 @@ export default function ArcadeLobbyPage() {
             </div>
           </section>
 
-          {/* RIGHT */}
-          <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <aside className="lobby-aside lobby-aside-right">
             <div style={panel}>
               <p style={{ ...label, color: CYAN }}>HOW TO PLAY</p>
               <ol

@@ -903,8 +903,34 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
   );
   assert.ok(machineSrc.includes("ClawCanvas") || machineSrc.includes("r3f-webgl"));
   // Lobby CTA labels
-  assert.ok(lobbySrc.includes("PLAY NOW"));
+  assert.ok(
+    lobbySrc.includes("PLAY NOW") || lobbySrc.includes("CONNECT TO PLAY")
+  );
   assert.ok(lobbySrc.includes("/play/game"));
+  // Wallet modal open path for connect
+  assert.ok(
+    lobbySrc.includes("useWalletModal") || lobbySrc.includes("openWalletModal"),
+    "lobby can open wallet modal"
+  );
+  assert.ok(
+    lobbySrc.includes("lobby-grid") || lobbySrc.includes("lobby-main"),
+    "lobby uses responsive layout classes"
+  );
+  // Provider: Phantom + Solflare, autoConnect false
+  const providerSrc = fs.readFileSync(
+    path.join(root, "components", "SolanaProvider.tsx"),
+    "utf8"
+  );
+  assert.ok(providerSrc.includes("PhantomWalletAdapter"));
+  assert.ok(providerSrc.includes("SolflareWalletAdapter"));
+  assert.ok(
+    providerSrc.includes("autoConnect={false}") ||
+      providerSrc.includes("autoConnect: false")
+  );
+  assert.ok(providerSrc.includes("WalletModalProvider"));
+  const css = fs.readFileSync(path.join(root, "app", "globals.css"), "utf8");
+  assert.ok(css.includes("max-width: 767px") || css.includes("max-width:767px"));
+  assert.ok(css.includes("wallet-adapter-modal"));
 });
 
 test("WIN_PROBABILITY is 0.2 in code only; absent from lobby/game UI", () => {

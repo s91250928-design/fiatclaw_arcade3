@@ -1,11 +1,17 @@
 "use client";
 
-import React, { useMemo, type ReactNode } from "react";
+/**
+ * Solana wallet root: Phantom + Solflare.
+ * autoConnect=false. RPC/cluster from NEXT_PUBLIC_* env.
+ * Always wraps children in providers so useWallet / useWalletModal work.
+ */
+
+import React, { useCallback, useMemo, useEffect, useState, type ReactNode } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
-import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
+import { WalletAdapterNetwork, type WalletError } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
@@ -17,47 +23,52 @@ interface Props {
   children: ReactNode;
 }
 
-const Conn = ConnectionProvider as React.ComponentType<{
-  endpoint: string;
-  config?: { commitment?: string };
-  children?: ReactNode;
-}>;
-const Wallets = WalletProvider as React.ComponentType<{
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  wallets: any[];
-  autoConnect?: boolean;
-  children?: ReactNode;
-}>;
-const Modal = WalletModalProvider as React.ComponentType<{
-  children?: ReactNode;
-}>;
+function resolveNetwork(): WalletAdapterNetwork {
+  const raw = (process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "devnet").toLowerCase();
+  if (raw === "mainnet-beta" || raw === "mainnet") {
+    return WalletAdapterNetwork.Mainnet;
+  }
+  if (raw === "testnet") return WalletAdapterNetwork.Testnet;
+  return WalletAdapterNetwork.Devnet;
+}
 
 export function SolanaProvider({ children }: Props) {
-  const cluster = (process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "devnet").toLowerCase();
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+  }, []);
 
-  const network =
-    cluster === "mainnet-beta"
-      ? WalletAdapterNetwork.Mainnet
-      : cluster === "testnet"
-        ? WalletAdapterNetwork.Testnet
-        : WalletAdapterNetwork.Devnet;
+  const network = useMemo(() => resolveNetwork(), []);
 
   const endpoint = useMemo(() => {
-    const custom = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
-    if (custom && custom.startsWith("http")) return custom;
+    const custom = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim();
+    if (custom && /^https?:\/\//i.test(custom)) return custom;
     return clusterApiUrl(network);
   }, [network]);
 
-  const wallets = useMemo(
-    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter({ network })],
-    [network]
-  );
+  // Instantiate adapters only in the browser after mount (Phantom injects window.solana)
+  const wallets = useMemo(() => {
+    if (!ready || typeof window === "undefined") return [];
+    return [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter({ network }),
+    ];
+  }, [network, ready]);
+
+  const onError = useCallback((error: WalletError) => {
+    console.error("[FiatClaw wallet]", error?.name, error?.message ?? error);
+  }, []);
 
   return (
-    <Conn endpoint={endpoint} config={{ commitment: "confirmed" }}>
-      <Wallets wallets={wallets} autoConnect={false}>
-        <Modal>{children}</Modal>
-      </Wallets>
-    </Conn>
+    <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed" }}>
+      <WalletProvider
+        wallets={wallets}
+        autoConnect={false}
+        onError={onError}
+        localStorageKey="fiatclaw-wallet"
+      >
+        <WalletModalProvider>{children}</WalletModalProvider>
+      </WalletProvider>
+    </ConnectionProvider>
   );
 }
