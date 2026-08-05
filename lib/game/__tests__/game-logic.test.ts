@@ -712,138 +712,27 @@ test("visual pile is dense premium crypto kinds, lower band, no toy spheres", ()
   assert.ok(Math.max(...ys) - Math.min(...ys) > 0.02);
 });
 
-// ── R3F cabinet shell structure (shipped source) ───────────────────────
-console.log("\n(j) R3F hollow cabinet (no solid blocking body)");
+// ── Claw machine UI removed ────────────────────────────────────────────
+console.log("\n(j) claw machine UI deleted");
 
-test("ClawScene ships hollow-open-front shell, not solid fill plate", () => {
-  // Drive real shipped source file (structural contract for WebGL visibility).
+test("ClawMachine / ClawScene / PrizeMeshes components no longer ship", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
-  const scenePath = path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "components",
-    "claw",
-    "ClawScene.tsx"
-  );
-  const src = fs.readFileSync(scenePath, "utf8");
-  assert.ok(
-    src.includes('CABINET_SHELL_MODE = "hollow-open-front"'),
-    "must export hollow shell mode"
-  );
-  assert.ok(
-    src.includes("Hollow cabinet"),
-    "must document hollow cabinet (open front)"
-  );
-  // Regression: opaque black "opening" plate blocked the playfield
-  assert.equal(
-    /meshBasicMaterial\s+color=["']#050608["']/.test(src),
-    false,
-    "must not ship solid black fill plate over window"
-  );
-  // Must not use a single solid full-body RoundedBox as the only cabinet body
-  // (walls/frame pieces are OK). Flag the old pattern:
-  assert.equal(
-    /Main body[\s\S]*RoundedBox args=\{\[3\.2,\s*4\.0,\s*2\.2\]\}/.test(src),
-    false,
-    "must not use solid 3.2x4x2.2 body that occludes interior"
-  );
-  assert.ok(src.includes("GlassPanel"), "glass window component required");
-  assert.ok(src.includes("meshPhysicalMaterial"), "transmission glass material");
-  // Money prize meshes, not plain sphere pile
-  assert.ok(
-    src.includes("buildPrizePileLayout") || src.includes("AnimatedPrize"),
-    "must use money prize pile layout"
-  );
-  assert.equal(
-    /sphereGeometry args=\{\[it\.r/.test(src),
-    false,
-    "must not use simple colored sphere pile"
-  );
-  // Metal claw mechanism markers — 3-finger red-neon ref
-  assert.ok(src.includes("cableLen") || src.includes("cable"), "metal cable");
-  assert.ok(src.includes("Motor housing") || src.includes("motor"), "motor housing");
-  assert.ok(
-    src.includes("fingers: CLAW_BLADES") ||
-      src.includes("fingers: 3") ||
-      src.includes("ClawBlade") ||
-      src.includes("CLAW_BLADES"),
-    "3-blade claw"
-  );
-  assert.ok(src.includes("RED") || src.includes("#FF3E5C"), "red neon claw accents");
-  assert.ok(src.includes("FIATCLAW ARCADE"), "marquee text");
-  assert.ok(
-    src.includes("premium-industrial") ||
-      src.includes("hydraulic") ||
-      src.includes("CoolingFan"),
-    "premium industrial machine style"
-  );
-  assert.ok(src.includes("PrizePile") || src.includes("buildPrizePileLayout"), "prize pile");
-});
-
-test("PrizeMeshes ships premium crypto collectibles (not toys)", () => {
-  const fs = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
-  const meshPath = path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "components",
-    "claw",
-    "PrizeMeshes.tsx"
-  );
-  const src = fs.readFileSync(meshPath, "utf8");
-  assert.ok(src.includes("FiatClawToken"), "FIATCLAW token mesh");
-  assert.ok(src.includes("SolToken"), "Solana disc token");
-  assert.ok(src.includes("VaultBox") || src.includes("vault"), "crypto vault");
-  assert.ok(src.includes("MysteryCrate") || src.includes("mystery"), "mystery crate");
-  assert.ok(src.includes("NftCapsule") || src.includes("nft"), "NFT capsule");
-  assert.ok(src.includes("JackpotCube") || src.includes("jackpot"), "jackpot cube");
-  assert.ok(src.includes("cylinderGeometry"), "token disc geometry");
-  assert.equal(src.includes("function NeonCapsule"), false, "no pill capsules");
-});
-
-test("ClawMachine ships large joystick + PULL controls", () => {
-  const fs = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
-  const machinePath = path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "components",
-    "ClawMachine.tsx"
-  );
-  const src = fs.readFileSync(machinePath, "utf8");
-  assert.ok(src.includes('data-claw-action="pull"'), "PULL button");
-  assert.ok(src.includes('data-claw-controls="joystick"'), "joystick");
-  assert.ok(src.includes('data-claw-dir="left"'), "left");
-  assert.ok(src.includes('data-claw-dir="right"'), "right");
-  assert.ok(src.includes("PULL"), "PULL label");
-  assert.ok(src.includes("r3f-webgl") || src.includes("ClawCanvas"), "R3F canvas");
+  const root = path.join(__dirname, "..", "..", "..");
+  assert.equal(fs.existsSync(path.join(root, "components", "ClawMachine.tsx")), false);
+  assert.equal(fs.existsSync(path.join(root, "components", "claw", "ClawScene.tsx")), false);
+  assert.equal(fs.existsSync(path.join(root, "components", "claw", "ClawCanvas.tsx")), false);
+  assert.equal(fs.existsSync(path.join(root, "components", "claw", "PrizeMeshes.tsx")), false);
 });
 
 test("WIN_PROBABILITY never appears in player-facing play page", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const playPath = path.join(__dirname, "..", "..", "..", "app", "play", "page.tsx");
-  const machinePath = path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "components",
-    "ClawMachine.tsx"
-  );
   const playSrc = fs.readFileSync(playPath, "utf8");
-  const machineSrc = fs.readFileSync(machinePath, "utf8");
   assert.equal(playSrc.includes("WIN_PROBABILITY"), false);
-  assert.equal(machineSrc.includes("WIN_PROBABILITY"), false);
   assert.equal(/\b20\s*%/.test(playSrc), false, "no 20% on play page");
-  assert.equal(/\b0\.2\b/.test(playSrc) && playSrc.includes("win"), false);
+  assert.equal(playSrc.includes("ClawMachine"), false, "no ClawMachine import");
 });
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
