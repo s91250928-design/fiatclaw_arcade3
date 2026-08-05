@@ -1,6 +1,8 @@
 /**
  * Pure claw cabinet phase helpers — status vocabulary + sequence rules.
  * Used by ClawMachine chrome and unit-tested without React.
+ *
+ * Player PULL is 3 clicks: drop → close/grab → lift, then auto win/lose recovery.
  */
 
 export type ClawPhase =
@@ -25,6 +27,13 @@ export type ClawStatusLabel =
   | "WIN"
   | "MISS";
 
+/** Single claw has three blades (ref claw). */
+export const CLAW_FINGER_COUNT = 3 as const;
+
+/**
+ * Phases where the full pull animation is auto-running (no extra PULL click).
+ * Player may still click PULL during drop/close to advance the 3-step machine.
+ */
 export const CLAW_BUSY_PHASES: readonly ClawPhase[] = [
   "drop",
   "close",
@@ -64,15 +73,58 @@ export function isClawBusyPhase(phase: ClawPhase): boolean {
   return (CLAW_BUSY_PHASES as readonly string[]).includes(phase);
 }
 
+/** Joystick only while waiting to arm a pull. */
+export function canMoveClaw(phase: ClawPhase): boolean {
+  return phase === "idle" || phase === "ready";
+}
+
 /**
- * Canonical animation timeline after PULL given server win/lose.
- * Parent drives timeouts; this is the ordered phase list for tests + docs.
+ * Player can click PULL to advance one of the 3 manual steps:
+ * ready/idle → drop, drop → close, close → lift.
+ */
+export function canClickPull(phase: ClawPhase): boolean {
+  return (
+    phase === "idle" ||
+    phase === "ready" ||
+    phase === "drop" ||
+    phase === "close"
+  );
+}
+
+/**
+ * Advance one player PULL click.
+ * 1st → drop (DESCENDING), 2nd → close (LOCKING/grab), 3rd → lift (RETRACTING).
+ */
+export function advancePullClick(phase: ClawPhase): ClawPhase | null {
+  if (phase === "idle" || phase === "ready") return "drop";
+  if (phase === "drop") return "close";
+  if (phase === "close") return "lift";
+  return null;
+}
+
+/** Which player step index (1–3) the phase is on, or 0 if not mid-pull. */
+export function pullClickStep(phase: ClawPhase): 0 | 1 | 2 | 3 {
+  if (phase === "drop") return 1;
+  if (phase === "close") return 2;
+  if (phase === "lift") return 3;
+  return 0;
+}
+
+/**
+ * After the 3rd click reaches `lift`, auto recovery (win/lose).
+ * Parent drives timeouts; pure ordered list for tests.
+ */
+export function pullRecoverySequence(won: boolean): ClawPhase[] {
+  if (won) return ["hold", "return", "win", "ready"];
+  return ["slip", "return", "lose", "ready"];
+}
+
+/**
+ * Full timeline including the 3 player steps + recovery.
+ * Used by docs/tests; UI advances first 3 via clicks, rest via timers.
  */
 export function clawPullSequence(won: boolean): ClawPhase[] {
-  if (won) {
-    return ["drop", "close", "lift", "hold", "return", "win", "ready"];
-  }
-  return ["drop", "close", "lift", "slip", "return", "lose", "ready"];
+  return ["drop", "close", "lift", ...pullRecoverySequence(won)];
 }
 
 /** Overlay text inside the glass (win flash / miss). */
@@ -87,7 +139,6 @@ export function clawOverlayText(phase: ClawPhase): "SECURED" | "MISS" | null {
  * along the pull timeline (or stay if terminal recover).
  */
 export function nextClawPhase(phase: ClawPhase, won: boolean): ClawPhase {
-  // ARMED/STANDBY always begins a pull at DESCENDING (seq also ends in ready).
   if (phase === "idle" || phase === "ready") return "drop";
   const seq = clawPullSequence(won);
   const idx = seq.indexOf(phase);
@@ -98,8 +149,7 @@ export function nextClawPhase(phase: ClawPhase, won: boolean): ClawPhase {
 
 /**
  * Whether the claw should display a held prize for this phase.
- * `slippedThisPull` is true once the lose branch hit `slip` this attempt.
- * Win path: keep prize through close → lift → hold → return → win (SECURED).
+ * Win path: keep prize through close → lift → hold → return → win.
  * Lose path: after slip, prize is not held (falls).
  */
 export function clawShouldHoldPrize(
@@ -109,7 +159,6 @@ export function clawShouldHoldPrize(
   if (phase === "close" || phase === "lift" || phase === "hold" || phase === "win") {
     return true;
   }
-  // Win recover: return without slip still holds the prize with glow
   if (phase === "return" && !slippedThisPull) return true;
   return false;
 }
@@ -125,7 +174,6 @@ export function clawFingersOpen(
   if (clawShouldHoldPrize(phase, slippedThisPull)) return false;
   if (phase === "idle" || phase === "ready" || phase === "drop") return true;
   if (phase === "slip" || phase === "lose") return true;
-  // return after slip: open
   if (phase === "return" && slippedThisPull) return true;
   return true;
 }

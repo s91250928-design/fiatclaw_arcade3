@@ -14,6 +14,12 @@ import {
   startAttempt,
 } from "@/lib/pay";
 import { createDropGuard, isDropUiBusy } from "@/lib/game/drop-guard";
+import {
+  advancePullClick,
+  canClickPull,
+  canMoveClaw,
+  pullRecoverySequence,
+} from "@/lib/game/claw-phases";
 import Link from "next/link";
 
 type Status =
@@ -35,6 +41,8 @@ export default function PlayPage() {
   const [playId, setPlayId] = useState<string | null>(null);
   const [phase, setPhase] = useState<ClawPhase>("idle");
   const [clawX, setClawX] = useState(50);
+  /** Server outcome for current pull — set on 1st PULL, used after 3rd. */
+  const outcomeRef = useRef<{ won: boolean; message: string } | null>(null);
 
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [clawBalance, setClawBalance] = useState(0);
@@ -48,7 +56,7 @@ export default function PlayPage() {
   const [clawPrice, setClawPrice] = useState(500);
   const [buyCount, setBuyCount] = useState(1);
   const [stakeAmt, setStakeAmt] = useState(1000);
-  /** Synchronous lock so double-click / Space cannot burn two plays. */
+  /** Synchronous lock so double-click cannot burn two plays on 1st PULL. */
   const dropGuardRef = useRef(createDropGuard());
 
   const refreshState = useCallback(async () => {
@@ -90,38 +98,46 @@ export default function PlayPage() {
     return () => clearInterval(t);
   }, [wallet.connected, wallet.publicKey, refreshState]);
 
-  const runClawSequence = useCallback((won: boolean, resultMessage: string) => {
-    // down → close → lift → hold-or-slip → return
-    setPhase("drop");
-    setTimeout(() => setPhase("close"), 1000);
-    setTimeout(() => setPhase("lift"), 1500);
-    setTimeout(() => {
-      if (won) {
-        setPhase("hold");
-      } else {
-        setPhase("slip");
-      }
-    }, 2600);
-    setTimeout(() => setPhase("return"), 3200);
-    setTimeout(() => {
-      setPhase(won ? "win" : "lose");
-      setStatus(won ? "success" : "error");
-      setMessage(won ? resultMessage : LOSE_COPY);
-    }, 4000);
-    setTimeout(() => {
-      setPhase("ready");
-      setPlayId(null);
-      setClawX(50);
-      setStatus("ready");
-      dropGuardRef.current.release();
-    }, 6200);
-  }, []);
+  /**
+   * After 3rd PULL click reaches lift — auto hold/slip → return → win/lose → ready.
+   * Does not start a new play; outcome already resolved on click 1.
+   */
+  const runRecoveryAfterLift = useCallback(
+    (won: boolean, resultMessage: string) => {
+      const seq = pullRecoverySequence(won);
+      // hold | slip
+      setTimeout(() => setPhase(seq[0]!), 700);
+      // return
+      setTimeout(() => setPhase(seq[1]!), 1400);
+      // win | lose
+      setTimeout(() => {
+        setPhase(seq[2]!);
+        setStatus(won ? "success" : "error");
+        setMessage(won ? resultMessage : LOSE_COPY);
+      }, 2200);
+      // ready
+      setTimeout(() => {
+        setPhase("ready");
+        setPlayId(null);
+        setClawX(50);
+        setStatus("ready");
+        outcomeRef.current = null;
+        dropGuardRef.current.release();
+      }, 4200);
+      setTimeout(() => refreshState(), 2500);
+    },
+    [refreshState]
+  );
 
-  const onMove = useCallback((dir: "left" | "right") => {
-    const step = 7;
-    if (dir === "left") setClawX((x) => Math.max(14, x - step));
-    if (dir === "right") setClawX((x) => Math.min(86, x + step));
-  }, []);
+  const onMove = useCallback(
+    (dir: "left" | "right") => {
+      if (!canMoveClaw(phase)) return;
+      const step = 7;
+      if (dir === "left") setClawX((x) => Math.max(14, x - step));
+      if (dir === "right") setClawX((x) => Math.min(86, x + step));
+    },
+    [phase]
+  );
 
   const onBuySol = useCallback(async () => {
     if (!wallet.connected) {
@@ -209,10 +225,39 @@ export default function PlayPage() {
     [wallet.publicKey, stakeAmt]
   );
 
+  /**
+   * 3-click PULL:
+   * 1) ready/idle → arm server + resolve (once) → drop
+   * 2) drop → close (grab)
+   * 3) close → lift → auto recovery (win/lose)
+   */
   const onDrop = useCallback(async () => {
-    if (phase !== "ready" && phase !== "idle") return;
-    if (isDropUiBusy(status, phase)) return;
-    // Synchronous lock: second click/Space before await cannot start another attempt.
+    if (!canClickPull(phase)) return;
+    if (isDropUiBusy(status, phase) && phase !== "drop" && phase !== "close") {
+      return;
+    }
+
+    // Steps 2–3: local only — no second server charge
+    if (phase === "drop" || phase === "close") {
+      const next = advancePullClick(phase);
+      if (!next) return;
+      setPhase(next);
+      if (next === "close") {
+        setMessage("Locking claws…");
+      } else if (next === "lift") {
+        setMessage("Retracting…");
+        const outcome = outcomeRef.current;
+        if (outcome) {
+          runRecoveryAfterLift(outcome.won, outcome.message);
+        } else {
+          // Fail-safe: treat as miss if outcome missing
+          runRecoveryAfterLift(false, LOSE_COPY);
+        }
+      }
+      return;
+    }
+
+    // Step 1: server arm + resolve (single play burn)
     if (!dropGuardRef.current.tryAcquire()) return;
     if (!wallet.connected || !wallet.publicKey) {
       dropGuardRef.current.release();
@@ -242,22 +287,24 @@ export default function PlayPage() {
       }
 
       setStatus("playing");
-      setMessage("Resolving pull…");
+      setMessage("Claw descending — press PULL to grab");
 
       // Outcome is server-authoritative — never Math.random on client.
       const result = await resolveAttempt(wallet, id);
       setAvailablePlays(result.remainingPlays);
       setJackpot(result.jackpotBalanceLamports);
       setPlayId(id);
+      outcomeRef.current = { won: result.won, message: result.message };
 
-      runClawSequence(result.won, result.message);
-      setTimeout(() => refreshState(), 4500);
+      // Click 1 complete → DESCENDING (player clicks again for grab)
+      setPhase("drop");
     } catch (e: unknown) {
       dropGuardRef.current.release();
       setStatus("error");
       setMessage(e instanceof Error ? e.message : "Play failed");
       setPhase("idle");
       setPlayId(null);
+      outcomeRef.current = null;
     }
   }, [
     phase,
@@ -265,11 +312,11 @@ export default function PlayPage() {
     wallet,
     playId,
     availablePlays,
-    runClawSequence,
-    refreshState,
+    runRecoveryAfterLift,
   ]);
 
-  const busy = isDropUiBusy(status, phase);
+  const busy =
+    isDropUiBusy(status, phase) && phase !== "drop" && phase !== "close";
 
   const jackpotSol = (() => {
     const n = Number(jackpot);
@@ -595,12 +642,15 @@ export default function PlayPage() {
           <ClawMachine
             phase={phase}
             onDrop={onDrop}
-            disabled={busy}
+            disabled={
+              busy ||
+              (!wallet.connected && canClickPull(phase) && phase !== "drop" && phase !== "close")
+            }
             clawX={clawX}
             onMove={onMove}
             canMove={
               wallet.connected &&
-              (phase === "ready" || phase === "idle") &&
+              canMoveClaw(phase) &&
               availablePlays > 0 &&
               !busy
             }
@@ -837,8 +887,12 @@ export default function PlayPage() {
             >
               {message ||
                 (wallet.connected
-                  ? availablePlays > 0
-                    ? "Move the joystick, then press PULL"
+                  ? availablePlays > 0 || phase === "drop" || phase === "close"
+                    ? phase === "drop"
+                      ? "Press PULL again to grab"
+                      : phase === "close"
+                        ? "Press PULL to lift"
+                        : "Move joystick, then PULL ×3: drop · grab · lift"
                     : "Buy plays to enter the machine"
                   : "Connect Phantom or Solflare to play")}
             </p>

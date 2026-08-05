@@ -43,6 +43,12 @@ import {
   isClawBusyPhase,
   nextClawPhase,
   updateSlippedLatch,
+  advancePullClick,
+  canClickPull,
+  canMoveClaw,
+  pullClickStep,
+  pullRecoverySequence,
+  CLAW_FINGER_COUNT,
   type PrizeEntry,
   type ResolvedPlay,
 } from "../index";
@@ -477,6 +483,38 @@ test("PULL sequence progresses busy phases then recover to ARMED", () => {
   assert.equal(clawStatusLabel(p), "ARMED");
 });
 
+test("3-click PULL advances drop → close/grab → lift via advancePullClick", () => {
+  assert.equal(CLAW_FINGER_COUNT, 3);
+  assert.equal(advancePullClick("idle"), "drop");
+  assert.equal(advancePullClick("ready"), "drop");
+  assert.equal(advancePullClick("drop"), "close");
+  assert.equal(advancePullClick("close"), "lift");
+  assert.equal(advancePullClick("lift"), null);
+  assert.equal(advancePullClick("hold"), null);
+  assert.equal(pullClickStep("drop"), 1);
+  assert.equal(pullClickStep("close"), 2);
+  assert.equal(pullClickStep("lift"), 3);
+  assert.equal(pullClickStep("ready"), 0);
+  assert.equal(canClickPull("ready"), true);
+  assert.equal(canClickPull("drop"), true);
+  assert.equal(canClickPull("close"), true);
+  assert.equal(canClickPull("lift"), false);
+  assert.equal(canMoveClaw("ready"), true);
+  assert.equal(canMoveClaw("drop"), false);
+  assert.deepEqual(pullRecoverySequence(true), [
+    "hold",
+    "return",
+    "win",
+    "ready",
+  ]);
+  assert.deepEqual(pullRecoverySequence(false), [
+    "slip",
+    "return",
+    "lose",
+    "ready",
+  ]);
+});
+
 test("win overlay SECURED / lose overlay MISS + message path", () => {
   assert.equal(clawOverlayText("win"), "SECURED");
   assert.equal(clawOverlayText("lose"), "MISS");
@@ -557,14 +595,20 @@ test("createDropGuard blocks concurrent acquires until release", () => {
   g.release();
 });
 
-test("isDropUiBusy covers starting/playing even when phase is ready/idle", () => {
+test("isDropUiBusy allows mid 3-step PULL (drop/close) while blocking recovery", () => {
   assert.equal(isDropUiBusy("starting", "ready"), true);
   assert.equal(isDropUiBusy("playing", "idle"), true);
   assert.equal(isDropUiBusy("buying", "idle"), true);
   assert.equal(isDropUiBusy("ready", "ready"), false);
   assert.equal(isDropUiBusy("idle", "idle"), false);
-  assert.equal(isDropUiBusy("ready", "drop"), true);
-  assert.equal(isDropUiBusy("success", "close"), true);
+  // Player must click PULL again during drop/close
+  assert.equal(isDropUiBusy("playing", "drop"), false);
+  assert.equal(isDropUiBusy("playing", "close"), false);
+  assert.equal(isDropUiBusy("ready", "drop"), false);
+  // After lift, auto recovery — busy
+  assert.equal(isDropUiBusy("playing", "lift"), true);
+  assert.equal(isDropUiBusy("playing", "hold"), true);
+  assert.equal(isDropUiBusy("success", "win"), true);
 });
 
 test("double start without client guard burns two plays (why lock is required)", () => {
@@ -721,14 +765,23 @@ test("ClawScene ships hollow-open-front shell, not solid fill plate", () => {
     "must not use simple colored sphere pile"
   );
   // Metal claw mechanism markers — 3-finger red-neon ref
-  assert.ok(src.includes("Braided") || src.includes("cableLen"), "metal cable");
+  assert.ok(src.includes("cableLen") || src.includes("cable"), "metal cable");
   assert.ok(src.includes("Motor housing") || src.includes("motor"), "motor housing");
   assert.ok(
-    src.includes("fingers: 3") || src.includes("ClawFinger"),
-    "3-finger claw"
+    src.includes("fingers: CLAW_BLADES") ||
+      src.includes("fingers: 3") ||
+      src.includes("ClawBlade") ||
+      src.includes("CLAW_BLADES"),
+    "3-blade claw"
   );
-  assert.ok(src.includes("red neon") || src.includes("RED"), "red neon claw accents");
+  assert.ok(src.includes("RED") || src.includes("#FF3E5C"), "red neon claw accents");
   assert.ok(src.includes("FIATCLAW ARCADE"), "marquee text");
+  // Ref-driven textures (not photo-4 low-poly only)
+  assert.ok(
+    src.includes("claw-ref") || src.includes("prizes-pile") || src.includes("useChromaTexture"),
+    "must use ref textures"
+  );
+  assert.ok(src.includes("PrizePile") || src.includes("buildPrizePileLayout"), "prize pile");
 });
 
 test("PrizeMeshes ships FIATCLAW token + multi-color gems + SOL forms", () => {

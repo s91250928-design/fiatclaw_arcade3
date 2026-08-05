@@ -1,16 +1,20 @@
 "use client";
 
 /**
- * FiatClaw arcade machine — React Three Fiber WebGL cabinet + HTML control deck.
- * Phases driven by parent (server outcome). No odds / % UI.
+ * FiatClaw arcade — R3F cabinet + HTML control deck.
+ * Joystick moves claw; PULL advances 3-click drop → grab → lift.
+ * No odds / % UI.
  */
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
+  canClickPull,
+  canMoveClaw,
   clawOverlayText,
   clawStatusLabel,
   isClawBusyPhase,
+  pullClickStep,
   type ClawPhase,
 } from "@/lib/game/claw-phases";
 
@@ -26,7 +30,7 @@ const ClawCanvas = dynamic(() => import("./claw/ClawCanvas"), {
         inset: 0,
         display: "grid",
         placeItems: "center",
-        background: "#0a0b10",
+        background: "#050608",
         color: "#FF3E5C",
         fontFamily: "Orbitron, sans-serif",
         fontSize: 11,
@@ -61,17 +65,19 @@ export function ClawMachine({
 }: Props) {
   const [internalX, setInternalX] = useState(50);
   const clawX = controlledX ?? internalX;
-  const busy = isClawBusyPhase(phase);
+  const animating = isClawBusyPhase(phase) && !canClickPull(phase);
   const status = clawStatusLabel(phase);
   const overlay = clawOverlayText(phase);
-  const joyOn = Boolean(canMove && !busy && !disabled);
+  const joyOn = Boolean(canMove && canMoveClaw(phase) && !disabled);
+  const pullOn = Boolean(!disabled && canClickPull(phase));
+  const step = pullClickStep(phase);
 
   const statusColor =
     phase === "win"
       ? "#14F195"
       : phase === "lose" || phase === "slip"
         ? "#FF6B7A"
-        : busy
+        : animating || step > 0
           ? CYAN
           : "#EDEEF2";
 
@@ -82,9 +88,9 @@ export function ClawMachine({
         onMove(dir);
         return;
       }
-      const step = 6.5;
+      const s = 6.5;
       setInternalX((x) =>
-        dir === "left" ? Math.max(12, x - step) : Math.min(88, x + step)
+        dir === "left" ? Math.max(12, x - s) : Math.min(88, x + s)
       );
     },
     [joyOn, onMove]
@@ -92,44 +98,46 @@ export function ClawMachine({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (busy) return;
       if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
         e.preventDefault();
         move("left");
       } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
         e.preventDefault();
         move("right");
-      } else if ((e.key === " " || e.key === "Enter") && joyOn) {
+      } else if ((e.key === " " || e.key === "Enter") && pullOn) {
         e.preventDefault();
         onDrop();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [busy, joyOn, move, onDrop]);
+  }, [pullOn, move, onDrop]);
+
+  const pullLabel =
+    step === 1 ? "GRAB" : step === 2 ? "LIFT" : animating ? "···" : "PULL";
 
   return (
     <div
       data-claw-machine="r3f-webgl"
+      data-claw-pull-step={String(step)}
       style={{
         position: "relative",
         width: "100%",
         maxWidth: 500,
         margin: "0 auto",
-        aspectRatio: "10 / 13.8",
+        aspectRatio: "10 / 14",
         borderRadius: 24,
         overflow: "hidden",
-        border: "1px solid rgba(255,62,92,0.35)",
+        border: "1px solid rgba(255,62,92,0.4)",
         boxShadow: `
           0 0 0 1px rgba(255,255,255,0.04) inset,
-          0 0 80px rgba(255,37,68,0.18),
-          0 0 40px rgba(34,211,255,0.1),
+          0 0 80px rgba(255,37,68,0.2),
+          0 0 40px rgba(34,211,255,0.12),
           0 32px 64px rgba(0,0,0,0.7)
         `,
         background: BG,
       }}
     >
-      {/* WebGL scene */}
       <div
         style={{
           position: "absolute",
@@ -151,7 +159,7 @@ export function ClawMachine({
               pointerEvents: "none",
               zIndex: 5,
               background:
-                "radial-gradient(circle at 50% 42%, rgba(255,37,68,0.25), transparent 60%)",
+                "radial-gradient(circle at 50% 42%, rgba(255,37,68,0.28), transparent 60%)",
             }}
           >
             <div
@@ -196,7 +204,7 @@ export function ClawMachine({
         )}
       </div>
 
-      {/* Large joystick + PULL control deck (machine face ref) */}
+      {/* Control deck — large joystick + PULL (machine face ref) */}
       <div
         data-claw-controls="deck"
         style={{
@@ -218,7 +226,7 @@ export function ClawMachine({
               #0e1016 72%,
               ${BG} 100%)
           `,
-          borderTop: "1px solid rgba(255,62,92,0.4)",
+          borderTop: "1px solid rgba(255,62,92,0.45)",
           boxShadow:
             "0 -18px 44px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.12)",
         }}
@@ -233,7 +241,7 @@ export function ClawMachine({
             height: 2,
             borderRadius: 1,
             background: `linear-gradient(90deg, transparent, ${RED}, ${CYAN}, transparent)`,
-            opacity: 0.8,
+            opacity: 0.85,
           }}
         />
 
@@ -241,13 +249,11 @@ export function ClawMachine({
           data-claw-status={status}
           style={{
             minWidth: 92,
-            padding: "12px 12px",
+            padding: "12px",
             borderRadius: 16,
             border: "1px solid rgba(255,255,255,0.1)",
             background:
               "linear-gradient(160deg, rgba(255,255,255,0.07), rgba(10,12,16,0.95))",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 18px rgba(255,37,68,0.08)",
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
@@ -271,7 +277,9 @@ export function ClawMachine({
               letterSpacing: "0.12em",
               color: statusColor,
               textShadow:
-                busy || phase === "win" ? `0 0 12px ${statusColor}` : undefined,
+                animating || phase === "win"
+                  ? `0 0 12px ${statusColor}`
+                  : undefined,
             }}
           >
             {status}
@@ -341,37 +349,36 @@ export function ClawMachine({
         <button
           type="button"
           data-claw-action="pull"
+          data-pull-step={String(step)}
           onClick={() => {
-            if (disabled || busy) return;
+            if (!pullOn) return;
             onDrop();
           }}
-          disabled={disabled || busy}
+          disabled={!pullOn}
           style={{
             minWidth: 132,
             minHeight: 72,
             padding: "18px 26px",
             borderRadius: 999,
             border: "2px solid rgba(255,140,155,0.55)",
-            cursor: disabled || busy ? "not-allowed" : "pointer",
+            cursor: pullOn ? "pointer" : "not-allowed",
             color: "#fff",
             fontFamily: "Orbitron, sans-serif",
             fontWeight: 800,
-            fontSize: 18,
-            letterSpacing: "0.28em",
+            fontSize: 17,
+            letterSpacing: "0.22em",
             alignSelf: "center",
-            background:
-              disabled || busy
-                ? "linear-gradient(180deg, #3a3e4a, #1a1c24)"
-                : `radial-gradient(circle at 40% 30%, #FF8A9A 0%, ${RED} 42%, #C4102A 78%, #6a0814 100%)`,
-            boxShadow:
-              disabled || busy
-                ? "none"
-                : "0 0 48px rgba(255,37,68,0.75), 0 8px 0 #4a0610, inset 0 3px 0 rgba(255,255,255,0.4)",
+            background: !pullOn
+              ? "linear-gradient(180deg, #3a3e4a, #1a1c24)"
+              : `radial-gradient(circle at 40% 30%, #FF8A9A 0%, ${RED} 42%, #C4102A 78%, #6a0814 100%)`,
+            boxShadow: !pullOn
+              ? "none"
+              : "0 0 48px rgba(255,37,68,0.75), 0 8px 0 #4a0610, inset 0 3px 0 rgba(255,255,255,0.4)",
             opacity: disabled ? 0.45 : 1,
-            transform: busy ? "translateY(4px)" : undefined,
+            transform: animating ? "translateY(4px)" : undefined,
           }}
         >
-          {busy ? "···" : "PULL"}
+          {pullLabel}
         </button>
       </div>
     </div>

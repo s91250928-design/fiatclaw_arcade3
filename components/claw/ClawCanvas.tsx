@@ -10,17 +10,21 @@ interface Props {
   clawX: number;
 }
 
-/** Client-only WebGL canvas for the claw cabinet. */
+/**
+ * Client-only WebGL canvas — camera framed for full cabinet face (machine ref),
+ * not a zoomed-in low-poly chamber (photo 4).
+ */
 export default function ClawCanvas({ phase, clawX }: Props) {
   return (
     <div
       data-claw-webgl="r3f"
+      data-claw-refs="machine+claw+prizes"
       style={{
         position: "absolute",
         inset: 0,
         borderRadius: 22,
         overflow: "hidden",
-        background: "#0a0b10",
+        background: "#050608",
       }}
     >
       <Canvas
@@ -31,7 +35,7 @@ export default function ClawCanvas({ phase, clawX }: Props) {
           alpha: false,
           powerPreference: "high-performance",
         }}
-        camera={{ position: [0, 0.35, 5.2], fov: 38, near: 0.1, far: 40 }}
+        camera={{ position: [0, 0.05, 6.6], fov: 34, near: 0.1, far: 40 }}
         style={{ width: "100%", height: "100%" }}
       >
         <Suspense fallback={null}>
