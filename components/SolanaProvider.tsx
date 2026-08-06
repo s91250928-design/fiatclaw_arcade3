@@ -1,9 +1,13 @@
 "use client";
 
 /**
- * Solana wallet root: explicit Phantom + Solflare adapters.
+ * Solana wallet root — Wallet Standard first.
+ * Phantom: registered by the extension via Wallet Standard (do NOT also pass
+ * legacy PhantomWalletAdapter — dual registration causes WalletConnectionError
+ * and the "Phantom was registered as a Standard Wallet" console warning).
+ * Solflare: legacy SolflareWalletAdapter (no Standard dup when extension absent).
+ * WalletProvider merges Standard wallets and filters same-name legacy entries.
  * autoConnect=false. RPC/cluster from NEXT_PUBLIC_* env.
- * Always mounts Connection / Wallet / Modal providers.
  */
 
 import React, {
@@ -23,7 +27,6 @@ import {
   type WalletError,
 } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { clusterApiUrl } from "@solana/web3.js";
 
@@ -68,16 +71,13 @@ export function SolanaProvider({ children }: Props) {
   }, [network]);
 
   /**
-   * OBJECTIVE: always list Phantom + Solflare in the modal.
-   * Adapters are constructed in useMemo only (no window at module scope).
-   * Wallet Standard may also surface Phantom; legacy dupes are filtered by name
-   * inside wallet-adapter-react — Solflare still appears via SolflareWalletAdapter.
+   * Legacy wallets list: Solflare only.
+   * Phantom arrives via Wallet Standard (useStandardWalletAdapters inside
+   * WalletProvider). Construct adapters only in useMemo (no window at module scope).
+   * Mobile Wallet Adapter deep-link is still injected by wallet-adapter-react.
    */
   const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter({ network }),
-    ],
+    () => [new SolflareWalletAdapter({ network })],
     [network]
   );
 

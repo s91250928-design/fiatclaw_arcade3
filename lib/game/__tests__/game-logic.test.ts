@@ -916,7 +916,7 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     lobbySrc.includes("lobby-grid") || lobbySrc.includes("lobby-main"),
     "lobby uses responsive layout classes"
   );
-  // Provider: explicit Phantom + Solflare; autoConnect false; modal
+  // Provider: Standard-first Phantom (no legacy PhantomWalletAdapter); Solflare kept
   const providerSrc = fs.readFileSync(
     path.join(root, "components", "SolanaProvider.tsx"),
     "utf8"
@@ -927,8 +927,10 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
       providerSrc.includes("autoConnect: false")
   );
   assert.ok(
-    providerSrc.includes("PhantomWalletAdapter"),
-    "Phantom adapter registered"
+    !providerSrc.includes("new PhantomWalletAdapter") &&
+      !providerSrc.includes('from "@solana/wallet-adapter-phantom"') &&
+      !providerSrc.includes("from '@solana/wallet-adapter-phantom'"),
+    "legacy PhantomWalletAdapter must not be registered (Wallet Standard only)"
   );
   assert.ok(
     providerSrc.includes("SolflareWalletAdapter"),
@@ -937,6 +939,10 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
   assert.ok(providerSrc.includes("useMemo"), "wallets via useMemo");
   assert.ok(providerSrc.includes("ConnectionProvider"));
   assert.ok(providerSrc.includes("WalletProvider"));
+  assert.ok(
+    providerSrc.includes("NEXT_PUBLIC_SOLANA_RPC_URL"),
+    "endpoint prefers NEXT_PUBLIC_SOLANA_RPC_URL"
+  );
   // select() alone does not connect — bridge uses modal-close path (same-name reselect)
   const bridgePath = path.join(
     root,
