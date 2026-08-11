@@ -163,10 +163,14 @@ const cases = [
     assert.equal(formatWalletConnectError(new Error("x")), "x");
   }),
 
-  test("isWalletReadyForConnect only Installed", () => {
+  test("isWalletReadyForConnect accepts Installed and Loadable (WalletProviderBase)", () => {
     assert.equal(isWalletReadyForConnect("Installed"), true);
+    assert.equal(
+      isWalletReadyForConnect("Loadable"),
+      true,
+      "Solflare defaults to Loadable and must be connectable"
+    );
     assert.equal(isWalletReadyForConnect("NotDetected"), false);
-    assert.equal(isWalletReadyForConnect("Loadable"), false);
     assert.equal(isWalletReadyForConnect("Unsupported"), false);
     assert.equal(isWalletReadyForConnect(null), false);
   }),
@@ -263,6 +267,34 @@ const cases = [
     );
     assert.equal(r.ok, true);
     assert.equal(connectCalls, 1);
+  }),
+
+  test("runWalletConnectWhenReady connects when Loadable (Solflare default)", async () => {
+    let connectCalls = 0;
+    const r = await runWalletConnectWhenReady(
+      async () => {
+        connectCalls += 1;
+      },
+      () => "Loadable",
+      {
+        timeoutMs: 500,
+        pollMs: 20,
+        sleep: async () => {},
+        now: (() => {
+          let t = 0;
+          return () => {
+            t += 10;
+            return t;
+          };
+        })(),
+      }
+    );
+    assert.equal(r.ok, true, "Loadable must not time out");
+    assert.equal(
+      connectCalls,
+      1,
+      "Solflare Loadable path must call connect() once"
+    );
   }),
 
   test("buildArcadeWalletAdapters lists Phantom and Solflare once each", () => {

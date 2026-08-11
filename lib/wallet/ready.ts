@@ -1,7 +1,8 @@
 /**
  * Pure ready-gate for PC wallet connect.
  * Never call connect() while readyState is NotDetected / Unsupported.
- * Loadable is not treated as ready on desktop (Phantom universal-link redirect).
+ * Matches WalletProviderBase: Installed OR Loadable are connectable
+ * (Solflare defaults to Loadable; Phantom extension → Installed).
  */
 
 export type WalletReadyStateName =
@@ -11,11 +12,14 @@ export type WalletReadyStateName =
   | "Unsupported"
   | string;
 
-/** True only when adapter can open the extension popup and connect. */
+/**
+ * True when WalletProviderBase would allow connect().
+ * Installed (extension detected) or Loadable (Solflare web / default).
+ */
 export function isWalletReadyForConnect(
   readyState: WalletReadyStateName | null | undefined
 ): boolean {
-  return readyState === "Installed";
+  return readyState === "Installed" || readyState === "Loadable";
 }
 
 export type WaitForReadyResult =
@@ -32,7 +36,7 @@ export type WaitForReadyOptions = {
 };
 
 /**
- * Poll getReadyState until Installed or timeout.
+ * Poll getReadyState until Installed/Loadable or timeout.
  * Use after modal select so Standard registration / extension inject can finish.
  */
 export async function waitForWalletReady(
@@ -46,7 +50,7 @@ export async function waitForWalletReady(
   const now = opts.now ?? (() => Date.now());
   const start = now();
 
-  // Immediate success if already ready
+  // Immediate success if already ready (Installed or Loadable)
   if (isWalletReadyForConnect(getReadyState())) {
     return { ready: true };
   }
@@ -63,14 +67,7 @@ export async function waitForWalletReady(
     return {
       ready: false,
       message:
-        "Phantom is not ready. Unlock the browser extension, then try Connect again.",
-    };
-  }
-  if (last === "Loadable") {
-    return {
-      ready: false,
-      message:
-        "Wallet extension not detected in this browser. Install Phantom/Solflare and retry.",
+        "Wallet is not ready. Unlock Phantom/Solflare extension, then try Connect again.",
     };
   }
   return {
