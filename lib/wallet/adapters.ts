@@ -1,11 +1,9 @@
 /**
- * Explicit wallet adapters for the Connect modal list.
- * Phantom: ArcadePhantom adapter (isPhantom detection — not package phantom
- * adapter which requires isPhantomInstalled → WalletNotReady).
- * Solflare: SolflareWalletAdapter.
- * WalletProvider useStandardWalletAdapters drops same-name legacy when Standard
- * Phantom is registered (Standard owns connect — no dual-active conflict).
- * Construct only on the client (inside useMemo) — no window at module scope.
+ * Connect modal wallets: Phantom (official provider path adapter) + Solflare.
+ * No package @solana/wallet-adapter-phantom (broken isPhantomInstalled gate).
+ * WalletProvider Standard merge drops same-name Phantom when Standard registers —
+ * bridge still runs official provider.connect() first for Phantom selects.
+ * Client-only construction inside useMemo.
  */
 
 import type { Adapter } from "@solana/wallet-adapter-base";
@@ -17,9 +15,8 @@ import { ArcadePhantomWalletAdapter } from "./arcade-phantom-adapter";
 export const ARCADE_WALLET_NAMES = ["Phantom", "Solflare"] as const;
 
 /**
- * Build the adapter list passed to WalletProvider.
- * Exactly one Phantom + one Solflare — never register the package phantom
- * adapter alongside this Phantom (would dual-conflict with Standard / NotReady).
+ * Exactly one Phantom + one Solflare.
+ * Phantom uses docs.phantom.com getProvider + connect inside ArcadePhantomWalletAdapter.
  */
 export function buildArcadeWalletAdapters(
   network: WalletAdapterNetwork = WalletAdapterNetwork.Devnet
@@ -30,15 +27,13 @@ export function buildArcadeWalletAdapters(
   ];
 }
 
-/** Adapter display names in list order (for tests / UI markers). */
 export function arcadeWalletAdapterNames(
   adapters: Adapter[] = buildArcadeWalletAdapters()
 ): string[] {
   return adapters.map((a) => String(a.name));
 }
 
-/** True if the builder uses package @solana/wallet-adapter-phantom (must be false). */
+/** Must stay false — package phantom adapter is not used. */
 export function usesPackagePhantomWalletAdapter(): boolean {
-  // Shipped path must not import package PhantomWalletAdapter — detection is broken.
   return false;
 }

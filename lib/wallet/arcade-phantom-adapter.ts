@@ -1,31 +1,31 @@
 /**
- * FiatClaw Phantom list/connect adapter.
- * Detects window.phantom.solana / window.solana.isPhantom WITHOUT isPhantomInstalled
- * (package PhantomWalletAdapter requires that flag → permanent NotDetected / WalletNotReadyError).
- * When Wallet Standard registers Phantom, WalletProvider filters this same-name entry
- * and Standard owns connect — no dual-active conflict.
+ * Phantom wallet-adapter entry that uses the OFFICIAL provider path only.
+ * Detect/connect: docs.phantom.com getProvider + provider.connect().
+ * readyState is Loadable when inject is pending (matches Solflare / WalletProviderBase)
+ * so connect() is never blocked by WalletNotReadyError before we wait for inject.
+ * When Wallet Standard registers "Phantom", WalletProvider filters this same-name
+ * entry — Standard owns that slot (no dual-active package+Standard conflict).
  */
 
 import {
   BaseMessageSignerWalletAdapter,
-  scopePollingDetectionStrategy,
   WalletAccountError,
   WalletConnectionError,
   WalletDisconnectedError,
   WalletError,
   WalletName,
-  WalletNotReadyError,
   WalletPublicKeyError,
   WalletReadyState,
   type TransactionOrVersionedTransaction,
 } from "@solana/wallet-adapter-base";
 import { PublicKey, type TransactionVersion } from "@solana/web3.js";
 import {
-  isPhantomProviderPresent,
-  resolvePhantomProvider,
-  type PhantomSolanaProvider,
+  connectPhantomOfficial,
+  getPhantomProvider,
+  PHANTOM_INSTALL_MESSAGE,
+  type OfficialPhantomProvider,
   type PhantomWindowLike,
-} from "./phantom-provider";
+} from "./phantom-official";
 
 export const ArcadePhantomWalletName = "Phantom" as WalletName<"Phantom">;
 
@@ -47,25 +47,21 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
   ]);
 
   private _connecting = false;
-  private _wallet: PhantomSolanaProvider | null = null;
+  private _wallet: OfficialPhantomProvider | null = null;
   private _publicKey: PublicKey | null = null;
-  private _readyState: WalletReadyState =
-    typeof window === "undefined" || typeof document === "undefined"
-      ? WalletReadyState.Unsupported
-      : WalletReadyState.NotDetected;
 
-  constructor() {
-    super();
-    if (this._readyState !== WalletReadyState.Unsupported) {
-      scopePollingDetectionStrategy(() => {
-        if (isPhantomProviderPresent(win())) {
-          this._readyState = WalletReadyState.Installed;
-          this.emit("readyStateChange", this._readyState);
-          return true;
-        }
-        return false;
-      });
+  /**
+   * Loadable when inject pending; Installed when getProvider() finds extension.
+   * Never NotDetected — WalletProviderBase would throw WalletNotReadyError
+   * before our official wait/retry connect path runs.
+   */
+  get readyState(): WalletReadyState {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return WalletReadyState.Unsupported;
     }
+    return getPhantomProvider(win())
+      ? WalletReadyState.Installed
+      : WalletReadyState.Loadable;
   }
 
   get publicKey() {
@@ -76,42 +72,44 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
     return this._connecting;
   }
 
-  get readyState() {
-    return this._readyState;
-  }
-
   async connect(): Promise<void> {
     try {
       if (this.connected || this._connecting) return;
-
-      let wallet = resolvePhantomProvider(win());
-      if (!wallet) {
-        throw new WalletNotReadyError();
-      }
-      if (this._readyState !== WalletReadyState.Installed) {
-        this._readyState = WalletReadyState.Installed;
-        this.emit("readyStateChange", this._readyState);
-      }
-
       this._connecting = true;
 
-      if (!wallet.isConnected) {
-        try {
-          await wallet.connect();
-        } catch (error: unknown) {
-          const msg =
-            error instanceof Error ? error.message : "Phantom connection failed";
-          throw new WalletConnectionError(msg, error as Error);
+      // Already connected at provider (e.g. bridge ran official connect first)
+      let provider = getPhantomProvider(win());
+      let publicKeyStr: string | null = null;
+
+      if (provider?.isConnected && provider.publicKey) {
+        publicKeyStr =
+          typeof provider.publicKey.toBase58 === "function"
+            ? provider.publicKey.toBase58()
+            : provider.publicKey.toString();
+      } else {
+        // Official docs: wait inject → provider.connect() (opens extension popup)
+        const result = await connectPhantomOfficial(() => win(), {
+          timeoutMs: 12_000,
+          pollMs: 100,
+        });
+        if (!result.ok) {
+          throw new WalletConnectionError(result.message);
         }
+        publicKeyStr = result.publicKey;
+        provider = getPhantomProvider(win());
       }
 
-      // Re-resolve after connect (some builds replace the object)
-      wallet = resolvePhantomProvider(win()) ?? wallet;
-      if (!wallet.publicKey) throw new WalletAccountError();
+      if (!provider?.publicKey || !publicKeyStr) {
+        throw new WalletAccountError();
+      }
 
       let publicKey: PublicKey;
       try {
-        publicKey = new PublicKey(wallet.publicKey.toBytes());
+        if (provider.publicKey.toBytes) {
+          publicKey = new PublicKey(provider.publicKey.toBytes());
+        } else {
+          publicKey = new PublicKey(publicKeyStr);
+        }
       } catch (error: unknown) {
         throw new WalletPublicKeyError(
           error instanceof Error ? error.message : "Invalid public key",
@@ -119,13 +117,17 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
         );
       }
 
-      this._wallet = wallet;
+      this._wallet = provider;
       this._publicKey = publicKey;
-      wallet.on?.("disconnect", this._disconnected as (...args: unknown[]) => void);
-      wallet.on?.(
+      provider.on?.(
+        "disconnect",
+        this._disconnected as (...args: unknown[]) => void
+      );
+      provider.on?.(
         "accountChanged",
         this._accountChanged as (...args: unknown[]) => void
       );
+      this.emit("readyStateChange", this.readyState);
       this.emit("connect", publicKey);
     } catch (error: unknown) {
       if (error instanceof WalletError) {
@@ -164,28 +166,23 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
   async signTransaction<
     T extends TransactionOrVersionedTransaction<this["supportedTransactionVersions"]>,
   >(transaction: T): Promise<T> {
-    if (!this._wallet || !this._publicKey) throw new WalletNotReadyError();
-    const w = this._wallet as PhantomSolanaProvider & {
-      signTransaction?: (tx: T) => Promise<T>;
-    };
-    if (!w.signTransaction) {
+    if (!this._wallet || !this._publicKey) {
+      throw new WalletConnectionError(PHANTOM_INSTALL_MESSAGE);
+    }
+    if (!this._wallet.signTransaction) {
       throw new WalletConnectionError("Phantom signTransaction unavailable");
     }
-    return w.signTransaction(transaction);
+    return this._wallet.signTransaction(transaction) as Promise<T>;
   }
 
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
-    if (!this._wallet || !this._publicKey) throw new WalletNotReadyError();
-    const w = this._wallet as PhantomSolanaProvider & {
-      signMessage?: (
-        msg: Uint8Array,
-        display?: string
-      ) => Promise<{ signature: Uint8Array } | Uint8Array>;
-    };
-    if (!w.signMessage) {
+    if (!this._wallet || !this._publicKey) {
+      throw new WalletConnectionError(PHANTOM_INSTALL_MESSAGE);
+    }
+    if (!this._wallet.signMessage) {
       throw new WalletConnectionError("Phantom signMessage unavailable");
     }
-    const out = await w.signMessage(message, "utf8");
+    const out = await this._wallet.signMessage(message, "utf8");
     if (out instanceof Uint8Array) return out;
     return out.signature;
   }
@@ -211,10 +208,15 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
   private _accountChanged = (...args: unknown[]) => {
     const publicKey = this._publicKey;
     if (!publicKey) return;
-    const newPublicKey = args[0] as { toBytes?: () => Uint8Array } | undefined;
-    if (!newPublicKey?.toBytes) return;
+    const raw = args[0] as
+      | { toBytes?: () => Uint8Array; toString?: () => string }
+      | null
+      | undefined;
+    if (!raw) return;
     try {
-      const next = new PublicKey(newPublicKey.toBytes());
+      const next = raw.toBytes
+        ? new PublicKey(raw.toBytes())
+        : new PublicKey(String(raw.toString?.() ?? raw));
       if (publicKey.equals(next)) return;
       this._publicKey = next;
       this.emit("connect", next);

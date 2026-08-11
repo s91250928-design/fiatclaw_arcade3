@@ -1,7 +1,7 @@
 /**
  * Connect button — WalletMultiButton opens modal (Phantom + Solflare).
- * Connect-after-select is handled by WalletConnectAfterSelect.
- * Shows wallet error text under the button when connect fails on PC.
+ * Connect-after-select handles official Phantom connect / Solflare adapter.
+ * Errors (incl. Install Phantom + link) shown under the button.
  */
 
 "use client";
@@ -10,6 +10,10 @@ import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWalletUiError } from "@/components/SolanaProvider";
+import {
+  isPhantomInstallMessage,
+  PHANTOM_INSTALL_URL,
+} from "@/lib/wallet/phantom-official";
 
 export function WalletConnectButton() {
   const [mounted, setMounted] = useState(false);
@@ -39,12 +43,14 @@ export function WalletConnectButton() {
   }
 
   const names = wallets.map((w) => String(w.adapter.name));
+  const address = publicKey?.toBase58() ?? "";
+  const showInstall = Boolean(error && isPhantomInstallMessage(error));
 
   return (
     <div
       data-wallet-connect="ready"
       data-wallet-connected={connected ? "true" : "false"}
-      data-wallet-address={publicKey?.toBase58() ?? ""}
+      data-wallet-address={address}
       data-wallet-count={String(wallets.length)}
       data-wallet-names={names.join(",")}
       data-has-phantom={names.includes("Phantom") ? "true" : "false"}
@@ -64,10 +70,11 @@ export function WalletConnectButton() {
       {error && (
         <p
           data-wallet-error
+          data-phantom-install={showInstall ? "true" : "false"}
           role="alert"
           style={{
             margin: 0,
-            maxWidth: 220,
+            maxWidth: 240,
             fontFamily: "JetBrains Mono, monospace",
             fontSize: 10,
             lineHeight: 1.35,
@@ -75,7 +82,22 @@ export function WalletConnectButton() {
             textAlign: "right",
           }}
         >
-          {error}
+          {showInstall ? (
+            <>
+              Install Phantom:{" "}
+              <a
+                href={PHANTOM_INSTALL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-phantom-install-link
+                style={{ color: "#22D3FF", textDecoration: "underline" }}
+              >
+                {PHANTOM_INSTALL_URL}
+              </a>
+            </>
+          ) : (
+            error
+          )}
         </p>
       )}
     </div>

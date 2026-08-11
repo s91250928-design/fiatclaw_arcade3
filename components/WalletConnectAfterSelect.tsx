@@ -1,11 +1,9 @@
 "use client";
 
 /**
- * WalletModal only select()s. With autoConnect=false, PC needs connect() after
- * the user closes the modal (covers same-name reselect when localStorage already
- * has Phantom — select is a no-op so wallet dep never changes).
- * Waits for readyState Installed (Standard register / extension inject) before
- * connect() to avoid WalletNotReadyError.
+ * WalletModal only select()s. With autoConnect=false, PC connects after modal close.
+ * Phantom → official docs.phantom.com provider.connect() (wait inject, then popup).
+ * Solflare → ready-gated adapter.connect() (Installed|Loadable).
  */
 
 import { useEffect, useRef } from "react";
@@ -13,9 +11,10 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useWalletUiError } from "@/components/SolanaProvider";
 import {
-  runWalletConnectWhenReady,
+  runSelectedWalletConnect,
   shouldConnectAfterModalClose,
 } from "@/lib/wallet/connect-after-select";
+import type { PhantomWindowLike } from "@/lib/wallet/phantom-official";
 
 export function WalletConnectAfterSelect() {
   const { wallet, connect, connected, connecting } = useWallet();
@@ -25,9 +24,7 @@ export function WalletConnectAfterSelect() {
   const userOpenedModal = useRef(false);
   const prevVisible = useRef(false);
   const inFlight = useRef(false);
-  /** Bumps so stale async results are ignored without cancelling mid-connect */
   const gen = useRef(0);
-  /** Always-current wallet for readyState polling during wait */
   const walletRef = useRef(wallet);
   walletRef.current = wallet;
   const connectRef = useRef(connect);
@@ -57,14 +54,23 @@ export function WalletConnectAfterSelect() {
 
     inFlight.current = true;
     const myGen = ++gen.current;
+    const walletName = wallet?.adapter?.name
+      ? String(wallet.adapter.name)
+      : null;
 
     void (async () => {
-      const result = await runWalletConnectWhenReady(
-        () => connectRef.current(),
-        () => walletRef.current?.adapter?.readyState,
-        { timeoutMs: 12_000, pollMs: 100 }
-      );
-      // Ignore if a newer attempt started
+      const result = await runSelectedWalletConnect({
+        walletName,
+        connect: () => connectRef.current(),
+        getReadyState: () => walletRef.current?.adapter?.readyState,
+        getWin: () =>
+          typeof window !== "undefined"
+            ? (window as unknown as PhantomWindowLike)
+            : null,
+        readyOpts: { timeoutMs: 12_000, pollMs: 100 },
+        phantomOpts: { timeoutMs: 12_000, pollMs: 100 },
+      });
+
       if (myGen !== gen.current) return;
 
       inFlight.current = false;
@@ -73,13 +79,11 @@ export function WalletConnectAfterSelect() {
         userOpenedModal.current = false;
       } else {
         setError(result.message);
-        // Intent cleared; next open of modal sets it again for retry
         userOpenedModal.current = false;
       }
     })();
   }, [visible, wallet, connected, connecting, setError]);
 
-  // Clear intent once fully connected (e.g. success after async)
   useEffect(() => {
     if (connected) {
       userOpenedModal.current = false;

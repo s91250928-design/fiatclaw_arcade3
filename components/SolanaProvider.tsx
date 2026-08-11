@@ -1,12 +1,11 @@
 "use client";
 
 /**
- * Solana wallet root — Phantom + Solflare in one modal list.
- * Phantom: ArcadePhantom adapter (isPhantom detect) — not the package phantom
- * adapter that gates on isPhantomInstalled (WalletNotReady).
- * WalletProvider merges Wallet Standard and filters same-name legacy adapters
- * so Standard Phantom owns connect when registered (no dual conflict).
- * autoConnect=false. RPC/cluster from NEXT_PUBLIC_* env. Client-only.
+ * Solana wallet root — Phantom + Solflare.
+ * Phantom: official docs path (getProvider + provider.connect) via ArcadePhantom adapter.
+ * No package phantom adapter. Standard merge may replace same-name Phantom;
+ * connect bridge still runs official provider.connect() first for Phantom.
+ * Solflare: SolflareWalletAdapter. autoConnect=false. Client-only.
  */
 
 import React, {
@@ -31,6 +30,7 @@ import { clusterApiUrl } from "@solana/web3.js";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { WalletConnectAfterSelect } from "@/components/WalletConnectAfterSelect";
 import { buildArcadeWalletAdapters } from "@/lib/wallet/adapters";
+import { formatWalletConnectError } from "@/lib/wallet/connect-after-select";
 
 interface Props {
   children: ReactNode;
@@ -63,25 +63,20 @@ export function SolanaProvider({ children }: Props) {
   const [error, setError] = useState<string | null>(null);
   const network = useMemo(() => resolveNetwork(), []);
 
-  /** Endpoint prefers NEXT_PUBLIC_SOLANA_RPC_URL so mainnet env matches Connection. */
   const endpoint = useMemo(() => {
     const custom = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim();
     if (custom && /^https?:\/\//i.test(custom)) return custom;
     return clusterApiUrl(network);
   }, [network]);
 
-  /**
-   * Explicit Phantom + Solflare for the modal.
-   * Construct in useMemo only (client component — no window at module scope).
-   * Standard merge inside WalletProvider dedupes Phantom by name.
-   */
   const wallets = useMemo(
     () => buildArcadeWalletAdapters(network),
     [network]
   );
 
   const onError = useCallback((err: WalletError) => {
-    const msg = err?.message || err?.name || "Wallet error";
+    // Map WalletNotReadyError → Install Phantom text (never raw NotReady spam)
+    const msg = formatWalletConnectError(err);
     console.error("[FiatClaw wallet]", err?.name, msg);
     setError(msg);
   }, []);
@@ -98,7 +93,6 @@ export function SolanaProvider({ children }: Props) {
           localStorageKey="fiatclaw-wallet"
         >
           <WalletModalProvider>
-            {/* Modal only select()s — gated connect() after ready */}
             <WalletConnectAfterSelect />
             {children}
           </WalletModalProvider>

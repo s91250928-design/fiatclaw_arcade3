@@ -988,8 +988,24 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     "bridge uses pure modal-close helper (same-name reselect)"
   );
   assert.ok(
-    bridgeSrc.includes("runWalletConnectWhenReady"),
-    "bridge waits for ready then connect (avoids WalletNotReadyError)"
+    bridgeSrc.includes("runSelectedWalletConnect") ||
+      bridgeSrc.includes("runPhantomOfficialConnect"),
+    "bridge uses official Phantom path + Solflare ready gate"
+  );
+  assert.ok(
+    fs
+      .readFileSync(path.join(root, "lib", "wallet", "phantom-official.ts"), "utf8")
+      .includes("getPhantomProvider") &&
+      fs
+        .readFileSync(path.join(root, "lib", "wallet", "phantom-official.ts"), "utf8")
+        .includes("connectPhantomOfficial"),
+    "official getProvider + connectPhantom helpers shipped"
+  );
+  assert.ok(
+    fs
+      .readFileSync(path.join(root, "lib", "wallet", "phantom-official.ts"), "utf8")
+      .includes("https://phantom.app"),
+    "install URL https://phantom.app present"
   );
   const helperSrc = fs.readFileSync(
     path.join(root, "lib", "wallet", "connect-after-select.ts"),

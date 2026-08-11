@@ -1,8 +1,8 @@
 /**
  * Pure helpers for PC wallet connect after WalletModal select.
- * Modal only calls select(); with autoConnect=false we must connect() ourselves.
- * Same-name reselect is a no-op in WalletProvider — only modal-close triggers connect.
- * Connect is gated on readyState === Installed to avoid WalletNotReadyError.
+ * Modal only select()s; autoConnect=false → we connect() after modal close.
+ * Phantom: official docs path (wait inject → provider.connect()).
+ * Solflare: ready-gate Installed|Loadable then adapter.connect().
  */
 
 import {
@@ -11,32 +11,27 @@ import {
   type WaitForReadyOptions,
   type WalletReadyStateName,
 } from "./ready";
+import {
+  connectPhantomOfficial,
+  PHANTOM_INSTALL_MESSAGE,
+  type PhantomWindowLike,
+  type WaitProviderOptions,
+} from "./phantom-official";
 
 export type ConnectAfterModalInput = {
-  /** User opened the wallet modal this session (click path). */
   userOpenedModal: boolean;
-  /** Previous render: modal visible */
   prevVisible: boolean;
-  /** Current: modal visible */
   visible: boolean;
-  /** A wallet adapter is selected (name in localStorage / context) */
   hasWallet: boolean;
   connected: boolean;
   connecting: boolean;
-  /** A connect() promise is already in flight */
   inFlight: boolean;
 };
 
-/**
- * True when we should call connect() after the user closed the modal
- * having opened it intentionally, with a selected wallet and no active session.
- * Covers first select AND re-click of already-selected Phantom (select no-op).
- */
 export function shouldConnectAfterModalClose(
   input: ConnectAfterModalInput
 ): boolean {
   if (!input.userOpenedModal) return false;
-  // only on true → false transition
   if (!input.prevVisible || input.visible) return false;
   if (!input.hasWallet) return false;
   if (input.connected || input.connecting || input.inFlight) return false;
@@ -47,17 +42,24 @@ export type ConnectResult =
   | { ok: true }
   | { ok: false; message: string };
 
-/** Normalize connect() rejection into UI-safe message (shipped path). */
 export function formatWalletConnectError(e: unknown): string {
   if (e instanceof Error) {
     const name = e.name || "";
     const msg = e.message || "";
     if (
-      name === "WalletNotReadyError" ||
-      /not ready|WalletNotReady/i.test(msg) ||
-      /not ready/i.test(name)
+      /install phantom/i.test(msg) ||
+      msg.includes("https://phantom.app")
     ) {
-      return "Phantom is not ready. Unlock the browser extension, then try Connect again.";
+      return msg.includes("https://phantom.app")
+        ? msg
+        : PHANTOM_INSTALL_MESSAGE;
+    }
+    if (
+      name === "WalletNotReadyError" ||
+      /not ready|WalletNotReady/i.test(msg)
+    ) {
+      // Never surface raw WalletNotReadyError — guide to install/unlock
+      return PHANTOM_INSTALL_MESSAGE;
     }
     if (
       name === "WalletConnectionError" ||
@@ -71,10 +73,6 @@ export function formatWalletConnectError(e: unknown): string {
   return "Wallet connect failed. Unlock Phantom/Solflare and try again.";
 }
 
-/**
- * Run connect once; used by bridge and unit-tested with a mock connect fn.
- * Does not cancel mid-flight based on React effect cleanup flags.
- */
 export async function runWalletConnect(
   connect: () => Promise<void>
 ): Promise<ConnectResult> {
@@ -86,16 +84,11 @@ export async function runWalletConnect(
   }
 }
 
-/**
- * Wait until readyState is Installed, then connect.
- * Prevents WalletNotReadyError when Standard / extension inject is slightly late.
- */
 export async function runWalletConnectWhenReady(
   connect: () => Promise<void>,
   getReadyState: () => WalletReadyStateName | null | undefined,
   opts?: WaitForReadyOptions
 ): Promise<ConnectResult> {
-  // Fast path: already ready
   if (!isWalletReadyForConnect(getReadyState())) {
     const wait = await waitForWalletReady(getReadyState, opts);
     if (!wait.ready) {
@@ -105,4 +98,65 @@ export async function runWalletConnectWhenReady(
   return runWalletConnect(connect);
 }
 
+/**
+ * Official Phantom connect (docs), then sync wallet-adapter UI via adapter.connect().
+ * Opens extension popup via provider.connect(); does not throw WalletNotReadyError.
+ */
+export async function runPhantomOfficialConnect(
+  getWin: () => PhantomWindowLike | null | undefined,
+  syncAdapterConnect: () => Promise<void>,
+  opts?: WaitProviderOptions
+): Promise<ConnectResult> {
+  const official = await connectPhantomOfficial(getWin, opts);
+  if (!official.ok) {
+    return { ok: false, message: official.message };
+  }
+  // Provider already connected — sync adapter so publicKey appears in header
+  try {
+    await syncAdapterConnect();
+    return { ok: true };
+  } catch (e) {
+    // If adapter races after official success, retry once
+    try {
+      await syncAdapterConnect();
+      return { ok: true };
+    } catch (e2) {
+      // Official connect succeeded — adapter may still emit; prefer install/error text
+      return { ok: false, message: formatWalletConnectError(e2) };
+    }
+  }
+}
+
+/** Route Phantom → official path; Solflare/others → ready-gated adapter connect. */
+export async function runSelectedWalletConnect(input: {
+  walletName: string | null | undefined;
+  connect: () => Promise<void>;
+  getReadyState: () => WalletReadyStateName | null | undefined;
+  getWin: () => PhantomWindowLike | null | undefined;
+  readyOpts?: WaitForReadyOptions;
+  phantomOpts?: WaitProviderOptions;
+}): Promise<ConnectResult> {
+  const name = String(input.walletName ?? "");
+  if (name === "Phantom") {
+    return runPhantomOfficialConnect(
+      input.getWin,
+      input.connect,
+      input.phantomOpts ?? { timeoutMs: 12_000, pollMs: 100 }
+    );
+  }
+  return runWalletConnectWhenReady(
+    input.connect,
+    input.getReadyState,
+    input.readyOpts ?? { timeoutMs: 12_000, pollMs: 100 }
+  );
+}
+
 export { isWalletReadyForConnect, waitForWalletReady };
+export {
+  PHANTOM_INSTALL_MESSAGE,
+  PHANTOM_INSTALL_URL,
+  getPhantomProvider,
+  connectPhantomOfficial,
+  waitForPhantomProvider,
+  isPhantomInstallMessage,
+} from "./phantom-official";
