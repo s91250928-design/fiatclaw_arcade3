@@ -916,7 +916,7 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     lobbySrc.includes("lobby-grid") || lobbySrc.includes("lobby-main"),
     "lobby uses responsive layout classes"
   );
-  // Provider: Standard-first Phantom (no legacy PhantomWalletAdapter); Solflare kept
+  // Provider: explicit Phantom + Solflare list; Standard merge dedupes Phantom
   const providerSrc = fs.readFileSync(
     path.join(root, "components", "SolanaProvider.tsx"),
     "utf8"
@@ -927,21 +927,43 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
       providerSrc.includes("autoConnect: false")
   );
   assert.ok(
-    !providerSrc.includes("new PhantomWalletAdapter") &&
-      !providerSrc.includes('from "@solana/wallet-adapter-phantom"') &&
-      !providerSrc.includes("from '@solana/wallet-adapter-phantom'"),
-    "legacy PhantomWalletAdapter must not be registered (Wallet Standard only)"
+    providerSrc.includes("buildArcadeWalletAdapters") ||
+      (providerSrc.includes("PhantomWalletAdapter") &&
+        providerSrc.includes("SolflareWalletAdapter")),
+    "Phantom + Solflare both registered for modal list"
   );
-  assert.ok(
-    providerSrc.includes("SolflareWalletAdapter"),
-    "Solflare adapter registered"
-  );
+  assert.ok(providerSrc.includes('"use client"'), "client-only provider");
   assert.ok(providerSrc.includes("useMemo"), "wallets via useMemo");
   assert.ok(providerSrc.includes("ConnectionProvider"));
   assert.ok(providerSrc.includes("WalletProvider"));
   assert.ok(
     providerSrc.includes("NEXT_PUBLIC_SOLANA_RPC_URL"),
     "endpoint prefers NEXT_PUBLIC_SOLANA_RPC_URL"
+  );
+  // Shipped builder: both names, exactly one Phantom (no dual-register in list)
+  const {
+    buildArcadeWalletAdapters,
+    arcadeWalletAdapterNames,
+    ARCADE_WALLET_NAMES,
+  } = require("../../wallet/adapters") as typeof import("../../wallet/adapters");
+  const built = buildArcadeWalletAdapters();
+  const names = arcadeWalletAdapterNames(built);
+  assert.ok(names.includes("Phantom"), "Phantom in wallets list");
+  assert.ok(names.includes("Solflare"), "Solflare in wallets list");
+  assert.equal(
+    names.filter((n) => n === "Phantom").length,
+    1,
+    "exactly one Phantom adapter (Standard merge handles extension dup)"
+  );
+  assert.equal(
+    names.filter((n) => n === "Solflare").length,
+    1,
+    "exactly one Solflare adapter"
+  );
+  assert.deepEqual(
+    [...ARCADE_WALLET_NAMES],
+    ["Phantom", "Solflare"],
+    "arcade wallet names are Phantom + Solflare"
   );
   // select() alone does not connect — bridge uses modal-close path (same-name reselect)
   const bridgePath = path.join(
@@ -1005,6 +1027,10 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
   assert.ok(
     btnSrc.includes("data-wallet-error") || btnSrc.includes("useWalletUiError"),
     "wallet errors surface in UI"
+  );
+  assert.ok(
+    btnSrc.includes("data-has-phantom") && btnSrc.includes("data-has-solflare"),
+    "connect button exposes data-has-phantom / data-has-solflare"
   );
   assert.ok(btnSrc.includes('"use client"'));
   const css = fs.readFileSync(path.join(root, "app", "globals.css"), "utf8");

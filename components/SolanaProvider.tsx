@@ -1,13 +1,11 @@
 "use client";
 
 /**
- * Solana wallet root — Wallet Standard first.
- * Phantom: registered by the extension via Wallet Standard (do NOT also pass
- * legacy PhantomWalletAdapter — dual registration causes WalletConnectionError
- * and the "Phantom was registered as a Standard Wallet" console warning).
- * Solflare: legacy SolflareWalletAdapter (no Standard dup when extension absent).
- * WalletProvider merges Standard wallets and filters same-name legacy entries.
- * autoConnect=false. RPC/cluster from NEXT_PUBLIC_* env.
+ * Solana wallet root — Phantom + Solflare in one modal list.
+ * Both adapters registered explicitly so they always appear in the Connect modal.
+ * WalletProvider merges Wallet Standard and filters same-name legacy adapters
+ * (Standard Phantom wins when the extension registers Standard — no dual conflict).
+ * autoConnect=false. RPC/cluster from NEXT_PUBLIC_* env. Client-only.
  */
 
 import React, {
@@ -27,11 +25,11 @@ import {
   type WalletError,
 } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { clusterApiUrl } from "@solana/web3.js";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { WalletConnectAfterSelect } from "@/components/WalletConnectAfterSelect";
+import { buildArcadeWalletAdapters } from "@/lib/wallet/adapters";
 
 interface Props {
   children: ReactNode;
@@ -71,27 +69,22 @@ export function SolanaProvider({ children }: Props) {
   }, [network]);
 
   /**
-   * Legacy wallets list: Solflare only.
-   * Phantom arrives via Wallet Standard (useStandardWalletAdapters inside
-   * WalletProvider). Construct adapters only in useMemo (no window at module scope).
-   * Mobile Wallet Adapter deep-link is still injected by wallet-adapter-react.
+   * Explicit Phantom + Solflare for the modal (same list, no Solflare-only gap).
+   * Construct in useMemo only (client component — no window at module scope).
+   * Standard merge inside WalletProvider dedupes Phantom by name.
    */
   const wallets = useMemo(
-    () => [new SolflareWalletAdapter({ network })],
+    () => buildArcadeWalletAdapters(network),
     [network]
   );
 
   const onError = useCallback((err: WalletError) => {
     const msg = err?.message || err?.name || "Wallet error";
     console.error("[FiatClaw wallet]", err?.name, msg);
-    // Surface to UI (not silent)
     setError(msg);
   }, []);
 
-  const uiValue = useMemo(
-    () => ({ error, setError }),
-    [error]
-  );
+  const uiValue = useMemo(() => ({ error, setError }), [error]);
 
   return (
     <WalletUiContext.Provider value={uiValue}>

@@ -1,6 +1,7 @@
 /**
  * Honest tests for PC connect-after-modal logic (shipped pure module).
  * Covers same-name reselect / modal-close path that WalletConnectAfterSelect uses.
+ * Also drives buildArcadeWalletAdapters (Phantom + Solflare list).
  */
 import assert from "node:assert/strict";
 import {
@@ -8,6 +9,11 @@ import {
   runWalletConnect,
   shouldConnectAfterModalClose,
 } from "../connect-after-select";
+import {
+  ARCADE_WALLET_NAMES,
+  arcadeWalletAdapterNames,
+  buildArcadeWalletAdapters,
+} from "../adapters";
 
 function test(name: string, fn: () => void | Promise<void>) {
   return { name, fn };
@@ -142,6 +148,17 @@ const cases = [
   test("formatWalletConnectError fallback", () => {
     assert.ok(formatWalletConnectError(null).includes("failed"));
     assert.equal(formatWalletConnectError(new Error("x")), "x");
+  }),
+
+  test("buildArcadeWalletAdapters lists Phantom and Solflare once each", () => {
+    const adapters = buildArcadeWalletAdapters();
+    const names = arcadeWalletAdapterNames(adapters);
+    assert.ok(names.includes("Phantom"), "Phantom present");
+    assert.ok(names.includes("Solflare"), "Solflare present");
+    assert.equal(names.filter((n) => n === "Phantom").length, 1);
+    assert.equal(names.filter((n) => n === "Solflare").length, 1);
+    assert.equal(adapters.length, 2, "exactly two adapters — no dual Phantom");
+    assert.deepEqual([...ARCADE_WALLET_NAMES], ["Phantom", "Solflare"]);
   }),
 ];
 
