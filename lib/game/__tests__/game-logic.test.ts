@@ -1036,6 +1036,63 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
   const css = fs.readFileSync(path.join(root, "app", "globals.css"), "utf8");
   assert.ok(css.includes("max-width: 767px") || css.includes("max-width:767px"));
   assert.ok(css.includes("wallet-adapter-modal"));
+  // Flat list: hide More options + force-open real Collapse class/id (not wrong modal-collapse)
+  assert.ok(
+    css.includes(".wallet-adapter-modal-list-more") &&
+      css.includes("display: none"),
+    "hides More options toggle"
+  );
+  assert.ok(
+    css.includes(".wallet-adapter-collapse"),
+    "targets shipped Collapse class .wallet-adapter-collapse"
+  );
+  assert.ok(
+    css.includes("#wallet-adapter-modal-collapse"),
+    "targets shipped Collapse id #wallet-adapter-modal-collapse"
+  );
+  assert.ok(
+    css.includes("height: auto") || css.includes("height:auto"),
+    "force-opens collapse height so non-Installed wallet stays visible"
+  );
+  // Wrong selector .wallet-adapter-modal-collapse matches nothing in wallet-adapter-ui
+  assert.equal(
+    css.includes(".wallet-adapter-modal-collapse"),
+    false,
+    "must not target wrong .wallet-adapter-modal-collapse class"
+  );
+  // Sanity: shipped Collapse component really uses those selectors
+  const collapseSrc = fs.readFileSync(
+    path.join(
+      root,
+      "node_modules",
+      "@solana",
+      "wallet-adapter-react-ui",
+      "lib",
+      "esm",
+      "Collapse.js"
+    ),
+    "utf8"
+  );
+  assert.ok(
+    collapseSrc.includes("wallet-adapter-collapse"),
+    "package Collapse uses class wallet-adapter-collapse"
+  );
+  const modalSrc = fs.readFileSync(
+    path.join(
+      root,
+      "node_modules",
+      "@solana",
+      "wallet-adapter-react-ui",
+      "lib",
+      "esm",
+      "WalletModal.js"
+    ),
+    "utf8"
+  );
+  assert.ok(
+    modalSrc.includes("wallet-adapter-modal-collapse"),
+    "WalletModal assigns id wallet-adapter-modal-collapse"
+  );
 });
 
 test("WIN_PROBABILITY is 0.2 in code only; absent from lobby/game UI", () => {

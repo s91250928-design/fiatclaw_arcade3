@@ -55,19 +55,24 @@ body {
 
 /*
  * Always show Phantom + Solflare in one flat list (no "More options" collapse).
- * Adapter UI hides non-Installed wallets under Collapse when any wallet is Installed.
+ * WalletModal puts non-Installed wallets inside Collapse (class wallet-adapter-collapse,
+ * id wallet-adapter-modal-collapse) with inline height:0 until expanded.
+ * Force-open so both adapters are visible without clicking "More options".
  */
 .wallet-adapter-modal-list-more {
   display: none !important;
 }
 
-.wallet-adapter-modal-collapse {
+.wallet-adapter-collapse,
+#wallet-adapter-modal-collapse {
   height: auto !important;
-  overflow: visible !important;
   max-height: none !important;
+  overflow: visible !important;
+  transition: none !important;
 }
 
-.wallet-adapter-modal-list .wallet-adapter-modal-collapse {
+.wallet-adapter-modal-list .wallet-adapter-collapse,
+.wallet-adapter-modal-list #wallet-adapter-modal-collapse {
   display: contents;
 }
 
