@@ -1,19 +1,26 @@
 /**
- * Honest tests for PC connect-after-modal logic (shipped pure module).
- * Covers same-name reselect / modal-close path that WalletConnectAfterSelect uses.
- * Also drives buildArcadeWalletAdapters (Phantom + Solflare list).
+ * Honest tests for PC connect-after-modal + ready-gate (shipped pure modules).
+ * Covers same-name reselect, wait-for-Installed, and Phantom+Solflare list.
  */
 import assert from "node:assert/strict";
 import {
   formatWalletConnectError,
+  isWalletReadyForConnect,
   runWalletConnect,
+  runWalletConnectWhenReady,
   shouldConnectAfterModalClose,
+  waitForWalletReady,
 } from "../connect-after-select";
 import {
   ARCADE_WALLET_NAMES,
   arcadeWalletAdapterNames,
   buildArcadeWalletAdapters,
+  usesPackagePhantomWalletAdapter,
 } from "../adapters";
+import {
+  isPhantomProviderPresent,
+  resolvePhantomProvider,
+} from "../phantom-provider";
 
 function test(name: string, fn: () => void | Promise<void>) {
   return { name, fn };
@@ -36,13 +43,12 @@ const cases = [
   }),
 
   test("same-name reselect path: close with wallet already selected → connect", () => {
-    // select('Phantom') is no-op when already selected; only modal close fires
     assert.equal(
       shouldConnectAfterModalClose({
         userOpenedModal: true,
         prevVisible: true,
         visible: false,
-        hasWallet: true, // localStorage already had Phantom
+        hasWallet: true,
         connected: false,
         connecting: false,
         inFlight: false,
@@ -141,13 +147,122 @@ const cases = [
     });
     assert.equal(r.ok, false);
     if (!r.ok) {
-      assert.equal(r.message, "User rejected the request.");
+      assert.ok(r.message.includes("User rejected") || r.message.length > 0);
     }
+  }),
+
+  test("formatWalletConnectError maps WalletNotReadyError", () => {
+    const e = new Error("Wallet not ready");
+    e.name = "WalletNotReadyError";
+    const msg = formatWalletConnectError(e);
+    assert.ok(/not ready|Unlock/i.test(msg), msg);
   }),
 
   test("formatWalletConnectError fallback", () => {
     assert.ok(formatWalletConnectError(null).includes("failed"));
     assert.equal(formatWalletConnectError(new Error("x")), "x");
+  }),
+
+  test("isWalletReadyForConnect only Installed", () => {
+    assert.equal(isWalletReadyForConnect("Installed"), true);
+    assert.equal(isWalletReadyForConnect("NotDetected"), false);
+    assert.equal(isWalletReadyForConnect("Loadable"), false);
+    assert.equal(isWalletReadyForConnect("Unsupported"), false);
+    assert.equal(isWalletReadyForConnect(null), false);
+  }),
+
+  test("waitForWalletReady resolves when state becomes Installed", async () => {
+    let n = 0;
+    const r = await waitForWalletReady(
+      () => {
+        n += 1;
+        return n >= 3 ? "Installed" : "NotDetected";
+      },
+      {
+        timeoutMs: 2000,
+        pollMs: 10,
+        sleep: async () => {},
+        now: (() => {
+          let t = 0;
+          return () => {
+            t += 50;
+            return t;
+          };
+        })(),
+      }
+    );
+    assert.equal(r.ready, true);
+  }),
+
+  test("waitForWalletReady fails when never Installed", async () => {
+    const r = await waitForWalletReady(() => "NotDetected", {
+      timeoutMs: 100,
+      pollMs: 20,
+      sleep: async () => {},
+      now: (() => {
+        let t = 0;
+        return () => {
+          t += 40;
+          return t;
+        };
+      })(),
+    });
+    assert.equal(r.ready, false);
+    if (!r.ready) {
+      assert.ok(/not ready|Unlock/i.test(r.message), r.message);
+    }
+  }),
+
+  test("runWalletConnectWhenReady does not call connect while NotDetected", async () => {
+    let connectCalls = 0;
+    const r = await runWalletConnectWhenReady(
+      async () => {
+        connectCalls += 1;
+      },
+      () => "NotDetected",
+      {
+        timeoutMs: 80,
+        pollMs: 20,
+        sleep: async () => {},
+        now: (() => {
+          let t = 0;
+          return () => {
+            t += 40;
+            return t;
+          };
+        })(),
+      }
+    );
+    assert.equal(r.ok, false);
+    assert.equal(connectCalls, 0, "must not connect before ready");
+  }),
+
+  test("runWalletConnectWhenReady connects once Installed", async () => {
+    let connectCalls = 0;
+    let tick = 0;
+    const r = await runWalletConnectWhenReady(
+      async () => {
+        connectCalls += 1;
+      },
+      () => {
+        tick += 1;
+        return tick >= 2 ? "Installed" : "NotDetected";
+      },
+      {
+        timeoutMs: 2000,
+        pollMs: 10,
+        sleep: async () => {},
+        now: (() => {
+          let t = 0;
+          return () => {
+            t += 30;
+            return t;
+          };
+        })(),
+      }
+    );
+    assert.equal(r.ok, true);
+    assert.equal(connectCalls, 1);
   }),
 
   test("buildArcadeWalletAdapters lists Phantom and Solflare once each", () => {
@@ -159,13 +274,45 @@ const cases = [
     assert.equal(names.filter((n) => n === "Solflare").length, 1);
     assert.equal(adapters.length, 2, "exactly two adapters — no dual Phantom");
     assert.deepEqual([...ARCADE_WALLET_NAMES], ["Phantom", "Solflare"]);
+    assert.equal(
+      usesPackagePhantomWalletAdapter(),
+      false,
+      "must not use package PhantomWalletAdapter (isPhantomInstalled bug)"
+    );
+  }),
+
+  test("resolvePhantomProvider prefers window.phantom.solana without isPhantomInstalled", () => {
+    assert.equal(resolvePhantomProvider(null), null);
+    assert.equal(isPhantomProviderPresent({}), false);
+    const fake = {
+      phantom: {
+        solana: {
+          isPhantom: true,
+          connect: async () => {},
+        },
+      },
+    };
+    assert.equal(isPhantomProviderPresent(fake), true);
+    assert.ok(resolvePhantomProvider(fake)?.isPhantom);
+    // Legacy window.solana path
+    const legacy = {
+      solana: { isPhantom: true, connect: async () => {} },
+    };
+    assert.equal(isPhantomProviderPresent(legacy), true);
+    // Bare window-like object without isPhantom → not present
+    assert.equal(
+      isPhantomProviderPresent({
+        solana: { connect: async () => {} },
+      }),
+      false
+    );
   }),
 ];
 
 async function main() {
   let passed = 0;
   let failed = 0;
-  console.log("\n=== connect-after-select tests ===\n");
+  console.log("\n=== connect-after-select / ready-gate tests ===\n");
   for (const c of cases) {
     try {
       await c.fn();

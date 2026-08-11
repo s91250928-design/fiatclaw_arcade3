@@ -2,9 +2,10 @@
 
 /**
  * Solana wallet root — Phantom + Solflare in one modal list.
- * Both adapters registered explicitly so they always appear in the Connect modal.
+ * Phantom: ArcadePhantom adapter (isPhantom detect) — not the package phantom
+ * adapter that gates on isPhantomInstalled (WalletNotReady).
  * WalletProvider merges Wallet Standard and filters same-name legacy adapters
- * (Standard Phantom wins when the extension registers Standard — no dual conflict).
+ * so Standard Phantom owns connect when registered (no dual conflict).
  * autoConnect=false. RPC/cluster from NEXT_PUBLIC_* env. Client-only.
  */
 
@@ -62,6 +63,7 @@ export function SolanaProvider({ children }: Props) {
   const [error, setError] = useState<string | null>(null);
   const network = useMemo(() => resolveNetwork(), []);
 
+  /** Endpoint prefers NEXT_PUBLIC_SOLANA_RPC_URL so mainnet env matches Connection. */
   const endpoint = useMemo(() => {
     const custom = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim();
     if (custom && /^https?:\/\//i.test(custom)) return custom;
@@ -69,7 +71,7 @@ export function SolanaProvider({ children }: Props) {
   }, [network]);
 
   /**
-   * Explicit Phantom + Solflare for the modal (same list, no Solflare-only gap).
+   * Explicit Phantom + Solflare for the modal.
    * Construct in useMemo only (client component — no window at module scope).
    * Standard merge inside WalletProvider dedupes Phantom by name.
    */
@@ -96,7 +98,7 @@ export function SolanaProvider({ children }: Props) {
           localStorageKey="fiatclaw-wallet"
         >
           <WalletModalProvider>
-            {/* Modal only select()s — this calls connect() after user picks a wallet */}
+            {/* Modal only select()s — gated connect() after ready */}
             <WalletConnectAfterSelect />
             {children}
           </WalletModalProvider>

@@ -916,7 +916,7 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     lobbySrc.includes("lobby-grid") || lobbySrc.includes("lobby-main"),
     "lobby uses responsive layout classes"
   );
-  // Provider: explicit Phantom + Solflare list; Standard merge dedupes Phantom
+  // Provider: explicit Phantom + Solflare; ready-gated connect; env RPC
   const providerSrc = fs.readFileSync(
     path.join(root, "components", "SolanaProvider.tsx"),
     "utf8"
@@ -927,10 +927,18 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
       providerSrc.includes("autoConnect: false")
   );
   assert.ok(
-    providerSrc.includes("buildArcadeWalletAdapters") ||
-      (providerSrc.includes("PhantomWalletAdapter") &&
-        providerSrc.includes("SolflareWalletAdapter")),
-    "Phantom + Solflare both registered for modal list"
+    providerSrc.includes("buildArcadeWalletAdapters"),
+    "Phantom + Solflare via buildArcadeWalletAdapters"
+  );
+  assert.ok(
+    !providerSrc.includes("@solana/wallet-adapter-phantom") &&
+      !providerSrc.includes("from \"@solana/wallet-adapter-phantom\"") &&
+      !/new\s+PhantomWalletAdapter\b/.test(providerSrc),
+    "must not import/construct package phantom adapter (isPhantomInstalled → NotReady)"
+  );
+  assert.ok(
+    providerSrc.includes("buildArcadeWalletAdapters"),
+    "uses arcade adapter builder"
   );
   assert.ok(providerSrc.includes('"use client"'), "client-only provider");
   assert.ok(providerSrc.includes("useMemo"), "wallets via useMemo");
@@ -945,6 +953,7 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     buildArcadeWalletAdapters,
     arcadeWalletAdapterNames,
     ARCADE_WALLET_NAMES,
+    usesPackagePhantomWalletAdapter,
   } = require("../../wallet/adapters") as typeof import("../../wallet/adapters");
   const built = buildArcadeWalletAdapters();
   const names = arcadeWalletAdapterNames(built);
@@ -965,6 +974,7 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     ["Phantom", "Solflare"],
     "arcade wallet names are Phantom + Solflare"
   );
+  assert.equal(usesPackagePhantomWalletAdapter(), false);
   // select() alone does not connect — bridge uses modal-close path (same-name reselect)
   const bridgePath = path.join(
     root,
@@ -978,8 +988,8 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     "bridge uses pure modal-close helper (same-name reselect)"
   );
   assert.ok(
-    bridgeSrc.includes("runWalletConnect"),
-    "bridge runs connect via runWalletConnect"
+    bridgeSrc.includes("runWalletConnectWhenReady"),
+    "bridge waits for ready then connect (avoids WalletNotReadyError)"
   );
   const helperSrc = fs.readFileSync(
     path.join(root, "lib", "wallet", "connect-after-select.ts"),

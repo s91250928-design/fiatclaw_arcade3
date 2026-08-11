@@ -2,7 +2,15 @@
  * Pure helpers for PC wallet connect after WalletModal select.
  * Modal only calls select(); with autoConnect=false we must connect() ourselves.
  * Same-name reselect is a no-op in WalletProvider — only modal-close triggers connect.
+ * Connect is gated on readyState === Installed to avoid WalletNotReadyError.
  */
+
+import {
+  isWalletReadyForConnect,
+  waitForWalletReady,
+  type WaitForReadyOptions,
+  type WalletReadyStateName,
+} from "./ready";
 
 export type ConnectAfterModalInput = {
   /** User opened the wallet modal this session (click path). */
@@ -41,7 +49,24 @@ export type ConnectResult =
 
 /** Normalize connect() rejection into UI-safe message (shipped path). */
 export function formatWalletConnectError(e: unknown): string {
-  if (e instanceof Error && e.message) return e.message;
+  if (e instanceof Error) {
+    const name = e.name || "";
+    const msg = e.message || "";
+    if (
+      name === "WalletNotReadyError" ||
+      /not ready|WalletNotReady/i.test(msg) ||
+      /not ready/i.test(name)
+    ) {
+      return "Phantom is not ready. Unlock the browser extension, then try Connect again.";
+    }
+    if (
+      name === "WalletConnectionError" ||
+      /WalletConnectionError|connection error|User rejected/i.test(msg)
+    ) {
+      return msg || "Wallet connection failed. Approve the request in Phantom/Solflare.";
+    }
+    if (msg) return msg;
+  }
   if (typeof e === "string" && e.trim()) return e;
   return "Wallet connect failed. Unlock Phantom/Solflare and try again.";
 }
@@ -60,3 +85,24 @@ export async function runWalletConnect(
     return { ok: false, message: formatWalletConnectError(e) };
   }
 }
+
+/**
+ * Wait until readyState is Installed, then connect.
+ * Prevents WalletNotReadyError when Standard / extension inject is slightly late.
+ */
+export async function runWalletConnectWhenReady(
+  connect: () => Promise<void>,
+  getReadyState: () => WalletReadyStateName | null | undefined,
+  opts?: WaitForReadyOptions
+): Promise<ConnectResult> {
+  // Fast path: already ready
+  if (!isWalletReadyForConnect(getReadyState())) {
+    const wait = await waitForWalletReady(getReadyState, opts);
+    if (!wait.ready) {
+      return { ok: false, message: wait.message };
+    }
+  }
+  return runWalletConnect(connect);
+}
+
+export { isWalletReadyForConnect, waitForWalletReady };
