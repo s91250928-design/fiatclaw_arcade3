@@ -1,9 +1,12 @@
 /**
- * Official Phantom Solana provider path (docs.phantom.com).
- * Detect: window.phantom?.solana when isPhantom (legacy: window.solana if isPhantom).
- * Connect: await provider.connect() → publicKey.
- * Missing: "Install Phantom" + https://phantom.app
- * Pure helpers — pass window-like objects; no module-scope window access.
+ * Official Phantom provider path (docs.phantom.com) — Jupiter-like UX.
+ *
+ * Detect (only): window.phantom?.solana?.isPhantom === true
+ *   legacy: window.solana?.isPhantom === true
+ * Connect: await provider.connect() → extension popup → publicKey
+ * Install message: ONLY when provider is still missing after short post-load wait.
+ *
+ * Never window.open() install pages. Never map adapter races to Install.
  *
  * @see https://docs.phantom.com/solana/detecting-the-provider
  * @see https://docs.phantom.com/solana/establishing-a-connection
@@ -11,10 +14,14 @@
 
 export const PHANTOM_INSTALL_URL = "https://phantom.app";
 
+/** Single calm install line — only when extension truly absent. */
 export const PHANTOM_INSTALL_MESSAGE =
   "Install Phantom: https://phantom.app";
 
-/** Minimal provider shape from Phantom docs. */
+/** Unlock / retry — when extension may be present but connect failed. */
+export const PHANTOM_UNLOCK_MESSAGE =
+  "Unlock Phantom and try Connect again.";
+
 export type OfficialPhantomProvider = {
   isPhantom?: boolean;
   isConnected?: boolean;
@@ -24,7 +31,7 @@ export type OfficialPhantomProvider = {
     toBase58?(): string;
   } | null;
   connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{
-    publicKey?: { toString(): string; toBytes?(): Uint8Array };
+    publicKey?: { toString(): string; toBytes?(): Uint8Array; toBase58?(): string };
   } | void>;
   disconnect?: () => Promise<void>;
   on?: (event: string, handler: (...args: unknown[]) => void) => void;
@@ -43,24 +50,37 @@ export type PhantomWindowLike = {
 };
 
 /**
- * Official getProvider() — docs.phantom.com/solana/detecting-the-provider
- * Prefer window.phantom.solana; legacy window.solana if isPhantom.
- * Does not open install page (return null; caller shows Install link).
+ * Official getProvider — strict isPhantom check.
+ * Returns provider only when installed and injectable.
  */
 export function getPhantomProvider(
   win: PhantomWindowLike | null | undefined
 ): OfficialPhantomProvider | null {
   if (!win) return null;
 
-  // Official: if ('phantom' in window) { const provider = window.phantom?.solana }
-  if (win.phantom) {
-    const provider = win.phantom.solana;
-    if (provider?.isPhantom) return provider;
-  }
+  try {
+    // docs: const isPhantomInstalled = window.phantom?.solana?.isPhantom
+    const fromNamespace = win.phantom?.solana;
+    if (
+      fromNamespace &&
+      fromNamespace.isPhantom === true &&
+      typeof fromNamespace.connect === "function"
+    ) {
+      return fromNamespace;
+    }
 
-  // Legacy support (docs note solana object also on window.solana)
-  const legacy = win.solana;
-  if (legacy?.isPhantom) return legacy;
+    // legacy window.solana when isPhantom
+    const legacy = win.solana;
+    if (
+      legacy &&
+      legacy.isPhantom === true &&
+      typeof legacy.connect === "function"
+    ) {
+      return legacy;
+    }
+  } catch {
+    // Some injectors throw on property access — treat as absent
+  }
 
   return null;
 }
@@ -83,15 +103,16 @@ export type WaitProviderResult =
   | { ok: false; message: string };
 
 /**
- * Wait/retry for extension inject before failing.
- * Does NOT throw WalletNotReadyError — returns install message if still missing.
+ * Short wait for late inject. Install message ONLY if still missing.
+ * Default timeout is short (2s) so installed extensions connect quickly;
+ * absent extension fails fast to one Install link (no redirect loop).
  */
 export async function waitForPhantomProvider(
   getWin: () => PhantomWindowLike | null | undefined,
   opts: WaitProviderOptions = {}
 ): Promise<WaitProviderResult> {
-  const timeoutMs = opts.timeoutMs ?? 10_000;
-  const pollMs = opts.pollMs ?? 100;
+  const timeoutMs = opts.timeoutMs ?? 2_500;
+  const pollMs = opts.pollMs ?? 50;
   const sleep =
     opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const now = opts.now ?? (() => Date.now());
@@ -111,26 +132,41 @@ export async function waitForPhantomProvider(
 
 export type OfficialConnectResult =
   | { ok: true; publicKey: string }
-  | { ok: false; message: string };
+  | { ok: false; message: string; kind: "install" | "reject" | "error" };
+
+function publicKeyToString(key: {
+  toString(): string;
+  toBase58?: () => string;
+}): string {
+  if (typeof key.toBase58 === "function") return key.toBase58();
+  return key.toString();
+}
 
 /**
- * Official connect: wait for provider, then await provider.connect().
- * Surfaces publicKey string on success.
+ * Jupiter/docs flow: wait (brief) → await provider.connect() → publicKey.
+ * Opens the Phantom extension popup when installed.
  */
 export async function connectPhantomOfficial(
   getWin: () => PhantomWindowLike | null | undefined,
-  opts?: WaitProviderOptions & {
-    /** If true, only connect when already trusted (eager). Default false. */
-    onlyIfTrusted?: boolean;
-  }
+  opts?: WaitProviderOptions & { onlyIfTrusted?: boolean }
 ): Promise<OfficialConnectResult> {
   const waited = await waitForPhantomProvider(getWin, opts);
   if (!waited.ok) {
-    return { ok: false, message: waited.message };
+    return { ok: false, message: waited.message, kind: "install" };
   }
 
   const provider = waited.provider;
+
+  // Already connected — return key without re-prompt when possible
+  if (provider.isConnected && provider.publicKey) {
+    return {
+      ok: true,
+      publicKey: publicKeyToString(provider.publicKey),
+    };
+  }
+
   try {
+    // docs: const resp = await provider.connect();
     const resp = await provider.connect(
       opts?.onlyIfTrusted ? { onlyIfTrusted: true } : undefined
     );
@@ -141,20 +177,12 @@ export async function connectPhantomOfficial(
     if (!key) {
       return {
         ok: false,
-        message: "Phantom connected but no public key returned. Try again.",
+        message: PHANTOM_UNLOCK_MESSAGE,
+        kind: "error",
       };
     }
-    const withBase58 = key as {
-      toString(): string;
-      toBase58?: () => string;
-    };
-    const publicKey =
-      typeof withBase58.toBase58 === "function"
-        ? withBase58.toBase58()
-        : key.toString();
-    return { ok: true, publicKey };
+    return { ok: true, publicKey: publicKeyToString(key) };
   } catch (err: unknown) {
-    // Docs: { code: 4001, message: 'User rejected the request.' }
     const code =
       err && typeof err === "object" && "code" in err
         ? Number((err as { code: number }).code)
@@ -165,17 +193,27 @@ export async function connectPhantomOfficial(
         : typeof err === "string"
           ? err
           : "Phantom connection failed";
+
     if (code === 4001 || /reject|denied|user/i.test(msg)) {
-      return { ok: false, message: msg || "User rejected the request." };
+      return {
+        ok: false,
+        message: msg || "User rejected the request.",
+        kind: "reject",
+      };
     }
-    return { ok: false, message: msg };
+
+    // Provider was present — never "Install"
+    return {
+      ok: false,
+      message: msg || PHANTOM_UNLOCK_MESSAGE,
+      kind: "error",
+    };
   }
 }
 
-/** True if UI message is the install-missing path. */
 export function isPhantomInstallMessage(message: string): boolean {
   return (
     message.includes(PHANTOM_INSTALL_URL) ||
-    /install phantom/i.test(message)
+    /^install phantom/i.test(message.trim())
   );
 }

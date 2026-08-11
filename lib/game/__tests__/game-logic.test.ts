@@ -993,6 +993,11 @@ test("Lobby is game lobby; full-screen game hosts PULL + joystick + ClawMachine"
     "bridge uses official Phantom path + Solflare ready gate"
   );
   assert.ok(
+    bridgeSrc.includes("shouldConnectAfterWalletSelect") ||
+      bridgeSrc.includes("runConnect"),
+    "connect fires on wallet select (near user gesture)"
+  );
+  assert.ok(
     fs
       .readFileSync(path.join(root, "lib", "wallet", "phantom-official.ts"), "utf8")
       .includes("getPhantomProvider") &&

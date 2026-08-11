@@ -87,10 +87,10 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
             ? provider.publicKey.toBase58()
             : provider.publicKey.toString();
       } else {
-        // Official docs: wait inject → provider.connect() (opens extension popup)
+        // Official docs: brief inject wait → provider.connect() (extension popup)
         const result = await connectPhantomOfficial(() => win(), {
-          timeoutMs: 12_000,
-          pollMs: 100,
+          timeoutMs: 2_500,
+          pollMs: 50,
         });
         if (!result.ok) {
           throw new WalletConnectionError(result.message);

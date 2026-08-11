@@ -1,11 +1,10 @@
 "use client";
 
 /**
- * Solana wallet root — Phantom + Solflare.
- * Phantom: official docs path (getProvider + provider.connect) via ArcadePhantom adapter.
- * No package phantom adapter. Standard merge may replace same-name Phantom;
- * connect bridge still runs official provider.connect() first for Phantom.
+ * Solana wallet root — Phantom + Solflare (Jupiter-like Phantom UX).
+ * Phantom: official window.phantom.solana.connect() via bridge (extension popup).
  * Solflare: SolflareWalletAdapter. autoConnect=false. Client-only.
+ * onError never maps NotReady → false Install when provider may be present.
  */
 
 import React, {
@@ -31,6 +30,10 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 import { WalletConnectAfterSelect } from "@/components/WalletConnectAfterSelect";
 import { buildArcadeWalletAdapters } from "@/lib/wallet/adapters";
 import { formatWalletConnectError } from "@/lib/wallet/connect-after-select";
+import {
+  getPhantomProvider,
+  type PhantomWindowLike,
+} from "@/lib/wallet/phantom-official";
 
 interface Props {
   children: ReactNode;
@@ -75,8 +78,10 @@ export function SolanaProvider({ children }: Props) {
   );
 
   const onError = useCallback((err: WalletError) => {
-    // Map WalletNotReadyError → Install Phantom text (never raw NotReady spam)
-    const msg = formatWalletConnectError(err);
+    const present =
+      typeof window !== "undefined" &&
+      getPhantomProvider(window as unknown as PhantomWindowLike) != null;
+    const msg = formatWalletConnectError(err, { providerPresent: present });
     console.error("[FiatClaw wallet]", err?.name, msg);
     setError(msg);
   }, []);
