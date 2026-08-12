@@ -86,7 +86,7 @@ img{max-width:100%;display:block}
 .fcfoot h4{margin:0 0 13px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;
   letter-spacing:.26em;font-weight:500}
 .fcfoot ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.fcfoot ul a{font-size:11.5px;color:#9BA1AE;text-decoration:none;transition:color .2s,transform .2s;display:inline-block}
+.fcfoot ul a{font-size:11.5px;color:#9BA1AE;text-decoration:none;transition:color .2s,transform .2s;display:inline-flex;align-items:center;min-height:40px;padding:4px 0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .fcfoot ul a:hover{color:#fff;transform:translateX(2px)}
 .fcfoot__ca{display:flex;align-items:center;gap:10px;margin-top:10px;padding:12px;border-radius:10px;
   border:1px solid rgba(34,211,255,.2);background:rgba(4,6,10,.72);box-shadow:inset 0 0 18px rgba(34,211,255,.08)}
@@ -2906,7 +2906,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .s7-bs{margin-top:clamp(10px,1.4vh,16px);font-size:clamp(12.5px,.98vw,15.5px);line-height:1.6;color:#A2A8B6}
 .s7-btns{display:flex;gap:13px;justify-content:center;margin-top:clamp(16px,2.2vh,26px);flex-wrap:wrap}
 .s7-b1{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:11px;
-  padding:15px 28px;border-radius:12px;font-size:12.5px;font-weight:800;letter-spacing:.13em;color:#fff;
+  padding:15px 28px;min-height:48px;border-radius:12px;font-size:12.5px;font-weight:800;letter-spacing:.13em;color:#fff;
+  cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   background:linear-gradient(180deg,#FF3E5C,#C4102A 62%,#8C0A1E);border:1px solid rgba(255,120,140,.45);
   box-shadow:0 0 34px rgba(255,37,68,.44),0 16px 34px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.32);
   transition:transform .2s,box-shadow .25s}
@@ -2914,8 +2915,9 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .s7-b1::after{content:"";position:absolute;top:0;bottom:0;left:-55%;width:36%;
   background:linear-gradient(100deg,transparent,rgba(255,255,255,.34),transparent);animation:s7-sheen 4.2s ease-in-out infinite}
 @keyframes s7-sheen{0%,74%{left:-55%}100%{left:130%}}
-.s7-b2{display:inline-flex;align-items:center;gap:11px;padding:15px 24px;border-radius:12px;
-  font-size:12.5px;font-weight:700;letter-spacing:.13em;color:#E7E9EF;
+.s7-b2{display:inline-flex;align-items:center;gap:11px;padding:15px 24px;min-height:48px;border-radius:12px;
+  font-size:12.5px;font-weight:700;letter-spacing:.13em;color:#E7E9EF;text-decoration:none;
+  cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.017));
   border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(14px);
   transition:border-color .25s,transform .2s,background .25s}
@@ -3638,7 +3640,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-a
 .s9-sh{font-size:clamp(16px,1.6vw,26px);font-weight:900;letter-spacing:-.02em;color:#fff}
 .s9-sp{margin-top:9px;font-size:clamp(11.5px,.92vw,13.5px);line-height:1.55;color:#9BA1AE;max-width:34ch}
 .s9-tg{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:11px;margin-top:clamp(14px,1.8vh,20px);
-  padding:14px 24px;border-radius:12px;font-size:12px;font-weight:800;letter-spacing:.13em;color:#fff;
+  padding:14px 24px;min-height:48px;border-radius:12px;font-size:12px;font-weight:800;letter-spacing:.13em;color:#fff;
+  text-decoration:none;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   background:linear-gradient(180deg,#2FA8E8,#1A7FBE 60%,#125C8C);border:1px solid rgba(140,215,255,.5);
   box-shadow:0 0 32px rgba(42,168,232,.45),0 14px 30px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.34);
   transition:transform .2s,box-shadow .25s}
@@ -3919,7 +3922,8 @@ input{font:inherit;color:inherit}
 /* buttons */
 .s10-btns{display:flex;gap:12px;margin-top:clamp(18px,2.6vh,30px);flex-wrap:wrap}
 .s10-b{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:11px;
-  padding:16px 28px;border-radius:12px;font-size:12.5px;font-weight:800;letter-spacing:.13em;
+  padding:16px 28px;min-height:48px;border-radius:12px;font-size:12.5px;font-weight:800;letter-spacing:.13em;
+  text-decoration:none;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   transition:transform .2s,box-shadow .25s,border-color .25s}
 .s10-b:hover{transform:translateY(-2px)}
 .s10-b::after{content:"";position:absolute;top:0;bottom:0;left:-55%;width:34%;pointer-events:none;
@@ -4029,7 +4033,7 @@ input{font:inherit;color:inherit}
 .s10-fh.cy{color:var(--cyan)}
 .s10-fh.em{color:var(--emerald)}
 .s10-fl{display:flex;flex-direction:column;gap:8px}
-.s10-fl a{display:inline-flex;align-items:center;gap:9px;width:fit-content;font-size:11.5px;color:#9BA1AE;
+.s10-fl a{display:inline-flex;align-items:center;gap:9px;width:fit-content;min-height:40px;font-size:11.5px;color:#9BA1AE;text-decoration:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   transition:color .22s,transform .22s}
 .s10-fl a:hover{color:#fff;transform:translateX(3px)}
 .s10-fl a svg{flex:0 0 auto;opacity:.85;transition:opacity .22s}
@@ -6970,12 +6974,12 @@ body{ animation:fx2-poweron 1.5s steps(1,end) 1; }
         <h3 class="s7-bh"><span>THE ARCADE IS </span><em>JUST GETTING STARTED.</em></h3>
         <p class="s7-bs">Join thousands of players before the next evolution begins.</p>
         <div class="s7-btns">
-          <button class="s7-b1">PLAY NOW
+          <button class="s7-b1" type="button" data-cta="play">PLAY NOW
             <svg width="16" height="13" viewBox="0 0 18 14" fill="none" aria-hidden="true"><path d="M1 7h15M11 2l5 5-5 5" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <button class="s7-b2">BUY $FIATCLAW
+          <a class="s7-b2" href="https://join.pump.fun/HSag/apkl1tug" target="_blank" rel="noopener noreferrer">BUY $FIATCLAW
             <svg width="16" height="13" viewBox="0 0 18 14" fill="none" aria-hidden="true"><path d="M1 7h15M11 2l5 5-5 5" stroke="#22D3FF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
+          </a>
         </div>
       </div>
 
@@ -7318,9 +7322,9 @@ body{ animation:fx2-poweron 1.5s steps(1,end) 1; }
         <div>
           <h3 class="s9-sh">Still have questions?</h3>
           <p class="s9-sp">Join our community and get help from the FiatClaw team, any hour of the day.</p>
-          <button class="s9-tg">JOIN TELEGRAM
+          <a class="s9-tg" href="https://t.me/fiatclawchat" target="_blank" rel="noopener noreferrer">JOIN TELEGRAM
             <svg width="16" height="14" viewBox="0 0 18 16" fill="none" aria-hidden="true"><path d="M1 8l15-6-5 13-3.4-5.2z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M7.6 9.8 16 2" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
-          </button>
+          </a>
         </div>
       </div>
 
@@ -7472,13 +7476,13 @@ body{ animation:fx2-poweron 1.5s steps(1,end) 1; }
         to win real crypto, NFTs, exclusive jackpots and future rewards. <b>No sign-up. No custody. One pull.</b></p>
 
       <div class="s10-btns s10-rise s10-d3">
-        <button class="s10-b s10-b1">PLAY NOW
+        <button class="s10-b s10-b1" type="button" data-cta="play">PLAY NOW
           <svg width="16" height="13" viewBox="0 0 18 14" fill="none" aria-hidden="true"><path d="M1 7h15M11 2l5 5-5 5" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <button class="s10-b s10-b2" style="--sd:-1.4s">BUY $FIATCLAW</button>
-        <button class="s10-b s10-b3" style="--sd:-2.6s">JOIN TELEGRAM
+        <a class="s10-b s10-b2" style="--sd:-1.4s" href="https://join.pump.fun/HSag/apkl1tug" target="_blank" rel="noopener noreferrer">BUY $FIATCLAW</a>
+        <a class="s10-b s10-b3" style="--sd:-2.6s" href="https://t.me/fiatclawchat" target="_blank" rel="noopener noreferrer">JOIN TELEGRAM
           <svg width="16" height="14" viewBox="0 0 18 16" fill="none" aria-hidden="true"><path d="M1 8l15-6-5 13-3.4-5.2z" stroke="#8FE0FF" stroke-width="1.6" stroke-linejoin="round"/><path d="M7.6 9.8 16 2" stroke="#8FE0FF" stroke-width="1.6" stroke-linecap="round"/></svg>
-        </button>
+        </a>
       </div>
 
       <div class="s10-badges s10-rise s10-d3">
