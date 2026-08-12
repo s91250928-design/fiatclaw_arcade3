@@ -29,6 +29,10 @@ import {
   stakeClaw,
   tierForStake,
   unstakeClaw,
+  evaluateStakeMutationRequest,
+  mutationWouldCreditStake,
+  buildStakeStatus,
+  STAKE_TIERS,
   WIN_PROBABILITY,
   buildPrizePileLayout,
   isMoneyPrizeKind,
@@ -310,6 +314,122 @@ test("stake/unstake ledger", () => {
   if (!u.ok) return;
   assert.equal(u.stakedClaw, 500);
   assert.equal(u.clawBalance, 4500);
+});
+
+// ── Phase 1: stake anti-spoof (public API policy) ──────────────────────
+console.log("\n(d2) stake phase 1 anti-spoof");
+
+test("evaluateStakeMutationRequest rejects stakedAmount spoof", () => {
+  const d = evaluateStakeMutationRequest({
+    wallet: "A".repeat(44),
+    action: "stake",
+    amount: 9999,
+    stakedAmount: 1_000_000,
+  });
+  assert.equal(d.ok, false);
+  if (d.ok) return;
+  assert.equal(d.spoofAttempt, true);
+  assert.equal(d.wouldCredit, false);
+  assert.equal(mutationWouldCreditStake(d), false);
+});
+
+test("evaluateStakeMutationRequest: amount alone never wouldCredit", () => {
+  const d = evaluateStakeMutationRequest({
+    wallet: "B".repeat(44),
+    action: "stake",
+    amount: 5000,
+  });
+  assert.equal(d.ok, true);
+  if (!d.ok) return;
+  assert.equal(d.wouldCredit, false);
+  assert.equal(mutationWouldCreditStake(d), false);
+  assert.ok(/Phase 1|on-chain|cannot credit/i.test(d.reason));
+});
+
+test("evaluateStakeMutationRequest: txSignature still no credit in Phase 1", () => {
+  const d = evaluateStakeMutationRequest({
+    wallet: "C".repeat(44),
+    action: "unstake",
+    amount: 100,
+    txSignature: "sig_" + "x".repeat(64),
+  });
+  assert.equal(d.ok, true);
+  if (!d.ok) return;
+  assert.equal(d.wouldCredit, false);
+  assert.ok(d.txSignature);
+});
+
+test("GET stake status is server-owned; POST amount does not credit store", () => {
+  const store = createTestStore();
+  const w = "StakePhase1Wallet111111111111111111111111111";
+  // Ensure player; staked starts at 0
+  const before = store.getStakeStatus(w);
+  assert.equal(before.stakedClaw, 0);
+  assert.equal(before.feeMultiplier, 1);
+  assert.equal(before.affectsWinProbability, false);
+  assert.ok(before.updated_at);
+
+  const decision = evaluateStakeMutationRequest({
+    wallet: w,
+    action: "stake",
+    amount: 50_000,
+  });
+  assert.equal(decision.ok, true);
+  if (!decision.ok) return;
+  assert.equal(decision.wouldCredit, false);
+
+  // Simulate API: only record intent, never store.stake
+  store.recordStakeIntent({
+    wallet: w,
+    action: "stake",
+    requestedAmount: 50_000,
+    txSignature: null,
+    note: decision.reason,
+  });
+
+  const after = store.getStakeStatus(w);
+  assert.equal(after.stakedClaw, 0, "amount-only POST must not raise staked");
+  assert.equal(after.feeMultiplier, 1);
+
+  // buildStakeStatus pure view matches
+  const view = buildStakeStatus(w, after.stakedClaw, after.updated_at);
+  assert.equal(view.staked_amount, 0);
+  assert.equal(view.tier, "Standard");
+});
+
+test("server tier table fee multipliers; staking module does not touch WIN_PROB", () => {
+  assert.equal(STAKE_TIERS[0]!.feeMultiplier, 1);
+  assert.ok(STAKE_TIERS.some((t) => t.feeMultiplier === 0.8));
+  assert.equal(feeMultiplierForStake(0), 1);
+  assert.equal(feeMultiplierForStake(100_000), 0.8);
+  // Source-level: staking.ts must not reference WIN_PROBABILITY
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const stakeSrc = fs.readFileSync(
+    path.join(__dirname, "..", "staking.ts"),
+    "utf8"
+  );
+  assert.ok(
+    stakeSrc.includes("NEVER mutates WIN_PROBABILITY") ||
+      stakeSrc.includes("never mutates WIN_PROBABILITY"),
+    "staking.ts documents no odds mutation"
+  );
+  assert.equal(
+    /WIN_PROBABILITY\s*=/.test(stakeSrc),
+    false,
+    "staking must not assign WIN_PROBABILITY"
+  );
+  // Route must not credit from amount
+  const routeSrc = fs.readFileSync(
+    path.join(__dirname, "..", "..", "..", "app", "api", "stake", "route.ts"),
+    "utf8"
+  );
+  assert.ok(routeSrc.includes("evaluateStakeMutationRequest"));
+  assert.ok(routeSrc.includes("export async function GET"));
+  assert.ok(
+    !routeSrc.includes("store.stake(") && !routeSrc.includes("store.unstake("),
+    "public stake route must not call store.stake/unstake for amount credit"
+  );
 });
 
 // ── (e) leaderboard aggregation ────────────────────────────────────────

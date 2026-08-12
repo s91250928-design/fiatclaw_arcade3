@@ -210,6 +210,36 @@ export async function fetchPlayerState(wallet: string) {
   return data;
 }
 
+/** Server-owned stake status (GET /api/stake) — never trust client totals. */
+export type StakeStatusResponse = {
+  ok?: boolean;
+  error?: string;
+  stakedClaw?: number;
+  staked_amount?: number;
+  tier?: string;
+  vip?: boolean;
+  feeMultiplier?: number;
+  updated_at?: string;
+  tiers?: Array<{
+    minStaked: number;
+    feeMultiplier: number;
+    vip: boolean;
+    label: string;
+  }>;
+  affectsWinProbability?: boolean;
+  stakeCreditEnabled?: boolean;
+};
+
+export async function fetchStakeStatus(
+  wallet: string
+): Promise<StakeStatusResponse> {
+  const res = await fetch(
+    `/api/stake?wallet=${encodeURIComponent(wallet)}`
+  );
+  const data = await res.json().catch(() => ({ ok: false }));
+  return data;
+}
+
 export async function faucetClaw(wallet: string, amount = 5000) {
   const res = await fetch("/api/claw/faucet", {
     method: "POST",
@@ -219,18 +249,29 @@ export async function faucetClaw(wallet: string, amount = 5000) {
   return res.json();
 }
 
+/**
+ * Phase 1: posts stake intent only — server never credits from amount.
+ * Phase 2 will require txSignature and on-chain verify before credit.
+ */
 export async function stakeClawApi(
   wallet: string,
   action: "stake" | "unstake",
-  amount: number
+  amount: number,
+  txSignature?: string
 ) {
   const res = await fetch("/api/stake", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ wallet, action, amount }),
+    body: JSON.stringify({
+      wallet,
+      action,
+      amount,
+      ...(txSignature ? { txSignature } : {}),
+    }),
   });
   const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
   if (!res.ok || !data.ok) throw new Error(data.error ?? "Stake failed");
+  // Phase 1 responses have credited: false
   return data;
 }
 

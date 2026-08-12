@@ -25,7 +25,14 @@ import {
   resolveOutcome,
 } from "./prizes";
 import { secureRandom } from "./rng";
-import { feeMultiplierForStake, stakeClaw, tierForStake, unstakeClaw } from "./staking";
+import {
+  buildStakeStatus,
+  feeMultiplierForStake,
+  stakeClaw,
+  tierForStake,
+  unstakeClaw,
+  type StakeStatusView,
+} from "./staking";
 import type {
   GameConfig,
   JackpotState,
@@ -47,6 +54,8 @@ export interface PlayerRecord {
   clawWon: number;
   biggestWinLamports: number;
   createdAt: string;
+  /** Last stake/balance mutation timestamp (ISO) — server-owned */
+  updatedAt: string;
 }
 
 export interface AttemptRecord {
@@ -89,6 +98,7 @@ export class GameStore {
   ensurePlayer(wallet: string): PlayerRecord {
     let p = this.players.get(wallet);
     if (!p) {
+      const now = new Date().toISOString();
       p = {
         wallet,
         availablePlays: 0,
@@ -100,9 +110,12 @@ export class GameStore {
         solWonLamports: 0,
         clawWon: 0,
         biggestWinLamports: 0,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       };
       this.players.set(wallet, p);
+    } else if (!p.updatedAt) {
+      p.updatedAt = p.createdAt;
     }
     return p;
   }
@@ -128,7 +141,16 @@ export class GameStore {
       priceLamports: this.config.priceLamports,
       clawPrice: this.config.clawPrice,
       machineEnabled: this.config.machineEnabled,
+      updatedAt: p.updatedAt,
+      /** Product rule: stake never changes win odds */
+      affectsWinProbability: false as const,
     };
+  }
+
+  /** Server-owned stake status only — never from client body totals. */
+  getStakeStatus(wallet: string): StakeStatusView {
+    const p = this.ensurePlayer(wallet);
+    return buildStakeStatus(p.wallet, p.stakedClaw, p.updatedAt);
   }
 
   /** Credit plays after verified SOL payment (signature anti-replay). */
@@ -325,19 +347,24 @@ export class GameStore {
     return { ok: true as const, alreadyResolved: false as const, result: resolved };
   }
 
+  /**
+   * Internal ledger stake — NOT for public amount-only API (Phase 1).
+   * Phase 2 will call only after verified on-chain tx.
+   */
   stake(wallet: string, amount: number) {
     const p = this.ensurePlayer(wallet);
     const r = stakeClaw(p.clawBalance, p.stakedClaw, amount);
     if (!r.ok) return r;
     p.clawBalance = r.clawBalance;
     p.stakedClaw = r.stakedClaw;
+    p.updatedAt = new Date().toISOString();
     this.transactions.push({
       id: uid("tx"),
       wallet,
       type: "stake",
       amount,
       asset: "CLAW",
-      createdAt: new Date().toISOString(),
+      createdAt: p.updatedAt,
     });
     return {
       ok: true as const,
@@ -348,19 +375,24 @@ export class GameStore {
     };
   }
 
+  /**
+   * Internal ledger unstake — NOT for public amount-only API (Phase 1).
+   * Phase 2: controlled unstake request / service payout only.
+   */
   unstake(wallet: string, amount: number) {
     const p = this.ensurePlayer(wallet);
     const r = unstakeClaw(p.clawBalance, p.stakedClaw, amount);
     if (!r.ok) return r;
     p.clawBalance = r.clawBalance;
     p.stakedClaw = r.stakedClaw;
+    p.updatedAt = new Date().toISOString();
     this.transactions.push({
       id: uid("tx"),
       wallet,
       type: "unstake",
       amount,
       asset: "CLAW",
-      createdAt: new Date().toISOString(),
+      createdAt: p.updatedAt,
     });
     return {
       ok: true as const,
@@ -368,6 +400,41 @@ export class GameStore {
       stakedClaw: p.stakedClaw,
       tier: r.tier,
       feeMultiplier: r.tier.feeMultiplier,
+    };
+  }
+
+  /**
+   * Phase 1: record a non-crediting stake intent (optional audit).
+   * Never changes stakedClaw.
+   */
+  recordStakeIntent(opts: {
+    wallet: string;
+    action: "stake" | "unstake";
+    requestedAmount: number | null;
+    txSignature: string | null;
+    note: string;
+  }) {
+    const p = this.ensurePlayer(opts.wallet);
+    this.transactions.push({
+      id: uid("tx"),
+      wallet: opts.wallet,
+      type: opts.action,
+      amount: opts.requestedAmount ?? 0,
+      asset: "CLAW",
+      meta: {
+        phase: 1,
+        credited: false,
+        txSignature: opts.txSignature,
+        note: opts.note,
+        stakedClaw: p.stakedClaw,
+      },
+      createdAt: new Date().toISOString(),
+    });
+    return {
+      ok: true as const,
+      credited: false as const,
+      stakedClaw: p.stakedClaw,
+      status: this.getStakeStatus(opts.wallet),
     };
   }
 

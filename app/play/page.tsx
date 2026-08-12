@@ -299,55 +299,36 @@ export default function ArcadeLobbyPage() {
               <p style={{ ...label, marginTop: 8 }}>$FIATCLAW MEGA VAULT</p>
             </div>
 
-            <div style={panel} data-play-chrome="stake">
+            <div style={panel} data-play-chrome="stake" data-stake-status="server">
               <p style={{ ...label, color: "#9945FF" }}>STAKE $FIATCLAW</p>
               <p style={{ ...label, marginTop: 8, color: MUTED }}>
-                VIP fee discount only — does not change outcomes.
+                VIP fee discount only — does not change win odds (0.2 server).
               </p>
-              <p style={{ ...label, marginTop: 8 }}>
-                Staked {p.stakedClaw.toLocaleString()}
+              <p style={{ ...label, marginTop: 8 }} data-stake-staked>
+                Staked {p.stakedClaw.toLocaleString()} · {p.tier}
+                {p.vip ? " VIP" : ""} · fee {Math.round(p.feeMultiplier * 100)}%
               </p>
-              <input
-                type="number"
-                min={100}
-                step={100}
-                value={p.stakeAmt}
-                data-stake-input="amount"
-                onChange={(e) =>
-                  p.setStakeAmt(Math.max(1, Number(e.target.value) || 0))
-                }
-                style={{
-                  width: "100%",
-                  marginTop: 10,
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(34,211,255,0.25)",
-                  background: "rgba(4,6,10,0.9)",
-                  color: "#EDEEF2",
-                  fontFamily: "Orbitron, sans-serif",
-                  fontSize: 13,
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
+              <p style={{ ...label, marginTop: 8, color: MUTED, fontSize: 10 }}>
+                Phase 1: status from server. On-chain stake credit in Phase 2.
+              </p>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button
                   type="button"
                   data-stake-action="stake"
-                  disabled={!p.wallet.connected}
-                  onClick={() => p.onStake("stake")}
-                  style={ctaStyle(!p.wallet.connected)}
+                  disabled
+                  title="Phase 2: on-chain tx required"
+                  style={ctaStyle(true)}
                 >
-                  STAKE
+                  STAKE (P2)
                 </button>
                 <button
                   type="button"
                   data-stake-action="unstake"
-                  disabled={!p.wallet.connected}
-                  onClick={() => p.onStake("unstake")}
-                  style={ctaGhostStyle(!p.wallet.connected)}
+                  disabled
+                  title="Phase 2: controlled unstake"
+                  style={ctaGhostStyle(true)}
                 >
-                  UNSTAKE
+                  UNSTAKE (P2)
                 </button>
               </div>
               <Link

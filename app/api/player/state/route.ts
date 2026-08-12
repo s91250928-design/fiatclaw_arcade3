@@ -18,5 +18,7 @@ export async function GET(req: NextRequest) {
     priceLamports: String(state.priceLamports),
     solWonLamports: String(state.solWonLamports),
     biggestWinLamports: String(state.biggestWinLamports),
+    updatedAt: state.updatedAt,
+    affectsWinProbability: false,
   });
 }

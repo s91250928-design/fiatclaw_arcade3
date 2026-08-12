@@ -142,6 +142,10 @@ export function useArcadePlayer() {
     }
   }, [wallet.publicKey]);
 
+  /**
+   * Phase 1: stake credit disabled (amount alone cannot raise staked).
+   * Calls API only to surface server message; refreshes status from server.
+   */
   const onStake = useCallback(
     async (action: "stake" | "unstake") => {
       if (!wallet.publicKey) return;
@@ -151,22 +155,26 @@ export function useArcadePlayer() {
           action,
           stakeAmt
         );
-        setClawBalance(r.clawBalance);
-        setStakedClaw(r.stakedClaw);
-        setFeeMultiplier(r.feeMultiplier);
-        setTier(r.tier);
-        setVip(r.vip);
-        setMessage(
-          action === "stake"
-            ? `Staked ${stakeAmt} $CLAW · ${r.tier}`
-            : `Unstaked ${stakeAmt} $CLAW · ${r.tier}`
-        );
+        // Server never credits in Phase 1 — refresh authoritative status
+        await refreshState();
+        if (r.credited === false) {
+          setMessage(
+            r.reason ??
+              "Phase 1: stake credit requires on-chain tx (coming in Phase 2)."
+          );
+        } else {
+          setMessage(
+            action === "stake"
+              ? `Staked ${stakeAmt} $CLAW · ${r.tier}`
+              : `Unstaked ${stakeAmt} $CLAW · ${r.tier}`
+          );
+        }
       } catch (e: unknown) {
         setMessage(e instanceof Error ? e.message : "Stake failed");
         setStatus("error");
       }
     },
-    [wallet.publicKey, stakeAmt]
+    [wallet.publicKey, stakeAmt, refreshState]
   );
 
   const jackpotSol = (() => {
