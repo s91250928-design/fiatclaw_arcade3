@@ -6,11 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { CONFIG } from "@/lib/config";
-import {
-  getGameStore,
-  feeMultiplierForStake,
-  solCostLamports,
-} from "@/lib/game";
+import { getGameStore, solCostLamports } from "@/lib/game";
 import { verifySolPayment } from "@/lib/verify-payment";
 
 export const runtime = "nodejs";
@@ -39,7 +35,7 @@ export async function POST(req: NextRequest) {
     // Legacy: pay-per-play with signature → credit 1 play then consume.
     if (typeof signature === "string" && signature.length >= 64) {
       const player = store.ensurePlayer(wallet);
-      const mult = feeMultiplierForStake(player.stakedClaw);
+      const mult = store.feeFor(player.stakedClaw);
       const unitPrice = store.config.priceLamports;
       const minLamports = BigInt(solCostLamports(1, unitPrice, mult));
       const verified = await verifySolPayment({

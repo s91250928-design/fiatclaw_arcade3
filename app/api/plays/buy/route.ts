@@ -3,7 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getGameStore, feeMultiplierForStake, solCostLamports } from "@/lib/game";
+import { getGameStore, solCostLamports } from "@/lib/game";
 import { verifySolPayment } from "@/lib/verify-payment";
 
 export const runtime = "nodejs";
@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
 
     const store = getGameStore();
     const player = store.ensurePlayer(wallet);
-    const mult = feeMultiplierForStake(player.stakedClaw);
+    // VIP fee from server stake tiers only (never client price)
+    const mult = store.feeFor(player.stakedClaw);
 
     if (currency === "CLAW" || currency === "claw") {
       const result = store.buyPlaysWithClaw(wallet, count);

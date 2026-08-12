@@ -23,17 +23,66 @@ export const STAKE_TIERS: StakeTier[] = [
   { minStaked: 100_000, feeMultiplier: 0.8, vip: true, label: "Diamond VIP" },
 ];
 
-export function tierForStake(stakedClaw: number): StakeTier {
-  let current = STAKE_TIERS[0]!;
-  for (const t of STAKE_TIERS) {
+export function tierForStake(
+  stakedClaw: number,
+  tiers: StakeTier[] = STAKE_TIERS
+): StakeTier {
+  const table = tiers.length > 0 ? tiers : STAKE_TIERS;
+  let current = table[0]!;
+  for (const t of table) {
     if (stakedClaw >= t.minStaked) current = t;
   }
   return current;
 }
 
 /** Fee multiplier in (0, 1] — multiplies play cost only. Never affects odds. */
-export function feeMultiplierForStake(stakedClaw: number): number {
-  return tierForStake(stakedClaw).feeMultiplier;
+export function feeMultiplierForStake(
+  stakedClaw: number,
+  tiers: StakeTier[] = STAKE_TIERS
+): number {
+  return tierForStake(stakedClaw, tiers).feeMultiplier;
+}
+
+/**
+ * Validate admin VIP/fee table. Does NOT touch WIN_PROBABILITY / prizes.
+ * feeMultiplier must be in (0, 1]; minStaked non-negative sorted unique-ish.
+ */
+export function validateStakeTiers(
+  input: unknown
+): { ok: true; tiers: StakeTier[] } | { ok: false; error: string } {
+  if (!Array.isArray(input) || input.length < 1) {
+    return { ok: false, error: "tiers must be a non-empty array" };
+  }
+  const tiers: StakeTier[] = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") {
+      return { ok: false, error: "invalid tier entry" };
+    }
+    const r = raw as Record<string, unknown>;
+    const minStaked = Number(r.minStaked);
+    const feeMultiplier = Number(r.feeMultiplier);
+    const label = String(r.label ?? "").trim();
+    const vip = Boolean(r.vip);
+    if (!Number.isFinite(minStaked) || minStaked < 0 || !Number.isInteger(minStaked)) {
+      return { ok: false, error: "minStaked must be non-negative integer" };
+    }
+    if (
+      !Number.isFinite(feeMultiplier) ||
+      feeMultiplier <= 0 ||
+      feeMultiplier > 1
+    ) {
+      return { ok: false, error: "feeMultiplier must be in (0, 1]" };
+    }
+    if (!label || label.length > 40) {
+      return { ok: false, error: "label required (max 40 chars)" };
+    }
+    tiers.push({ minStaked, feeMultiplier, vip, label });
+  }
+  tiers.sort((a, b) => a.minStaked - b.minStaked);
+  if (tiers[0]!.minStaked !== 0) {
+    return { ok: false, error: "first tier must have minStaked 0" };
+  }
+  return { ok: true, tiers };
 }
 
 // ── SOL pricing for on-chain stake (server-only) ─────────────────────────
@@ -81,10 +130,10 @@ export function buildStakeStatus(
   wallet: string,
   stakedClaw: number,
   updatedAt: string,
-  opts?: { stakeCreditEnabled?: boolean }
+  opts?: { stakeCreditEnabled?: boolean; tiers?: StakeTier[] }
 ): StakeStatusView {
   const staked = Math.max(0, Math.floor(Number(stakedClaw) || 0));
-  const tier = tierForStake(staked);
+  const tier = tierForStake(staked, opts?.tiers);
   return {
     wallet,
     stakedClaw: staked,

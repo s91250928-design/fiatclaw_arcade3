@@ -44,6 +44,15 @@ export async function GET(req: NextRequest) {
       jackpot: store.jackpot,
     });
   }
+  if (view === "stake") {
+    return NextResponse.json({
+      ok: true,
+      // VIP fee table only — does not include WIN_PROBABILITY / prize weights
+      tiers: store.getStakeTiers(),
+      stakeLogs: store.listStakeLogs(100),
+      note: "staking never mutates WIN_PROBABILITY",
+    });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -53,6 +62,7 @@ export async function GET(req: NextRequest) {
     playerCount: store.listPlayers().length,
     transactionCount: store.transactions.length,
     resolvedCount: store.resolved.length,
+    stakeTiers: store.getStakeTiers(),
   });
 }
 
@@ -117,6 +127,17 @@ export async function POST(req: NextRequest) {
       const enabled = Boolean((body as { enabled?: boolean }).enabled);
       store.setMachineEnabled(enabled);
       return NextResponse.json({ ok: true, machineEnabled: enabled });
+    }
+    case "update_stake_tiers": {
+      // Admin VIP / fee table only — never touches prize weights or WIN_PROBABILITY
+      const tiers = (body as { tiers?: unknown }).tiers;
+      const r = store.setStakeTiers(tiers);
+      if (!r.ok) return bad(r.error);
+      return NextResponse.json({
+        ok: true,
+        tiers: r.tiers,
+        affectsWinProbability: false,
+      });
     }
     default:
       return bad("unknown action");

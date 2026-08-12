@@ -13,6 +13,7 @@ import {
   fetchStakeStatus,
   stakeClawApi,
   stakeWithSol,
+  type StakeHistoryItem,
   type StakeStatusResponse,
 } from "@/lib/pay";
 
@@ -31,19 +32,21 @@ export default function StakePage() {
   const [vip, setVip] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string>("—");
   const [tiers, setTiers] = useState<TierRow[]>([]);
+  const [history, setHistory] = useState<StakeHistoryItem[]>([]);
   const [lamportsPerUnit, setLamportsPerUnit] = useState(10_000);
   const [amount, setAmount] = useState(1000);
   const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!wallet.publicKey) return;
     setLoading(true);
+    setErr("");
     try {
-      const d: StakeStatusResponse = await fetchStakeStatus(
-        wallet.publicKey.toBase58()
-      );
+      const d: StakeStatusResponse & { history?: StakeHistoryItem[] } =
+        await fetchStakeStatus(wallet.publicKey.toBase58(), { history: true });
       if (d?.ok) {
         setStaked(Number(d.stakedClaw ?? d.staked_amount ?? 0));
         setTier(String(d.tier ?? "Standard"));
@@ -54,11 +57,12 @@ export default function StakePage() {
         if (typeof d.stakeLamportsPerUnit === "number") {
           setLamportsPerUnit(d.stakeLamportsPerUnit);
         }
+        if (Array.isArray(d.history)) setHistory(d.history);
       } else {
-        setMsg(d?.error ?? "Failed to load stake status");
+        setErr(d?.error ?? "Failed to load stake status");
       }
     } catch {
-      setMsg("Failed to load stake status");
+      setErr("Failed to load stake status");
     } finally {
       setLoading(false);
     }
@@ -72,10 +76,11 @@ export default function StakePage() {
 
   const onStake = async () => {
     if (!wallet.publicKey || !wallet.connected) {
-      setMsg("Connect wallet first");
+      setErr("Connect wallet first");
       return;
     }
     setBusy(true);
+    setErr("");
     setMsg("Confirm SOL transfer to treasury in wallet…");
     try {
       const r = await stakeWithSol(wallet, amount, lamportsPerUnit);
@@ -84,14 +89,16 @@ export default function StakePage() {
       setFee(Number(r.feeMultiplier ?? 1));
       setVip(Boolean(r.vip));
       setUpdatedAt(String(r.updated_at ?? "—"));
+      if (Array.isArray(r.history)) setHistory(r.history);
       setMsg(
         r.credited
           ? `Staked +${amount} · ${r.tier} · fee ${Math.round(Number(r.feeMultiplier) * 100)}%`
-          : r.reason ?? "Stake not credited"
+          : String(r.reason ?? r.error ?? "Stake not credited")
       );
       await refresh();
     } catch (e: unknown) {
-      setMsg(e instanceof Error ? e.message : "Stake failed");
+      setErr(e instanceof Error ? e.message : "Stake failed");
+      setMsg("");
     } finally {
       setBusy(false);
     }
@@ -100,6 +107,7 @@ export default function StakePage() {
   const onUnstake = async () => {
     if (!wallet.publicKey) return;
     setBusy(true);
+    setErr("");
     setMsg("Submitting unstake request…");
     try {
       const r = await stakeClawApi(
@@ -111,12 +119,14 @@ export default function StakePage() {
       setTier(String(r.tier ?? "Standard"));
       setFee(Number(r.feeMultiplier ?? 1));
       setVip(Boolean(r.vip));
+      if (Array.isArray(r.history)) setHistory(r.history);
       setMsg(
         `Unstake request ${amount} · payout ${r.payoutStatus ?? "pending"} · ${r.tier}`
       );
       await refresh();
     } catch (e: unknown) {
-      setMsg(e instanceof Error ? e.message : "Unstake failed");
+      setErr(e instanceof Error ? e.message : "Unstake failed");
+      setMsg("");
     } finally {
       setBusy(false);
     }
@@ -302,6 +312,54 @@ export default function StakePage() {
             {msg}
           </p>
         )}
+        {err && (
+          <p
+            role="alert"
+            data-stake-error
+            style={{ color: "#FF6B7A", fontSize: 13 }}
+          >
+            {err}
+          </p>
+        )}
+
+        <h2
+          style={{
+            fontFamily: "Orbitron, sans-serif",
+            fontSize: 14,
+            marginTop: 32,
+          }}
+        >
+          HISTORY
+        </h2>
+        <ul
+          data-stake-history
+          style={{ listStyle: "none", padding: 0, marginBottom: 28 }}
+        >
+          {history.length === 0 && (
+            <li style={{ color: "#5c6478", fontSize: 12 }}>No stake events yet.</li>
+          )}
+          {history.map((h) => (
+            <li
+              key={h.id}
+              style={{
+                padding: "10px 0",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                fontSize: 12,
+                color: "#9BA1AE",
+              }}
+            >
+              <span style={{ color: h.type === "stake" ? "#14F195" : "#22D3FF" }}>
+                {h.type.toUpperCase()}
+              </span>{" "}
+              · {h.amount.toLocaleString()} · {h.createdAt}
+              {h.txSignature ? (
+                <span style={{ display: "block", fontSize: 10, color: "#5c6478" }}>
+                  tx {String(h.txSignature).slice(0, 12)}…
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
 
         <h2
           style={{

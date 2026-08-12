@@ -25,7 +25,13 @@ export default function AdminPage() {
   const [config, setConfig] = useState<Record<string, unknown> | null>(null);
   const [jackpot, setJackpot] = useState<Record<string, unknown> | null>(null);
   const [msg, setMsg] = useState("");
-  const [tab, setTab] = useState<"config" | "prizes" | "players" | "txs">("config");
+  const [tab, setTab] = useState<
+    "config" | "prizes" | "players" | "txs" | "stake"
+  >("config");
+  const [stakeTiers, setStakeTiers] = useState<
+    Array<{ minStaked: number; feeMultiplier: number; vip: boolean; label: string }>
+  >([]);
+  const [stakeLogs, setStakeLogs] = useState<unknown[]>([]);
 
   const adminWallet = wallet.publicKey?.toBase58() ?? "";
 
@@ -37,11 +43,12 @@ export default function AdminPage() {
 
   const load = useCallback(async () => {
     if (!adminWallet) return;
-    const [c, p, pl, t] = await Promise.all([
+    const [c, p, pl, t, st] = await Promise.all([
       fetch("/api/admin?view=config", { headers: headers() }).then((r) => r.json()),
       fetch("/api/admin?view=prizes", { headers: headers() }).then((r) => r.json()),
       fetch("/api/admin?view=players", { headers: headers() }).then((r) => r.json()),
       fetch("/api/admin?view=transactions", { headers: headers() }).then((r) => r.json()),
+      fetch("/api/admin?view=stake", { headers: headers() }).then((r) => r.json()),
     ]);
     if (c.ok) {
       setConfig(c.config);
@@ -50,6 +57,10 @@ export default function AdminPage() {
     if (p.ok) setPrizes(p.prizes ?? []);
     if (pl.ok) setPlayers(pl.players ?? []);
     if (t.ok) setTxs(t.transactions ?? []);
+    if (st.ok) {
+      setStakeTiers(st.tiers ?? []);
+      setStakeLogs(st.stakeLogs ?? []);
+    }
   }, [adminWallet, headers]);
 
   useEffect(() => {
@@ -93,7 +104,7 @@ export default function AdminPage() {
         {msg && <p style={{ color: "#22D3FF" }}>{msg}</p>}
 
         <div style={{ display: "flex", gap: 8, margin: "16px 0", flexWrap: "wrap" }}>
-          {(["config", "prizes", "players", "txs"] as const).map((t) => (
+          {(["config", "prizes", "players", "txs", "stake"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -300,6 +311,67 @@ export default function AdminPage() {
             <h3>Transactions</h3>
             <pre style={{ fontSize: 11, overflow: "auto", maxHeight: 480 }}>
               {JSON.stringify(txs, null, 2)}
+            </pre>
+          </div>
+        )}
+
+        {tab === "stake" && (
+          <div style={panel} data-admin="stake">
+            <h3>VIP fee tiers (stake only)</h3>
+            <p style={{ fontSize: 12, color: "#5c6478", lineHeight: 1.5 }}>
+              Edits fee multipliers for play price only. Does{" "}
+              <strong style={{ color: "#FF6B7A" }}>not</strong> change
+              WIN_PROBABILITY or prize weights (odds stay 0.2 server-side).
+            </p>
+            <textarea
+              id="stake-tiers-json"
+              defaultValue={JSON.stringify(stakeTiers, null, 2)}
+              key={JSON.stringify(stakeTiers)}
+              style={{
+                width: "100%",
+                minHeight: 180,
+                fontFamily: "JetBrains Mono, monospace",
+                fontSize: 11,
+                background: "#0e1016",
+                color: "#EDEEF2",
+                border: "1px solid #333",
+                borderRadius: 8,
+                padding: 10,
+                boxSizing: "border-box",
+              }}
+            />
+            <button
+              type="button"
+              data-admin-action="update_stake_tiers"
+              onClick={() => {
+                try {
+                  const raw = (
+                    document.getElementById("stake-tiers-json") as HTMLTextAreaElement
+                  ).value;
+                  const tiers = JSON.parse(raw);
+                  post({ action: "update_stake_tiers", tiers });
+                } catch {
+                  setMsg("Invalid JSON for stake tiers");
+                }
+              }}
+              style={{
+                marginTop: 10,
+                padding: "10px 16px",
+                background: "#FF3E5C",
+                border: "none",
+                borderRadius: 8,
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              Save VIP fee table
+            </button>
+            <h4 style={{ marginTop: 24 }}>Stake audit log</h4>
+            <pre
+              data-admin="stake-logs"
+              style={{ fontSize: 11, overflow: "auto", maxHeight: 320 }}
+            >
+              {JSON.stringify(stakeLogs, null, 2)}
             </pre>
           </div>
         )}

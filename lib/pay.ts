@@ -232,14 +232,28 @@ export type StakeStatusResponse = {
 };
 
 export async function fetchStakeStatus(
-  wallet: string
-): Promise<StakeStatusResponse> {
-  const res = await fetch(
-    `/api/stake?wallet=${encodeURIComponent(wallet)}`
-  );
+  wallet: string,
+  opts?: { history?: boolean }
+): Promise<StakeStatusResponse & { history?: StakeHistoryItem[] }> {
+  const q = new URLSearchParams({ wallet });
+  if (opts?.history) q.set("history", "1");
+  const res = await fetch(`/api/stake?${q.toString()}`);
   const data = await res.json().catch(() => ({ ok: false }));
   return data;
 }
+
+export type StakeHistoryItem = {
+  id: string;
+  type: string;
+  amount: number;
+  asset: string;
+  createdAt: string;
+  txSignature: string | null;
+  credited?: boolean;
+  payout?: unknown;
+  detail?: unknown;
+  stakedClawAfter?: unknown;
+};
 
 export async function faucetClaw(wallet: string, amount = 5000) {
   const res = await fetch("/api/claw/faucet", {

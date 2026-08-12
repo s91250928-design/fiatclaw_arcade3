@@ -34,6 +34,8 @@ import {
   buildStakeStatus,
   canCreditStakeFromPayment,
   solLamportsForStakeAmount,
+  validateStakeTiers,
+  createRateLimiter,
   STAKE_TIERS,
   WIN_PROBABILITY,
   buildPrizePileLayout,
@@ -502,6 +504,7 @@ test("server tier table; staking never assigns WIN_PROBABILITY", () => {
   assert.ok(routeSrc.includes("creditStakeFromVerifiedTx"));
   assert.ok(routeSrc.includes("requestUnstake"));
   assert.ok(routeSrc.includes("export async function GET"));
+  assert.ok(routeSrc.includes("stakeMutationLimiter") || routeSrc.includes("rate"));
   // Must not free-credit via internal ledger stake(amount) from bare body
   assert.ok(
     !/store\.stake\(\s*decision/.test(routeSrc),
@@ -510,6 +513,66 @@ test("server tier table; staking never assigns WIN_PROBABILITY", () => {
   const view = buildStakeStatus("W".repeat(44), 0, new Date().toISOString());
   assert.equal(view.staked_amount, 0);
   assert.equal(view.affectsWinProbability, false);
+});
+
+// ── Phase 3: history, rate limit, admin VIP table ──────────────────────
+console.log("\n(d3) stake phase 3 hardening");
+
+test("listStakeHistory returns stake/unstake events only", () => {
+  const store = createTestStore();
+  const w = "HistWallet111111111111111111111111111111111";
+  const amount = 1000;
+  const need = solLamportsForStakeAmount(amount);
+  store.creditStakeFromVerifiedTx({
+    wallet: w,
+    amount,
+    signature: "hist_sig_" + "a".repeat(50),
+    receivedLamports: need,
+  });
+  store.requestUnstake(w, 200);
+  const hist = store.listStakeHistory(w, 20);
+  assert.ok(hist.length >= 2);
+  assert.ok(hist.every((h) => h.type === "stake" || h.type === "unstake"));
+  assert.ok(hist.some((h) => h.txSignature));
+});
+
+test("validateStakeTiers + setStakeTiers updates fees without odds", () => {
+  const bad = validateStakeTiers([{ minStaked: 0, feeMultiplier: 2, label: "X" }]);
+  assert.equal(bad.ok, false);
+
+  const ok = validateStakeTiers([
+    { minStaked: 0, feeMultiplier: 1, vip: false, label: "Standard" },
+    { minStaked: 100, feeMultiplier: 0.5, vip: true, label: "VIP" },
+  ]);
+  assert.equal(ok.ok, true);
+
+  const store = createTestStore();
+  const r = store.setStakeTiers([
+    { minStaked: 0, feeMultiplier: 1, vip: false, label: "Standard" },
+    { minStaked: 500, feeMultiplier: 0.7, vip: true, label: "Promo VIP" },
+  ]);
+  assert.equal(r.ok, true);
+  assert.equal(store.feeFor(500), 0.7);
+  assert.equal(store.tierFor(500).label, "Promo VIP");
+  // buy still uses store fee
+  store.ensurePlayer("P".repeat(44)).stakedClaw = 500;
+  assert.equal(store.feeFor(store.ensurePlayer("P".repeat(44)).stakedClaw), 0.7);
+});
+
+test("rate limiter blocks after max hits", () => {
+  let t = 0;
+  const lim = createRateLimiter({
+    windowMs: 1000,
+    max: 3,
+    now: () => t,
+  });
+  assert.equal(lim.check("k").ok, true);
+  assert.equal(lim.check("k").ok, true);
+  assert.equal(lim.check("k").ok, true);
+  const blocked = lim.check("k");
+  assert.equal(blocked.ok, false);
+  if (blocked.ok) return;
+  assert.ok(blocked.retryAfterMs >= 0);
 });
 
 // ── (e) leaderboard aggregation ────────────────────────────────────────

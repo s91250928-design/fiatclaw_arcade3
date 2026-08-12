@@ -30,8 +30,10 @@ import {
   canCreditStakeFromPayment,
   feeMultiplierForStake,
   stakeClaw,
+  STAKE_TIERS,
   tierForStake,
   unstakeClaw,
+  validateStakeTiers,
   type StakeStatusView,
 } from "./staking";
 import type {
@@ -39,6 +41,7 @@ import type {
   JackpotState,
   PrizeEntry,
   ResolvedPlay,
+  StakeTier,
   TransactionRecord,
 } from "./types";
 import { LOSE_MESSAGE } from "./types";
@@ -81,6 +84,21 @@ export class GameStore {
   transactions: TransactionRecord[] = [];
   consumedSignatures = new Set<string>();
   adminWallets: Set<string>;
+  /**
+   * VIP / fee tiers (admin-editable). NEVER mutates WIN_PROBABILITY / prizes.
+   */
+  stakeTiers: StakeTier[] = STAKE_TIERS.map((t) => ({ ...t }));
+  /** Structured stake audit log lines (also mirrored in transactions). */
+  stakeLogs: Array<{
+    at: string;
+    wallet: string;
+    action: string;
+    amount: number;
+    txSignature: string | null;
+    result: "ok" | "error" | "denied";
+    detail: string;
+    stakedClaw: number;
+  }> = [];
 
   constructor(opts?: {
     config?: GameConfig;
@@ -94,6 +112,39 @@ export class GameStore {
       this.config.jackpotContributionLamports
     );
     this.adminWallets = new Set(opts?.adminWallets ?? []);
+  }
+
+  /** Resolve tier using store's admin-configurable table. */
+  tierFor(stakedClaw: number): StakeTier {
+    return tierForStake(stakedClaw, this.stakeTiers);
+  }
+
+  feeFor(stakedClaw: number): number {
+    return feeMultiplierForStake(stakedClaw, this.stakeTiers);
+  }
+
+  logStake(entry: {
+    wallet: string;
+    action: string;
+    amount: number;
+    txSignature?: string | null;
+    result: "ok" | "error" | "denied";
+    detail: string;
+    stakedClaw: number;
+  }) {
+    this.stakeLogs.push({
+      at: new Date().toISOString(),
+      wallet: entry.wallet,
+      action: entry.action,
+      amount: entry.amount,
+      txSignature: entry.txSignature ?? null,
+      result: entry.result,
+      detail: entry.detail,
+      stakedClaw: entry.stakedClaw,
+    });
+    if (this.stakeLogs.length > 2000) {
+      this.stakeLogs = this.stakeLogs.slice(-1500);
+    }
   }
 
   ensurePlayer(wallet: string): PlayerRecord {
@@ -123,13 +174,13 @@ export class GameStore {
 
   getPlayerState(wallet: string) {
     const p = this.ensurePlayer(wallet);
-    const tier = tierForStake(p.stakedClaw);
+    const tier = this.tierFor(p.stakedClaw);
     return {
       wallet: p.wallet,
       availablePlays: p.availablePlays,
       clawBalance: p.clawBalance,
       stakedClaw: p.stakedClaw,
-      feeMultiplier: feeMultiplierForStake(p.stakedClaw),
+      feeMultiplier: this.feeFor(p.stakedClaw),
       tier: tier.label,
       vip: tier.vip,
       totalPlays: p.totalPlays,
@@ -153,7 +204,47 @@ export class GameStore {
     const p = this.ensurePlayer(wallet);
     return buildStakeStatus(p.wallet, p.stakedClaw, p.updatedAt, {
       stakeCreditEnabled: true,
+      tiers: this.stakeTiers,
     });
+  }
+
+  listStakeHistory(wallet: string, limit = 50) {
+    return this.transactions
+      .filter(
+        (t) =>
+          t.wallet === wallet && (t.type === "stake" || t.type === "unstake")
+      )
+      .slice(-limit)
+      .reverse()
+      .map((t) => ({
+        id: t.id,
+        type: t.type,
+        amount: t.amount,
+        asset: t.asset,
+        createdAt: t.createdAt,
+        txSignature:
+          (t.meta?.signature as string | undefined) ??
+          (t.meta?.txSignature as string | undefined) ??
+          null,
+        credited: Boolean(t.meta?.credited),
+        payout: t.meta?.payout ?? null,
+        detail: t.meta?.note ?? t.meta?.phase ?? null,
+        stakedClawAfter: t.meta?.stakedClaw ?? null,
+      }));
+  }
+
+  getStakeTiers(): StakeTier[] {
+    return this.stakeTiers.map((t) => ({ ...t }));
+  }
+
+  /**
+   * Admin: update VIP fee table only. Does not touch prizes / WIN_PROBABILITY.
+   */
+  setStakeTiers(input: unknown) {
+    const v = validateStakeTiers(input);
+    if (!v.ok) return v;
+    this.stakeTiers = v.tiers.map((t) => ({ ...t }));
+    return { ok: true as const, tiers: this.getStakeTiers() };
   }
 
   /** Whether a stake/buy signature was already consumed (replay guard). */
@@ -166,7 +257,7 @@ export class GameStore {
     if (this.consumedSignatures.has(signature)) {
       return { ok: false as const, error: "payment already used" };
     }
-    const mult = feeMultiplierForStake(this.ensurePlayer(wallet).stakedClaw);
+    const mult = this.feeFor(this.ensurePlayer(wallet).stakedClaw);
     const expected = solCostLamports(plays, this.config.priceLamports, mult);
     if (plays < 1) return { ok: false as const, error: "invalid play count" };
 
@@ -196,7 +287,7 @@ export class GameStore {
   buyPlaysWithClaw(wallet: string, plays: number) {
     if (plays < 1) return { ok: false as const, error: "invalid play count" };
     const p = this.ensurePlayer(wallet);
-    const mult = feeMultiplierForStake(p.stakedClaw);
+    const mult = this.feeFor(p.stakedClaw);
     const cost = clawCost(plays, this.config.clawPrice, mult);
     const debited = debitClaw(p.clawBalance, cost);
     if (!debited.ok) return { ok: false as const, error: debited.error };
@@ -471,7 +562,7 @@ export class GameStore {
     p.updatedAt = new Date().toISOString();
     this.consumedSignatures.add(opts.signature);
 
-    const tier = tierForStake(p.stakedClaw);
+    const tier = this.tierFor(p.stakedClaw);
     this.transactions.push({
       id: uid("tx"),
       wallet: opts.wallet,
@@ -486,6 +577,15 @@ export class GameStore {
         stakedClaw: p.stakedClaw,
       },
       createdAt: p.updatedAt,
+    });
+    this.logStake({
+      wallet: opts.wallet,
+      action: "stake_credit",
+      amount: opts.amount,
+      txSignature: opts.signature,
+      result: "ok",
+      detail: `credited +${opts.amount} staked`,
+      stakedClaw: p.stakedClaw,
     });
 
     return {
@@ -514,7 +614,7 @@ export class GameStore {
     }
     p.stakedClaw -= amount;
     p.updatedAt = new Date().toISOString();
-    const tier = tierForStake(p.stakedClaw);
+    const tier = this.tierFor(p.stakedClaw);
     this.transactions.push({
       id: uid("tx"),
       wallet,
@@ -529,6 +629,14 @@ export class GameStore {
         stakedClaw: p.stakedClaw,
       },
       createdAt: p.updatedAt,
+    });
+    this.logStake({
+      wallet,
+      action: "unstake_request",
+      amount,
+      result: "ok",
+      detail: "unstake request — no claw mint",
+      stakedClaw: p.stakedClaw,
     });
     return {
       ok: true as const,
@@ -601,6 +709,10 @@ export class GameStore {
 
   listTransactions(limit = 100) {
     return this.transactions.slice(-limit).reverse();
+  }
+
+  listStakeLogs(limit = 100) {
+    return this.stakeLogs.slice(-limit).reverse();
   }
 
   listResolved() {
