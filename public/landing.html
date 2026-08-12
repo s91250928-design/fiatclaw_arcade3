@@ -6078,7 +6078,7 @@ body{ animation:fx2-poweron 1.5s steps(1,end) 1; }
           premium experience inside FiatClaw Arcade. <b>Burned on every jackpot payout</b>, so the supply only moves one way.</p>
 
         <div class="s4-cta s4-rise s4-d2">
-          <a class="s4-buy" href="https://join.pump.fun/HSag/apkl1tug" target="_blank" rel="noopener">BUY $FIATCLAW
+          <a class="s4-buy" href="https://join.pump.fun/HSag/apkl1tug" target="_blank" rel="noopener noreferrer">BUY $FIATCLAW
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2.6 11.4 11.4 2.6M5 2.6h6.4V9" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
           <a class="s4-ghost" href="#">VIEW ON SOLSCAN
@@ -7613,8 +7613,10 @@ body{ animation:fx2-poweron 1.5s steps(1,end) 1; }
 <p style="margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.12em;color:#5E6472">© 2026 FIATCLAW ARCADE. ALL RIGHTS RESERVED.</p></div>
 <div><h4 style="color:var(--fc-red)">NAVIGATION</h4><ul><li><a href="#hero">Home</a></li><li><a href="/play" data-cta="play">Play</a></li><li><a href="#jackpot">Jackpot</a></li><li><a href="#token">Token</a></li><li><a href="/stake" data-cta="stake">Staking</a></li><li><a href="#roadmap">Roadmap</a></li><li><a href="#faq">Faq</a></li></ul></div>
 <div><h4 style="color:var(--fc-cyan)">COMMUNITY</h4><ul>
-<li><a href="#">X (Twitter)</a></li><li><a href="#">Telegram</a></li><li><a href="#">Discord</a></li>
-<li><a href="#">GitHub</a></li><li><a href="#">YouTube</a></li><li><a href="#">Medium</a></li></ul></div>
+<li><a href="https://join.pump.fun/HSag/apkl1tug" target="_blank" rel="noopener noreferrer">Buy $FIATCLAW</a></li>
+<li><a href="https://t.me/fiatclawchat" target="_blank" rel="noopener noreferrer">Telegram</a></li>
+<li><a href="https://x.com/Fiatclaw" target="_blank" rel="noopener noreferrer">X</a></li>
+</ul></div>
 <div><h4 style="color:var(--fc-emerald)">CONTRACT</h4>
 <div class="fcfoot__ca"><code id="fcca">9JfJhFMX3Rwv77mwuFfCrpTxYTH8iDr3GRP3e8Gipump</code>
 <button class="fcfoot__copy" id="fccopy" type="button" aria-label="Скопировать">⧉</button></div>
@@ -9499,33 +9501,39 @@ var fmt = function(n,d){ return n.toLocaleString("en-US",{minimumFractionDigits:
   });
 })();
 
-/* ---------- social column ----------
-   Generic geometric glyphs, NOT the platforms' trademarks.
-   Swap each <!-- LOGO SLOT --> for the official mark on ship. */
+/* ---------- community column: only live links (Buy / Telegram / X) ---------- */
 (function(){
   var SOCIAL = [
-    {n:"X (Twitter)", c:"#E7E9EF",
-     g:'<path d="M2 2l10 12M12 2 2 14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'},
-    {n:"Telegram", c:"#5FC8F5",
-     g:'<path d="M1.4 7.6 14.6 2l-4.8 12-3-4.4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.8 9.6 14.6 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'},
-    {n:"Discord", c:"#8C9BF0",
-     g:'<rect x="1.6" y="4" width="12.8" height="8.4" rx="4.2" stroke="currentColor" stroke-width="1.5"/><circle cx="5.8" cy="8.2" r="1.2" fill="currentColor"/><circle cx="10.2" cy="8.2" r="1.2" fill="currentColor"/>'},
-    {n:"GitHub", c:"#C4CAD6",
-     g:'<circle cx="8" cy="8" r="6.4" stroke="currentColor" stroke-width="1.5"/><path d="M6 14v-2.6c0-1.4 1-2 2-2s2 .6 2 2V14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'},
-    {n:"YouTube", c:"#FF6E85",
-     g:'<rect x="1.4" y="3.6" width="13.2" height="9" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M6.6 6.4 10.6 8l-4 1.6z" fill="currentColor"/>'},
-    {n:"Medium", c:"#C4CAD6",
-     g:'<circle cx="4.6" cy="8" r="3.2" stroke="currentColor" stroke-width="1.5"/><ellipse cx="10.4" cy="8" rx="1.7" ry="3.2" stroke="currentColor" stroke-width="1.4"/><path d="M14.4 5v6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'}
+    {
+      n: "Buy $FIATCLAW",
+      href: "https://join.pump.fun/HSag/apkl1tug",
+      c: "#FF3E5C",
+      g: '<path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'
+    },
+    {
+      n: "Telegram",
+      href: "https://t.me/fiatclawchat",
+      c: "#5FC8F5",
+      g: '<path d="M1.4 7.6 14.6 2l-4.8 12-3-4.4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.8 9.6 14.6 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+    },
+    {
+      n: "X",
+      href: "https://x.com/Fiatclaw",
+      c: "#E7E9EF",
+      g: '<path d="M2 2l10 12M12 2 2 14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'
+    }
   ];
   var html = "";
-  for(var i=0;i<SOCIAL.length;i++){
+  for (var i = 0; i < SOCIAL.length; i++) {
     var s = SOCIAL[i];
-    html += '<a href="#" style="color:'+s.c+'">'+
-              '<!-- LOGO SLOT: replace with the official '+s.n+' mark -->'+
-              '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">'+s.g+'</svg>'+
-              '<span style="color:#9BA1AE">'+s.n+'</span></a>';
+    html +=
+      '<a href="' + s.href + '" target="_blank" rel="noopener noreferrer" ' +
+      'style="color:' + s.c + ';touch-action:manipulation;display:inline-flex;align-items:center;gap:8px;min-height:40px">' +
+      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">' + s.g + "</svg>" +
+      '<span style="color:#9BA1AE">' + s.n + "</span></a>";
   }
-  $("s10social").innerHTML = html;
+  var el = $("s10social");
+  if (el) el.innerHTML = html;
 })();
 
 /* ---------- live figures ---------- */
