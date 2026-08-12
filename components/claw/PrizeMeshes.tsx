@@ -35,22 +35,21 @@ function PrizeBillboard({
   }, [map]);
 
   /**
-   * Readable emblem size at vault camera — high-contrast /refs textures.
+   * Readable emblem size — face camera but slight tilt for pile depth.
    * depthWrite keeps stack order so faces don't wash into neon rings.
    */
-  const s = 0.68 * scale;
+  const s = 0.58 * scale;
   return (
     <Billboard follow lockX={false} lockY={false} lockZ={false}>
-      <mesh renderOrder={1}>
+      <mesh renderOrder={1} rotation={[0.12, 0, 0]}>
         <planeGeometry args={[s, s]} />
         <meshBasicMaterial
           map={map}
           transparent
-          alphaTest={0.12}
+          alphaTest={0.1}
           side={THREE.DoubleSide}
           depthWrite
           toneMapped={false}
-          color="#ffffff"
         />
       </mesh>
     </Billboard>
