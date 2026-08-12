@@ -36,6 +36,9 @@ import {
   solLamportsForStakeAmount,
   validateStakeTiers,
   createRateLimiter,
+  computeExpectedPayout,
+  computeStakeReward,
+  buildTermStakeFields,
   STAKE_TIERS,
   WIN_PROBABILITY,
   buildPrizePileLayout,
@@ -351,18 +354,35 @@ test("evaluateStakeMutationRequest: amount alone never wouldCredit", () => {
   assert.ok(/txSignature|cannot credit|on-chain/i.test(d.reason));
 });
 
-test("evaluateStakeMutationRequest: stake+tx is credit candidate only", () => {
+test("evaluateStakeMutationRequest: stake+tx+term is credit candidate only", () => {
   const d = evaluateStakeMutationRequest({
     wallet: "C".repeat(44),
     action: "stake",
     amount: 100,
+    termDays: 30,
     txSignature: "sig_" + "x".repeat(64),
   });
   assert.equal(d.ok, true);
   if (!d.ok) return;
   assert.equal(d.wouldCredit, true);
   assert.equal(d.needsOnChainVerify, true);
+  assert.equal(d.termDays, 30);
   assert.equal(mutationWouldCreditStake(d), true);
+});
+
+test("evaluateStakeMutationRequest rejects client expectedPayout/apr spoof", () => {
+  const d = evaluateStakeMutationRequest({
+    wallet: "C".repeat(44),
+    action: "stake",
+    amount: 100,
+    termDays: 30,
+    txSignature: "sig_" + "x".repeat(64),
+    expectedPayout: 999999,
+    apr: 99,
+  });
+  assert.equal(d.ok, false);
+  if (d.ok) return;
+  assert.equal(d.spoofAttempt, true);
 });
 
 test("amount-only path does not credit store; verified tx does", () => {
@@ -405,12 +425,19 @@ test("amount-only path does not credit store; verified tx does", () => {
     amount,
     signature: sig,
     receivedLamports: required,
+    termDays: 30,
   });
   assert.equal(credited.ok, true);
   if (!credited.ok) return;
   assert.equal(credited.stakedClaw, 1000);
   assert.equal(store.getStakeStatus(w).stakedClaw, 1000);
   assert.equal(store.getStakeStatus(w).tier, "Bronze");
+  assert.ok(credited.position);
+  assert.equal(credited.position!.termDays, 30);
+  assert.equal(
+    credited.position!.expectedPayout,
+    computeExpectedPayout(amount, 30, 1200).expectedPayout
+  );
 
   // Replay same signature
   const replay = store.creditStakeFromVerifiedTx({
@@ -418,11 +445,18 @@ test("amount-only path does not credit store; verified tx does", () => {
     amount,
     signature: sig,
     receivedLamports: required,
+    termDays: 30,
   });
   assert.equal(replay.ok, false);
   if (replay.ok) return;
   assert.ok(/already used/i.test(replay.error));
   assert.equal(store.getStakeStatus(w).stakedClaw, 1000);
+
+  // List includes position
+  const active = store.listActiveStakePositions(20);
+  assert.ok(active.some((p) => p.wallet === w && p.amount === amount));
+  const mine = store.listMyStakePositions(w, 20);
+  assert.ok(mine.length >= 1);
 });
 
 test("canCreditStakeFromPayment rejects underpay and unused-fail", () => {
@@ -469,6 +503,7 @@ test("unstake request reduces staked without claw mint", () => {
     amount,
     signature: sig,
     receivedLamports: need,
+    termDays: 90,
   });
   assert.equal(c.ok, true);
   const balBefore = store.ensurePlayer(w).clawBalance;
@@ -528,12 +563,29 @@ test("listStakeHistory returns stake/unstake events only", () => {
     amount,
     signature: "hist_sig_" + "a".repeat(50),
     receivedLamports: need,
+    termDays: 7,
   });
   store.requestUnstake(w, 200);
   const hist = store.listStakeHistory(w, 20);
   assert.ok(hist.length >= 2);
   assert.ok(hist.every((h) => h.type === "stake" || h.type === "unstake"));
   assert.ok(hist.some((h) => h.txSignature));
+});
+
+test("computeExpectedPayout server formula principal+reward", () => {
+  // 10000 * 12% * 30/365 = 10000 * 0.12 * 30/365 = 98.63 → floor 98
+  const r = computeExpectedPayout(10_000, 30, 1200);
+  assert.equal(r.expectedReward, computeStakeReward(10_000, 30, 1200));
+  assert.equal(r.expectedPayout, 10_000 + r.expectedReward);
+  assert.equal(r.apr, 12);
+  const fields = buildTermStakeFields({
+    amount: 10_000,
+    termDays: 30,
+    startedAtMs: Date.parse("2026-01-01T00:00:00.000Z"),
+  });
+  assert.equal(fields.expectedPayout, r.expectedPayout);
+  assert.equal(fields.termDays, 30);
+  assert.ok(fields.endsAt > fields.startedAt);
 });
 
 test("validateStakeTiers + setStakeTiers updates fees without odds", () => {

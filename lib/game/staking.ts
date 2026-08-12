@@ -109,6 +109,146 @@ export function solLamportsForStakeAmount(amount: number): bigint {
   return BigInt(amount) * BigInt(STAKE_LAMPORTS_PER_UNIT);
 }
 
+// ── Term positions (transparent table) ───────────────────────────────────
+/** Allowed lock periods (days). Client may only pick from this set. */
+export const ALLOWED_TERM_DAYS = [7, 30, 90] as const;
+export type StakeTermDays = (typeof ALLOWED_TERM_DAYS)[number];
+
+/**
+ * Server APR config (basis points). Client cannot override.
+ * reward = floor(amount * aprBps/10000 * termDays/365)
+ * expectedPayout = amount + reward
+ */
+export const STAKE_TERM_APR_BPS: Record<StakeTermDays, number> = {
+  7: 800, // 8% APR
+  30: 1200, // 12% APR
+  90: 1800, // 18% APR
+};
+
+export type StakePositionStatus = "active" | "completed" | "claimed";
+
+export type StakePosition = {
+  id: string;
+  wallet: string;
+  amount: number;
+  termDays: StakeTermDays;
+  startedAt: string;
+  endsAt: string;
+  /** APR in basis points (server config at open) */
+  aprBps: number;
+  /** Human APR percent for UI (server-derived) */
+  apr: number;
+  /** Principal + reward (server formula only) */
+  expectedPayout: number;
+  /** Reward portion only */
+  expectedReward: number;
+  status: StakePositionStatus;
+  txSignature: string;
+};
+
+/** Pure: reward for amount over termDays at aprBps (floor). */
+export function computeStakeReward(
+  amount: number,
+  termDays: number,
+  aprBps: number
+): number {
+  if (
+    !Number.isInteger(amount) ||
+    amount < 1 ||
+    !Number.isInteger(termDays) ||
+    termDays < 1 ||
+    !Number.isFinite(aprBps) ||
+    aprBps < 0
+  ) {
+    return 0;
+  }
+  // amount * (aprBps/10000) * (termDays/365)
+  return Math.floor((amount * aprBps * termDays) / (10_000 * 365));
+}
+
+/** Pure: principal + reward. Never trust client expectedPayout. */
+export function computeExpectedPayout(
+  amount: number,
+  termDays: number,
+  aprBps: number
+): { expectedReward: number; expectedPayout: number; apr: number } {
+  const expectedReward = computeStakeReward(amount, termDays, aprBps);
+  return {
+    expectedReward,
+    expectedPayout: amount + expectedReward,
+    apr: aprBps / 100,
+  };
+}
+
+export function isAllowedTermDays(n: number): n is StakeTermDays {
+  return (ALLOWED_TERM_DAYS as readonly number[]).includes(n);
+}
+
+export function aprBpsForTerm(termDays: StakeTermDays): number {
+  return STAKE_TERM_APR_BPS[termDays];
+}
+
+/** Build server-owned position fields (ids/timestamps injected by store). */
+export function buildTermStakeFields(opts: {
+  amount: number;
+  termDays: StakeTermDays;
+  startedAtMs?: number;
+}): {
+  termDays: StakeTermDays;
+  aprBps: number;
+  apr: number;
+  expectedReward: number;
+  expectedPayout: number;
+  startedAt: string;
+  endsAt: string;
+  status: "active";
+} {
+  const startedAtMs = opts.startedAtMs ?? Date.now();
+  const aprBps = aprBpsForTerm(opts.termDays);
+  const pay = computeExpectedPayout(opts.amount, opts.termDays, aprBps);
+  const endsAtMs = startedAtMs + opts.termDays * 24 * 60 * 60 * 1000;
+  return {
+    termDays: opts.termDays,
+    aprBps,
+    apr: pay.apr,
+    expectedReward: pay.expectedReward,
+    expectedPayout: pay.expectedPayout,
+    startedAt: new Date(startedAtMs).toISOString(),
+    endsAt: new Date(endsAtMs).toISOString(),
+    status: "active",
+  };
+}
+
+/** Refresh status: active → completed when now >= endsAt (claimed is manual). */
+export function refreshPositionStatus(
+  pos: StakePosition,
+  nowMs: number = Date.now()
+): StakePosition {
+  if (pos.status === "claimed") return pos;
+  const end = Date.parse(pos.endsAt);
+  if (Number.isFinite(end) && nowMs >= end) {
+    return { ...pos, status: "completed" };
+  }
+  return { ...pos, status: "active" };
+}
+
+export function publicStakePositionDto(pos: StakePosition) {
+  return {
+    id: pos.id,
+    wallet: pos.wallet,
+    amount: pos.amount,
+    termDays: pos.termDays,
+    startedAt: pos.startedAt,
+    endsAt: pos.endsAt,
+    apr: pos.apr,
+    aprBps: pos.aprBps,
+    expectedPayout: pos.expectedPayout,
+    expectedReward: pos.expectedReward,
+    status: pos.status,
+    txSignature: pos.txSignature,
+  };
+}
+
 /** Public stake status snapshot — always derived from server staked amount. */
 export type StakeStatusView = {
   wallet: string;
@@ -156,11 +296,19 @@ export type StakeMutationBody = {
   wallet?: unknown;
   action?: unknown;
   amount?: unknown;
+  termDays?: unknown;
   stakedAmount?: unknown;
   staked_amount?: unknown;
   stakedClaw?: unknown;
   txSignature?: unknown;
   signature?: unknown;
+  /** Spoof fields — always rejected */
+  expectedPayout?: unknown;
+  apr?: unknown;
+  aprBps?: unknown;
+  status?: unknown;
+  startedAt?: unknown;
+  endsAt?: unknown;
 };
 
 export type StakeMutationDecision =
@@ -177,23 +325,20 @@ export type StakeMutationDecision =
       wallet: string;
       action: StakeMutationAction;
       requestedAmount: number;
+      /** Server-validated term for stake credit */
+      termDays: StakeTermDays | null;
       txSignature: string | null;
-      /**
-       * Stake credit candidate — only after on-chain verify (Phase 2).
-       * Never true from amount alone.
-       */
       wouldCredit: boolean;
       needsOnChainVerify: boolean;
-      /** Unstake request (no free claw mint) */
       isUnstakeRequest: boolean;
       reason: string;
     };
 
 /**
  * Parse/validate stake POST body (no RPC).
- * - Rejects absolute stakedAmount spoofs
+ * - Rejects stakedAmount / expectedPayout / apr / status spoofs
  * - amount alone never credits
- * - stake + amount + txSignature → candidate for on-chain credit (verify separately)
+ * - stake + amount + termDays + txSignature → credit candidate after verify
  * - unstake + amount → unstake request path (no claw mint)
  */
 export function evaluateStakeMutationRequest(
@@ -213,12 +358,18 @@ export function evaluateStakeMutationRequest(
   if (
     body.stakedAmount !== undefined ||
     body.staked_amount !== undefined ||
-    body.stakedClaw !== undefined
+    body.stakedClaw !== undefined ||
+    body.expectedPayout !== undefined ||
+    body.apr !== undefined ||
+    body.aprBps !== undefined ||
+    body.status !== undefined ||
+    body.startedAt !== undefined ||
+    body.endsAt !== undefined
   ) {
     return {
       ok: false,
       error:
-        "stakedAmount/stakedClaw cannot be set by client — stake is server-owned",
+        "client cannot set stakedAmount/expectedPayout/apr/status — server-owned",
       spoofAttempt: true,
       wouldCredit: false,
       needsOnChainVerify: false,
@@ -270,12 +421,17 @@ export function evaluateStakeMutationRequest(
       : null;
 
   if (action === "stake") {
+    const termRaw = body.termDays;
+    const termN = typeof termRaw === "number" ? termRaw : Number(termRaw);
+    const termDays = isAllowedTermDays(termN) ? termN : null;
+
     if (!txSignature) {
       return {
         ok: true,
         wallet,
         action,
         requestedAmount: amt,
+        termDays,
         txSignature: null,
         wouldCredit: false,
         needsOnChainVerify: false,
@@ -284,25 +440,36 @@ export function evaluateStakeMutationRequest(
           "stake credit requires on-chain txSignature — amount alone cannot credit stake",
       };
     }
+    if (termDays == null) {
+      return {
+        ok: false,
+        error: `termDays must be one of ${ALLOWED_TERM_DAYS.join(",")}`,
+        spoofAttempt: false,
+        wouldCredit: false,
+        needsOnChainVerify: false,
+        isUnstakeRequest: false,
+      };
+    }
     return {
       ok: true,
       wallet,
       action,
       requestedAmount: amt,
+      termDays,
       txSignature,
-      wouldCredit: true, // only after verifySolPayment succeeds
+      wouldCredit: true,
       needsOnChainVerify: true,
       isUnstakeRequest: false,
       reason: "stake candidate — credit only after treasury payment verified",
     };
   }
 
-  // unstake: request path (reduce staked, no claw mint, no free payout)
   return {
     ok: true,
     wallet,
     action,
     requestedAmount: amt,
+    termDays: null,
     txSignature,
     wouldCredit: false,
     needsOnChainVerify: false,

@@ -176,11 +176,11 @@ export function useArcadePlayer() {
           } catch {
             /* use local */
           }
-          const r = await stakeWithSol(wallet, stakeAmt, unit);
+          const r = await stakeWithSol(wallet, stakeAmt, unit, 30);
           await refreshState();
           setMessage(
             r.credited
-              ? `Staked +${stakeAmt} · ${r.tier} · fee ${Math.round(Number(r.feeMultiplier) * 100)}%`
+              ? `Staked +${stakeAmt} · 30d · payout ${r.position?.expectedPayout ?? "—"} · ${r.tier}`
               : String(r.reason ?? "Stake not credited")
           );
           return;

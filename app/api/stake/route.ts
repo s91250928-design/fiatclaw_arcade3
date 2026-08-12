@@ -1,11 +1,13 @@
 /**
- * Stake status + mutation API (Phase 2–3).
+ * Stake status + term positions + mutation API.
  *
- * GET  ?wallet=… → server stake status (+ history when ?history=1)
- * POST stake     → wallet + amount + txSignature → verify SOL → credit
- * POST unstake   → wallet + amount → request (no claw mint)
+ * GET  ?wallet=…           → player status (+ history, my positions)
+ * GET  ?view=table         → public active stakes table (no wallet required)
+ * GET  ?view=terms         → allowed terms + APR config (server)
+ * POST stake               → amount + termDays + txSignature → verify → position
+ * POST unstake             → amount → request (no claw mint)
  *
- * Rate-limited per wallet + IP. Never body.stakedAmount credit.
+ * Never trust body expectedPayout/apr/status/stakedAmount.
  * Staking never mutates WIN_PROBABILITY.
  */
 
@@ -15,10 +17,15 @@ import {
   solLamportsForStakeAmount,
 } from "@/lib/game";
 import {
+  ALLOWED_TERM_DAYS,
+  STAKE_TERM_APR_BPS,
   evaluateStakeMutationRequest,
   MIN_STAKE_AMOUNT,
   MAX_STAKE_AMOUNT,
+  computeExpectedPayout,
+  aprBpsForTerm,
   type StakeMutationBody,
+  type StakeTermDays,
 } from "@/lib/game/staking";
 import {
   stakeMutationLimiter,
@@ -48,13 +55,58 @@ function rateKey(wallet: string, ip: string) {
   return `${wallet.slice(0, 16)}|${ip}`;
 }
 
+function termsPayload() {
+  return ALLOWED_TERM_DAYS.map((termDays) => {
+    const aprBps = aprBpsForTerm(termDays);
+    return {
+      termDays,
+      aprBps,
+      apr: aprBps / 100,
+    };
+  });
+}
+
 export async function GET(req: NextRequest) {
-  const wallet = req.nextUrl.searchParams.get("wallet");
-  if (!wallet || wallet.length < 32) {
-    return bad("wallet required");
+  const view = req.nextUrl.searchParams.get("view");
+  const ip = clientIp(req);
+  const store = getGameStore();
+
+  // Public active table — no wallet required
+  if (view === "table" || view === "active") {
+    const rl = stakeReadLimiter.check(`table|${ip}`);
+    if (!rl.ok) {
+      return bad("rate limit exceeded — try again shortly", 429, {
+        retryAfterMs: rl.retryAfterMs,
+      });
+    }
+    const limit = Math.min(
+      100,
+      Math.max(1, Number(req.nextUrl.searchParams.get("limit") ?? 40) || 40)
+    );
+    return NextResponse.json({
+      ok: true,
+      positions: store.listActiveStakePositions(limit),
+      terms: termsPayload(),
+      affectsWinProbability: false,
+    });
   }
 
-  const ip = clientIp(req);
+  if (view === "terms") {
+    return NextResponse.json({
+      ok: true,
+      terms: termsPayload(),
+      allowedTermDays: [...ALLOWED_TERM_DAYS],
+      aprBps: { ...STAKE_TERM_APR_BPS },
+      // Preview formula helper constants only — server still computes on credit
+      note: "expectedPayout = amount + floor(amount * aprBps/10000 * termDays/365)",
+    });
+  }
+
+  const wallet = req.nextUrl.searchParams.get("wallet");
+  if (!wallet || wallet.length < 32) {
+    return bad("wallet required (or use view=table)");
+  }
+
   const rl = stakeReadLimiter.check(rateKey(wallet, ip));
   if (!rl.ok) {
     return bad("rate limit exceeded — try again shortly", 429, {
@@ -62,22 +114,25 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const store = getGameStore();
   const status = store.getStakeStatus(wallet);
   const wantHistory = req.nextUrl.searchParams.get("history") === "1";
   const history = wantHistory ? store.listStakeHistory(wallet, 40) : undefined;
+  const myPositions = store.listMyStakePositions(wallet, 50);
 
   return NextResponse.json({
     ok: true,
     ...status,
     minStakeAmount: MIN_STAKE_AMOUNT,
     maxStakeAmount: MAX_STAKE_AMOUNT,
+    terms: termsPayload(),
+    allowedTermDays: [...ALLOWED_TERM_DAYS],
     tiers: store.getStakeTiers().map((t) => ({
       minStaked: t.minStaked,
       feeMultiplier: t.feeMultiplier,
       vip: t.vip,
       label: t.label,
     })),
+    myPositions,
     ...(history ? { history } : {}),
   });
 }
@@ -103,7 +158,6 @@ export async function POST(req: NextRequest) {
 
   const store = getGameStore();
 
-  // ── Unstake request ─────────────────────────────────────────────────
   if (decision.isUnstakeRequest) {
     const r = store.requestUnstake(decision.wallet, decision.requestedAmount);
     if (!r.ok) {
@@ -132,12 +186,11 @@ export async function POST(req: NextRequest) {
       clawBalance: r.clawBalance,
       payoutStatus: r.payoutStatus,
       affectsWinProbability: false,
-      phase: 3,
+      myPositions: store.listMyStakePositions(decision.wallet, 50),
       history: store.listStakeHistory(decision.wallet, 10),
     });
   }
 
-  // ── Stake without signature ─────────────────────────────────────────
   if (!decision.needsOnChainVerify || !decision.txSignature) {
     const before = store.getStakeStatus(decision.wallet);
     store.recordStakeIntent({
@@ -155,31 +208,24 @@ export async function POST(req: NextRequest) {
       detail: decision.reason,
       stakedClaw: before.stakedClaw,
     });
-    const after = store.getStakeStatus(decision.wallet);
-    if (after.stakedClaw !== before.stakedClaw) {
-      return bad("internal error: unexpected stake change", 500);
-    }
     return NextResponse.json({
       ok: true,
       credited: false,
       action: "stake",
       reason: decision.reason,
       error:
-        "txSignature required — send SOL to treasury then POST signature",
-      stakedClaw: after.stakedClaw,
-      staked_amount: after.staked_amount,
-      tier: after.tier,
-      vip: after.vip,
-      feeMultiplier: after.feeMultiplier,
-      updated_at: after.updated_at,
-      clawBalance: store.ensurePlayer(decision.wallet).clawBalance,
+        "txSignature required — send SOL to treasury then POST signature + termDays",
+      stakedClaw: before.stakedClaw,
+      terms: termsPayload(),
       affectsWinProbability: false,
-      phase: 3,
-      stakeLamportsPerUnit: after.stakeLamportsPerUnit,
     });
   }
 
-  // ── Stake with tx ───────────────────────────────────────────────────
+  const termDays = decision.termDays as StakeTermDays | null;
+  if (termDays == null) {
+    return bad(`termDays must be one of ${ALLOWED_TERM_DAYS.join(",")}`);
+  }
+
   const minLamports = solLamportsForStakeAmount(decision.requestedAmount);
   if (minLamports <= 0n) {
     return bad("invalid stake amount");
@@ -229,6 +275,7 @@ export async function POST(req: NextRequest) {
     amount: decision.requestedAmount,
     signature: decision.txSignature,
     receivedLamports: verified.receivedLamports,
+    termDays,
   });
 
   if (!credited.ok) {
@@ -244,6 +291,13 @@ export async function POST(req: NextRequest) {
     return bad(credited.error, credited.error.includes("already") ? 409 : 400);
   }
 
+  // Server preview of formula (already on position)
+  const preview = computeExpectedPayout(
+    decision.requestedAmount,
+    termDays,
+    aprBpsForTerm(termDays)
+  );
+
   return NextResponse.json({
     ok: true,
     action: "stake",
@@ -258,8 +312,10 @@ export async function POST(req: NextRequest) {
     receivedLamports: String(verified.receivedLamports),
     minLamportsRequired: String(minLamports),
     txSignature: decision.txSignature,
+    position: credited.position,
+    expectedPayout: credited.position?.expectedPayout ?? preview.expectedPayout,
     affectsWinProbability: false,
-    phase: 3,
+    myPositions: store.listMyStakePositions(decision.wallet, 50),
     history: store.listStakeHistory(decision.wallet, 10),
   });
 }

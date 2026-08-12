@@ -27,14 +27,20 @@ import {
 import { secureRandom } from "./rng";
 import {
   buildStakeStatus,
+  buildTermStakeFields,
   canCreditStakeFromPayment,
   feeMultiplierForStake,
+  isAllowedTermDays,
+  publicStakePositionDto,
+  refreshPositionStatus,
   stakeClaw,
   STAKE_TIERS,
   tierForStake,
   unstakeClaw,
   validateStakeTiers,
+  type StakePosition,
   type StakeStatusView,
+  type StakeTermDays,
 } from "./staking";
 import type {
   GameConfig,
@@ -99,6 +105,8 @@ export class GameStore {
     detail: string;
     stakedClaw: number;
   }> = [];
+  /** Term stake positions (transparent table). */
+  stakePositions: StakePosition[] = [];
 
   constructor(opts?: {
     config?: GameConfig;
@@ -546,6 +554,8 @@ export class GameStore {
     amount: number;
     signature: string;
     receivedLamports: bigint;
+    /** Required for term position (7/30/90). Defaults 30 if missing for back-compat tests. */
+    termDays?: number;
   }) {
     const gate = canCreditStakeFromPayment({
       verifyOk: true,
@@ -557,10 +567,36 @@ export class GameStore {
       return { ok: false as const, error: gate.error };
     }
 
+    const termRaw = opts.termDays ?? 30;
+    if (!isAllowedTermDays(termRaw)) {
+      return { ok: false as const, error: "invalid termDays" };
+    }
+    const termDays: StakeTermDays = termRaw;
+
     const p = this.ensurePlayer(opts.wallet);
     p.stakedClaw += opts.amount;
     p.updatedAt = new Date().toISOString();
     this.consumedSignatures.add(opts.signature);
+
+    const fields = buildTermStakeFields({
+      amount: opts.amount,
+      termDays,
+    });
+    const position: StakePosition = {
+      id: uid("stk"),
+      wallet: opts.wallet,
+      amount: opts.amount,
+      termDays: fields.termDays,
+      startedAt: fields.startedAt,
+      endsAt: fields.endsAt,
+      aprBps: fields.aprBps,
+      apr: fields.apr,
+      expectedPayout: fields.expectedPayout,
+      expectedReward: fields.expectedReward,
+      status: fields.status,
+      txSignature: opts.signature,
+    };
+    this.stakePositions.push(position);
 
     const tier = this.tierFor(p.stakedClaw);
     this.transactions.push({
@@ -575,6 +611,10 @@ export class GameStore {
         signature: opts.signature,
         receivedLamports: String(opts.receivedLamports),
         stakedClaw: p.stakedClaw,
+        positionId: position.id,
+        termDays: position.termDays,
+        expectedPayout: position.expectedPayout,
+        aprBps: position.aprBps,
       },
       createdAt: p.updatedAt,
     });
@@ -584,7 +624,7 @@ export class GameStore {
       amount: opts.amount,
       txSignature: opts.signature,
       result: "ok",
-      detail: `credited +${opts.amount} staked`,
+      detail: `credited +${opts.amount} staked term=${termDays}d payout=${position.expectedPayout}`,
       stakedClaw: p.stakedClaw,
     });
 
@@ -597,7 +637,42 @@ export class GameStore {
       feeMultiplier: tier.feeMultiplier,
       updated_at: p.updatedAt,
       clawBalance: p.clawBalance,
+      position: publicStakePositionDto(position),
     };
+  }
+
+  /** Refresh active→completed for all positions; return public DTOs. */
+  listStakePositions(opts?: {
+    wallet?: string;
+    status?: "active" | "completed" | "claimed" | "all";
+    limit?: number;
+  }) {
+    const now = Date.now();
+    this.stakePositions = this.stakePositions.map((p) =>
+      refreshPositionStatus(p, now)
+    );
+    let list = this.stakePositions;
+    if (opts?.wallet) {
+      list = list.filter((p) => p.wallet === opts.wallet);
+    }
+    const status = opts?.status ?? "all";
+    if (status !== "all") {
+      list = list.filter((p) => p.status === status);
+    }
+    // Newest first
+    list = [...list].sort(
+      (a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt)
+    );
+    const limit = opts?.limit ?? 50;
+    return list.slice(0, limit).map(publicStakePositionDto);
+  }
+
+  listActiveStakePositions(limit = 50) {
+    return this.listStakePositions({ status: "active", limit });
+  }
+
+  listMyStakePositions(wallet: string, limit = 50) {
+    return this.listStakePositions({ wallet, status: "all", limit });
   }
 
   /**

@@ -306,14 +306,15 @@ export async function paySolForStake(
 }
 
 /**
- * Phase 2 stake: optional txSignature for credit; amount alone never credits.
- * Unstake: server request (no claw mint).
+ * Stake POST: amount alone never credits; needs txSignature + termDays for credit.
+ * Unstake: server request (no claw mint). Never send expectedPayout/apr from client.
  */
 export async function stakeClawApi(
   wallet: string,
   action: "stake" | "unstake",
   amount: number,
-  txSignature?: string
+  txSignature?: string,
+  termDays?: number
 ) {
   const res = await fetch("/api/stake", {
     method: "POST",
@@ -323,6 +324,7 @@ export async function stakeClawApi(
       action,
       amount,
       ...(txSignature ? { txSignature } : {}),
+      ...(termDays != null ? { termDays } : {}),
     }),
   });
   const data = await res
@@ -332,11 +334,12 @@ export async function stakeClawApi(
   return data;
 }
 
-/** Full client stake flow: pay SOL → POST signature → server credits. */
+/** Full client stake flow: pay SOL → POST signature + termDays → server position. */
 export async function stakeWithSol(
   wallet: WalletContextState,
   amount: number,
-  lamportsPerUnit: number
+  lamportsPerUnit: number,
+  termDays: number = 30
 ) {
   if (!wallet.publicKey) throw new Error("Wallet not connected");
   const signature = await paySolForStake(wallet, amount, lamportsPerUnit);
@@ -344,8 +347,36 @@ export async function stakeWithSol(
     wallet.publicKey.toBase58(),
     "stake",
     amount,
-    signature
+    signature,
+    termDays
   );
+}
+
+export type StakePositionRow = {
+  id: string;
+  wallet: string;
+  amount: number;
+  termDays: number;
+  startedAt: string;
+  endsAt: string;
+  apr: number;
+  aprBps: number;
+  expectedPayout: number;
+  expectedReward: number;
+  status: string;
+  txSignature: string;
+};
+
+export async function fetchActiveStakes(limit = 40): Promise<{
+  ok: boolean;
+  positions?: StakePositionRow[];
+  terms?: Array<{ termDays: number; apr: number; aprBps: number }>;
+  error?: string;
+}> {
+  const res = await fetch(
+    `/api/stake?view=table&limit=${encodeURIComponent(String(limit))}`
+  );
+  return res.json().catch(() => ({ ok: false }));
 }
 
 export async function getSolBalance(publicKey: PublicKey): Promise<number> {
