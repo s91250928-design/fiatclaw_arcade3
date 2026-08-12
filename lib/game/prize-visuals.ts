@@ -78,7 +78,8 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
    * Dense overflowing rectangular chamber mound.
    * Soft packing across full floor footprint (not a sparse circle).
    */
-  const count = 140;
+  /** Overflowing dense chamber (reference prize field). */
+  const count = 165;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();

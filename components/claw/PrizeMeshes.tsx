@@ -38,7 +38,7 @@ function PrizeBillboard({
    * Readable emblem size at vault camera — high-contrast /refs textures.
    * depthWrite keeps stack order so faces don't wash into neon rings.
    */
-  const s = 0.72 * scale;
+  const s = 0.68 * scale;
   return (
     <Billboard follow lockX={false} lockY={false} lockZ={false}>
       <mesh renderOrder={1}>
