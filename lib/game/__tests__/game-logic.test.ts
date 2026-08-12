@@ -32,6 +32,8 @@ import {
   evaluateStakeMutationRequest,
   mutationWouldCreditStake,
   buildStakeStatus,
+  canCreditStakeFromPayment,
+  solLamportsForStakeAmount,
   STAKE_TIERS,
   WIN_PROBABILITY,
   buildPrizePileLayout,
@@ -316,8 +318,8 @@ test("stake/unstake ledger", () => {
   assert.equal(u.clawBalance, 4500);
 });
 
-// ── Phase 1: stake anti-spoof (public API policy) ──────────────────────
-console.log("\n(d2) stake phase 1 anti-spoof");
+// ── Phase 2: stake anti-spoof + on-chain credit gates ──────────────────
+console.log("\n(d2) stake phase 2 anti-spoof + credit gates");
 
 test("evaluateStakeMutationRequest rejects stakedAmount spoof", () => {
   const d = evaluateStakeMutationRequest({
@@ -342,67 +344,145 @@ test("evaluateStakeMutationRequest: amount alone never wouldCredit", () => {
   assert.equal(d.ok, true);
   if (!d.ok) return;
   assert.equal(d.wouldCredit, false);
+  assert.equal(d.needsOnChainVerify, false);
   assert.equal(mutationWouldCreditStake(d), false);
-  assert.ok(/Phase 1|on-chain|cannot credit/i.test(d.reason));
+  assert.ok(/txSignature|cannot credit|on-chain/i.test(d.reason));
 });
 
-test("evaluateStakeMutationRequest: txSignature still no credit in Phase 1", () => {
+test("evaluateStakeMutationRequest: stake+tx is credit candidate only", () => {
   const d = evaluateStakeMutationRequest({
     wallet: "C".repeat(44),
-    action: "unstake",
+    action: "stake",
     amount: 100,
     txSignature: "sig_" + "x".repeat(64),
   });
   assert.equal(d.ok, true);
   if (!d.ok) return;
-  assert.equal(d.wouldCredit, false);
-  assert.ok(d.txSignature);
+  assert.equal(d.wouldCredit, true);
+  assert.equal(d.needsOnChainVerify, true);
+  assert.equal(mutationWouldCreditStake(d), true);
 });
 
-test("GET stake status is server-owned; POST amount does not credit store", () => {
+test("amount-only path does not credit store; verified tx does", () => {
   const store = createTestStore();
-  const w = "StakePhase1Wallet111111111111111111111111111";
-  // Ensure player; staked starts at 0
+  const w = "StakePhase2Wallet111111111111111111111111111";
   const before = store.getStakeStatus(w);
   assert.equal(before.stakedClaw, 0);
-  assert.equal(before.feeMultiplier, 1);
-  assert.equal(before.affectsWinProbability, false);
-  assert.ok(before.updated_at);
 
-  const decision = evaluateStakeMutationRequest({
+  const noTx = evaluateStakeMutationRequest({
     wallet: w,
     action: "stake",
     amount: 50_000,
   });
-  assert.equal(decision.ok, true);
-  if (!decision.ok) return;
-  assert.equal(decision.wouldCredit, false);
-
-  // Simulate API: only record intent, never store.stake
+  assert.equal(noTx.ok, true);
+  if (!noTx.ok) return;
+  assert.equal(noTx.wouldCredit, false);
   store.recordStakeIntent({
     wallet: w,
     action: "stake",
     requestedAmount: 50_000,
     txSignature: null,
-    note: decision.reason,
+    note: noTx.reason,
   });
+  assert.equal(store.getStakeStatus(w).stakedClaw, 0);
 
-  const after = store.getStakeStatus(w);
-  assert.equal(after.stakedClaw, 0, "amount-only POST must not raise staked");
-  assert.equal(after.feeMultiplier, 1);
+  // Simulated verify success + unique sig
+  const sig = "stake_sig_" + "y".repeat(60);
+  const amount = 1000;
+  const required = solLamportsForStakeAmount(amount);
+  const gate = canCreditStakeFromPayment({
+    verifyOk: true,
+    signatureUnused: true,
+    amount,
+    receivedLamports: required,
+  });
+  assert.equal(gate.ok, true);
 
-  // buildStakeStatus pure view matches
-  const view = buildStakeStatus(w, after.stakedClaw, after.updated_at);
-  assert.equal(view.staked_amount, 0);
-  assert.equal(view.tier, "Standard");
+  const credited = store.creditStakeFromVerifiedTx({
+    wallet: w,
+    amount,
+    signature: sig,
+    receivedLamports: required,
+  });
+  assert.equal(credited.ok, true);
+  if (!credited.ok) return;
+  assert.equal(credited.stakedClaw, 1000);
+  assert.equal(store.getStakeStatus(w).stakedClaw, 1000);
+  assert.equal(store.getStakeStatus(w).tier, "Bronze");
+
+  // Replay same signature
+  const replay = store.creditStakeFromVerifiedTx({
+    wallet: w,
+    amount,
+    signature: sig,
+    receivedLamports: required,
+  });
+  assert.equal(replay.ok, false);
+  if (replay.ok) return;
+  assert.ok(/already used/i.test(replay.error));
+  assert.equal(store.getStakeStatus(w).stakedClaw, 1000);
 });
 
-test("server tier table fee multipliers; staking module does not touch WIN_PROB", () => {
+test("canCreditStakeFromPayment rejects underpay and unused-fail", () => {
+  const amount = 100;
+  const need = solLamportsForStakeAmount(amount);
+  assert.ok(need > 0n);
+  assert.equal(
+    canCreditStakeFromPayment({
+      verifyOk: false,
+      signatureUnused: true,
+      amount,
+      receivedLamports: need,
+    }).ok,
+    false
+  );
+  assert.equal(
+    canCreditStakeFromPayment({
+      verifyOk: true,
+      signatureUnused: false,
+      amount,
+      receivedLamports: need,
+    }).ok,
+    false
+  );
+  assert.equal(
+    canCreditStakeFromPayment({
+      verifyOk: true,
+      signatureUnused: true,
+      amount,
+      receivedLamports: need - 1n,
+    }).ok,
+    false
+  );
+});
+
+test("unstake request reduces staked without claw mint", () => {
+  const store = createTestStore();
+  const w = "UnstakeReqWallet111111111111111111111111111";
+  const sig = "u_sig_" + "z".repeat(60);
+  const amount = 5000;
+  const need = solLamportsForStakeAmount(amount);
+  const c = store.creditStakeFromVerifiedTx({
+    wallet: w,
+    amount,
+    signature: sig,
+    receivedLamports: need,
+  });
+  assert.equal(c.ok, true);
+  const balBefore = store.ensurePlayer(w).clawBalance;
+  const u = store.requestUnstake(w, 2000);
+  assert.equal(u.ok, true);
+  if (!u.ok) return;
+  assert.equal(u.stakedClaw, 3000);
+  assert.equal(u.clawBalance, balBefore, "no free claw mint on unstake");
+  assert.equal(u.payoutStatus, "pending_service");
+});
+
+test("server tier table; staking never assigns WIN_PROBABILITY", () => {
   assert.equal(STAKE_TIERS[0]!.feeMultiplier, 1);
   assert.ok(STAKE_TIERS.some((t) => t.feeMultiplier === 0.8));
   assert.equal(feeMultiplierForStake(0), 1);
   assert.equal(feeMultiplierForStake(100_000), 0.8);
-  // Source-level: staking.ts must not reference WIN_PROBABILITY
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const stakeSrc = fs.readFileSync(
@@ -411,25 +491,25 @@ test("server tier table fee multipliers; staking module does not touch WIN_PROB"
   );
   assert.ok(
     stakeSrc.includes("NEVER mutates WIN_PROBABILITY") ||
-      stakeSrc.includes("never mutates WIN_PROBABILITY"),
-    "staking.ts documents no odds mutation"
+      stakeSrc.includes("never mutates WIN_PROBABILITY")
   );
-  assert.equal(
-    /WIN_PROBABILITY\s*=/.test(stakeSrc),
-    false,
-    "staking must not assign WIN_PROBABILITY"
-  );
-  // Route must not credit from amount
+  assert.equal(/WIN_PROBABILITY\s*=/.test(stakeSrc), false);
   const routeSrc = fs.readFileSync(
     path.join(__dirname, "..", "..", "..", "app", "api", "stake", "route.ts"),
     "utf8"
   );
-  assert.ok(routeSrc.includes("evaluateStakeMutationRequest"));
+  assert.ok(routeSrc.includes("verifySolPayment"));
+  assert.ok(routeSrc.includes("creditStakeFromVerifiedTx"));
+  assert.ok(routeSrc.includes("requestUnstake"));
   assert.ok(routeSrc.includes("export async function GET"));
+  // Must not free-credit via internal ledger stake(amount) from bare body
   assert.ok(
-    !routeSrc.includes("store.stake(") && !routeSrc.includes("store.unstake("),
-    "public stake route must not call store.stake/unstake for amount credit"
+    !/store\.stake\(\s*decision/.test(routeSrc),
+    "route must not call store.stake(wallet, amount) from unverified body"
   );
+  const view = buildStakeStatus("W".repeat(44), 0, new Date().toISOString());
+  assert.equal(view.staked_amount, 0);
+  assert.equal(view.affectsWinProbability, false);
 });
 
 // ── (e) leaderboard aggregation ────────────────────────────────────────

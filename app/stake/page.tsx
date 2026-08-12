@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Stake UI — displays server stake status only.
- * Phase 1: Stake/Unstake disabled (no amount-as-credit). Phase 2: on-chain tx.
+ * Stake UI — server status + Phase 2 on-chain stake (SOL → treasury).
  * Staking never changes win probability.
  */
 
@@ -10,7 +9,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
-import { fetchStakeStatus, type StakeStatusResponse } from "@/lib/pay";
+import {
+  fetchStakeStatus,
+  stakeClawApi,
+  stakeWithSol,
+  type StakeStatusResponse,
+} from "@/lib/pay";
 
 type TierRow = {
   minStaked: number;
@@ -27,7 +31,10 @@ export default function StakePage() {
   const [vip, setVip] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string>("—");
   const [tiers, setTiers] = useState<TierRow[]>([]);
+  const [lamportsPerUnit, setLamportsPerUnit] = useState(10_000);
+  const [amount, setAmount] = useState(1000);
   const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -44,6 +51,9 @@ export default function StakePage() {
         setVip(Boolean(d.vip));
         setUpdatedAt(String(d.updated_at ?? "—"));
         if (Array.isArray(d.tiers)) setTiers(d.tiers);
+        if (typeof d.stakeLamportsPerUnit === "number") {
+          setLamportsPerUnit(d.stakeLamportsPerUnit);
+        }
       } else {
         setMsg(d?.error ?? "Failed to load stake status");
       }
@@ -57,6 +67,60 @@ export default function StakePage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const estSol = ((amount * lamportsPerUnit) / 1e9).toFixed(6);
+
+  const onStake = async () => {
+    if (!wallet.publicKey || !wallet.connected) {
+      setMsg("Connect wallet first");
+      return;
+    }
+    setBusy(true);
+    setMsg("Confirm SOL transfer to treasury in wallet…");
+    try {
+      const r = await stakeWithSol(wallet, amount, lamportsPerUnit);
+      setStaked(Number(r.stakedClaw ?? 0));
+      setTier(String(r.tier ?? "Standard"));
+      setFee(Number(r.feeMultiplier ?? 1));
+      setVip(Boolean(r.vip));
+      setUpdatedAt(String(r.updated_at ?? "—"));
+      setMsg(
+        r.credited
+          ? `Staked +${amount} · ${r.tier} · fee ${Math.round(Number(r.feeMultiplier) * 100)}%`
+          : r.reason ?? "Stake not credited"
+      );
+      await refresh();
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "Stake failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onUnstake = async () => {
+    if (!wallet.publicKey) return;
+    setBusy(true);
+    setMsg("Submitting unstake request…");
+    try {
+      const r = await stakeClawApi(
+        wallet.publicKey.toBase58(),
+        "unstake",
+        amount
+      );
+      setStaked(Number(r.stakedClaw ?? 0));
+      setTier(String(r.tier ?? "Standard"));
+      setFee(Number(r.feeMultiplier ?? 1));
+      setVip(Boolean(r.vip));
+      setMsg(
+        `Unstake request ${amount} · payout ${r.payoutStatus ?? "pending"} · ${r.tier}`
+      );
+      await refresh();
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "Unstake failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <main
@@ -95,9 +159,8 @@ export default function StakePage() {
           STAKE $FIATCLAW
         </h1>
         <p style={{ color: "#9BA1AE", fontSize: 14, lineHeight: 1.6 }}>
-          Staking reduces play fees and unlocks VIP. It does{" "}
-          <strong>not</strong> change win probability or prize weights
-          (server WIN_PROBABILITY stays 0.2).
+          Stake via on-chain SOL payment to treasury. VIP fee discount only —
+          does <strong>not</strong> change win probability (server 0.2).
         </p>
 
         <div
@@ -150,54 +213,74 @@ export default function StakePage() {
 
         <div
           style={{
-            margin: "20px 0",
+            margin: "16px 0",
             padding: 14,
             borderRadius: 12,
-            border: "1px solid rgba(255,62,92,0.35)",
-            background: "rgba(255,62,92,0.06)",
-            fontSize: 13,
+            border: "1px solid rgba(34,211,255,0.25)",
+            background: "rgba(34,211,255,0.05)",
+            fontSize: 12,
             color: "#9BA1AE",
             lineHeight: 1.5,
           }}
-          data-stake-phase="1"
+          data-stake-phase="2"
         >
-          <strong style={{ color: "#FF3E5C" }}>Phase 1</strong> — stake status is
-          server-owned. Stake/Unstake credit requires an on-chain transaction
-          (Phase 2). You cannot set stake by posting an amount from the client.
+          <strong style={{ color: "#22D3FF" }}>Phase 2</strong> — Stake sends
+          SOL to treasury; server verifies tx then credits. Replay protected.
+          Unstake is a request (no free claw mint / no browser keys).
         </div>
 
-        <div style={{ display: "flex", gap: 8, margin: "16px 0", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, margin: "16px 0", flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="number"
+            min={1}
+            value={amount}
+            data-stake-input="amount"
+            onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #333",
+              background: "#0e1016",
+              color: "#fff",
+              width: 120,
+            }}
+          />
+          <span style={{ fontSize: 12, color: "#5c6478" }}>≈ {estSol} SOL</span>
           <button
             type="button"
             data-stake-action="stake"
-            disabled
-            title="Phase 2: on-chain tx required"
+            disabled={busy || !wallet.connected}
+            onClick={() => onStake()}
             style={{
               padding: "10px 16px",
               borderRadius: 8,
-              background: "#3a1520",
+              background: busy || !wallet.connected ? "#3a1520" : "#FF3E5C",
               border: "none",
-              color: "#6a4a52",
-              cursor: "not-allowed",
+              color: "#fff",
+              cursor: busy || !wallet.connected ? "not-allowed" : "pointer",
             }}
           >
-            Stake (Phase 2)
+            Stake (SOL tx)
           </button>
           <button
             type="button"
             data-stake-action="unstake"
-            disabled
-            title="Phase 2: controlled unstake"
+            disabled={busy || !wallet.connected || staked < 1}
+            onClick={() => onUnstake()}
             style={{
               padding: "10px 16px",
               borderRadius: 8,
-              background: "#121820",
-              border: "1px solid #2a4050",
-              color: "#4a7080",
-              cursor: "not-allowed",
+              background: "#1a3040",
+              border: "1px solid #22D3FF",
+              color: "#22D3FF",
+              cursor:
+                busy || !wallet.connected || staked < 1
+                  ? "not-allowed"
+                  : "pointer",
+              opacity: busy || !wallet.connected || staked < 1 ? 0.5 : 1,
             }}
           >
-            Unstake (Phase 2)
+            Unstake request
           </button>
           <button
             type="button"
@@ -211,7 +294,7 @@ export default function StakePage() {
               cursor: "pointer",
             }}
           >
-            Refresh status
+            Refresh
           </button>
         </div>
         {msg && (
@@ -227,7 +310,7 @@ export default function StakePage() {
             marginTop: 32,
           }}
         >
-          REWARD TIERS (SERVER TABLE)
+          REWARD TIERS (SERVER)
         </h2>
         <ul style={{ listStyle: "none", padding: 0 }} data-stake-tiers>
           {(tiers.length

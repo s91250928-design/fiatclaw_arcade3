@@ -36,6 +36,30 @@ export function feeMultiplierForStake(stakedClaw: number): number {
   return tierForStake(stakedClaw).feeMultiplier;
 }
 
+// ── SOL pricing for on-chain stake (server-only) ─────────────────────────
+/**
+ * Lamports required per stake unit (server config).
+ * Client may estimate; server re-checks after getTransaction.
+ * Override with STAKE_LAMPORTS_PER_UNIT env on server only (not trusted from client).
+ */
+export const STAKE_LAMPORTS_PER_UNIT = Math.max(
+  1,
+  Number(
+    typeof process !== "undefined" && process.env?.STAKE_LAMPORTS_PER_UNIT
+      ? process.env.STAKE_LAMPORTS_PER_UNIT
+      : "10000"
+  ) || 10_000
+);
+
+export const MIN_STAKE_AMOUNT = 1;
+export const MAX_STAKE_AMOUNT = 10_000_000;
+
+/** Server-authoritative SOL cost for staking `amount` units. */
+export function solLamportsForStakeAmount(amount: number): bigint {
+  if (!Number.isInteger(amount) || amount < MIN_STAKE_AMOUNT) return 0n;
+  return BigInt(amount) * BigInt(STAKE_LAMPORTS_PER_UNIT);
+}
+
 /** Public stake status snapshot — always derived from server staked amount. */
 export type StakeStatusView = {
   wallet: string;
@@ -45,16 +69,19 @@ export type StakeStatusView = {
   vip: boolean;
   feeMultiplier: number;
   updated_at: string;
-  /** Phase 1: on-chain credit not enabled */
-  stakeCreditEnabled: false;
+  /** Phase 2: on-chain stake credit enabled when treasury configured */
+  stakeCreditEnabled: boolean;
   /** Explicit product rule for clients */
   affectsWinProbability: false;
+  /** Lamports per stake unit (server) for client estimate */
+  stakeLamportsPerUnit: number;
 };
 
 export function buildStakeStatus(
   wallet: string,
   stakedClaw: number,
-  updatedAt: string
+  updatedAt: string,
+  opts?: { stakeCreditEnabled?: boolean }
 ): StakeStatusView {
   const staked = Math.max(0, Math.floor(Number(stakedClaw) || 0));
   const tier = tierForStake(staked);
@@ -66,12 +93,13 @@ export function buildStakeStatus(
     vip: tier.vip,
     feeMultiplier: tier.feeMultiplier,
     updated_at: updatedAt,
-    stakeCreditEnabled: false,
+    stakeCreditEnabled: opts?.stakeCreditEnabled ?? true,
     affectsWinProbability: false,
+    stakeLamportsPerUnit: STAKE_LAMPORTS_PER_UNIT,
   };
 }
 
-// ── Public API mutation policy (Phase 1 anti-spoof) ─────────────────────
+// ── Public API mutation policy (Phase 1 anti-spoof + Phase 2 gates) ─────
 
 export type StakeMutationAction = "stake" | "unstake";
 
@@ -90,29 +118,34 @@ export type StakeMutationDecision =
   | {
       ok: false;
       error: string;
-      /** True if body tried to set absolute staked balance */
       spoofAttempt: boolean;
       wouldCredit: false;
+      needsOnChainVerify: false;
+      isUnstakeRequest: false;
     }
   | {
       ok: true;
       wallet: string;
       action: StakeMutationAction;
-      /** Requested amount if valid integer — informational only in Phase 1 */
-      requestedAmount: number | null;
+      requestedAmount: number;
       txSignature: string | null;
       /**
-       * Phase 1: always false. Phase 2 may set true after on-chain verify.
+       * Stake credit candidate — only after on-chain verify (Phase 2).
        * Never true from amount alone.
        */
-      wouldCredit: false;
+      wouldCredit: boolean;
+      needsOnChainVerify: boolean;
+      /** Unstake request (no free claw mint) */
+      isUnstakeRequest: boolean;
       reason: string;
     };
 
 /**
- * Decide whether a POST body may credit stake.
- * Phase 1: never credits. Rejects absolute stakedAmount spoofs.
- * amount alone is never authority to change staked balance.
+ * Parse/validate stake POST body (no RPC).
+ * - Rejects absolute stakedAmount spoofs
+ * - amount alone never credits
+ * - stake + amount + txSignature → candidate for on-chain credit (verify separately)
+ * - unstake + amount → unstake request path (no claw mint)
  */
 export function evaluateStakeMutationRequest(
   body: StakeMutationBody | null | undefined
@@ -123,10 +156,11 @@ export function evaluateStakeMutationRequest(
       error: "invalid body",
       spoofAttempt: false,
       wouldCredit: false,
+      needsOnChainVerify: false,
+      isUnstakeRequest: false,
     };
   }
 
-  // Absolute balance spoof — never accept
   if (
     body.stakedAmount !== undefined ||
     body.staked_amount !== undefined ||
@@ -138,6 +172,8 @@ export function evaluateStakeMutationRequest(
         "stakedAmount/stakedClaw cannot be set by client — stake is server-owned",
       spoofAttempt: true,
       wouldCredit: false,
+      needsOnChainVerify: false,
+      isUnstakeRequest: false,
     };
   }
 
@@ -148,6 +184,8 @@ export function evaluateStakeMutationRequest(
       error: "wallet required",
       spoofAttempt: false,
       wouldCredit: false,
+      needsOnChainVerify: false,
+      isUnstakeRequest: false,
     };
   }
 
@@ -158,21 +196,22 @@ export function evaluateStakeMutationRequest(
       error: "action must be stake or unstake",
       spoofAttempt: false,
       wouldCredit: false,
+      needsOnChainVerify: false,
+      isUnstakeRequest: false,
     };
   }
 
-  let requestedAmount: number | null = null;
-  if (body.amount !== undefined && body.amount !== null && body.amount !== "") {
-    const amt = typeof body.amount === "number" ? body.amount : Number(body.amount);
-    if (!Number.isInteger(amt) || amt < 1) {
-      return {
-        ok: false,
-        error: "amount must be positive integer when provided",
-        spoofAttempt: false,
-        wouldCredit: false,
-      };
-    }
-    requestedAmount = amt;
+  const amtRaw = body.amount;
+  const amt = typeof amtRaw === "number" ? amtRaw : Number(amtRaw);
+  if (!Number.isInteger(amt) || amt < MIN_STAKE_AMOUNT || amt > MAX_STAKE_AMOUNT) {
+    return {
+      ok: false,
+      error: `amount must be integer ${MIN_STAKE_AMOUNT}–${MAX_STAKE_AMOUNT}`,
+      spoofAttempt: false,
+      wouldCredit: false,
+      needsOnChainVerify: false,
+      isUnstakeRequest: false,
+    };
   }
 
   const txRaw = body.txSignature ?? body.signature;
@@ -181,37 +220,77 @@ export function evaluateStakeMutationRequest(
       ? txRaw.trim()
       : null;
 
-  // Phase 1: never credit. Phase 2 will verify txSignature on-chain first.
-  if (!txSignature) {
+  if (action === "stake") {
+    if (!txSignature) {
+      return {
+        ok: true,
+        wallet,
+        action,
+        requestedAmount: amt,
+        txSignature: null,
+        wouldCredit: false,
+        needsOnChainVerify: false,
+        isUnstakeRequest: false,
+        reason:
+          "stake credit requires on-chain txSignature — amount alone cannot credit stake",
+      };
+    }
     return {
       ok: true,
       wallet,
       action,
-      requestedAmount,
-      txSignature: null,
-      wouldCredit: false,
-      reason:
-        "Phase 1: stake credit requires on-chain tx (Phase 2). amount alone cannot credit stake.",
+      requestedAmount: amt,
+      txSignature,
+      wouldCredit: true, // only after verifySolPayment succeeds
+      needsOnChainVerify: true,
+      isUnstakeRequest: false,
+      reason: "stake candidate — credit only after treasury payment verified",
     };
   }
 
+  // unstake: request path (reduce staked, no claw mint, no free payout)
   return {
     ok: true,
     wallet,
     action,
-    requestedAmount,
+    requestedAmount: amt,
     txSignature,
     wouldCredit: false,
+    needsOnChainVerify: false,
+    isUnstakeRequest: true,
     reason:
-      "Phase 1: tx verification not enabled yet — signature accepted as intent only, no credit.",
+      "unstake request — decreases staked (VIP) without minting claw; payout is separate service",
   };
 }
 
-/** True if a mutation decision would change staked balance (Phase 1 always false). */
+/** True if decision is a stake credit candidate (still needs on-chain verify). */
 export function mutationWouldCreditStake(
   decision: StakeMutationDecision
 ): boolean {
   return decision.ok === true && decision.wouldCredit === true;
+}
+
+/** Pure gate: credit only when verify ok + unique signature + amount valid. */
+export function canCreditStakeFromPayment(opts: {
+  verifyOk: boolean;
+  signatureUnused: boolean;
+  amount: number;
+  receivedLamports: bigint;
+}): { ok: true } | { ok: false; error: string } {
+  if (!opts.verifyOk) return { ok: false, error: "payment verification failed" };
+  if (!opts.signatureUnused) return { ok: false, error: "payment already used" };
+  if (
+    !Number.isInteger(opts.amount) ||
+    opts.amount < MIN_STAKE_AMOUNT ||
+    opts.amount > MAX_STAKE_AMOUNT
+  ) {
+    return { ok: false, error: "invalid stake amount" };
+  }
+  const required = solLamportsForStakeAmount(opts.amount);
+  if (opts.receivedLamports < required) {
+    return { ok: false, error: "insufficient payment amount for stake" };
+  }
+  return { ok: true };
 }
 
 export type StakeOpResult =

@@ -11,7 +11,9 @@ import {
   buyPlaysSol,
   faucetClaw,
   fetchPlayerState,
+  fetchStakeStatus,
   stakeClawApi,
+  stakeWithSol,
 } from "@/lib/pay";
 
 export type ArcadeStatus =
@@ -40,6 +42,7 @@ export function useArcadePlayer() {
   const [clawPrice, setClawPrice] = useState(500);
   const [buyCount, setBuyCount] = useState(1);
   const [stakeAmt, setStakeAmt] = useState(1000);
+  const [stakeLamportsPerUnit, setStakeLamportsPerUnit] = useState(10_000);
 
   const refreshState = useCallback(async () => {
     if (!wallet.publicKey) return;
@@ -62,6 +65,20 @@ export function useArcadePlayer() {
         setJackpot(String(data.jackpotBalanceLamports ?? "0"));
         setPriceLamports(Number(data.priceLamports ?? 50_000_000));
         setClawPrice(Number(data.clawPrice ?? 500));
+      }
+      try {
+        const st = await fetchStakeStatus(addr);
+        if (st?.ok && typeof st.stakeLamportsPerUnit === "number") {
+          setStakeLamportsPerUnit(st.stakeLamportsPerUnit);
+        }
+        if (st?.ok && st.stakedClaw != null) {
+          setStakedClaw(Number(st.stakedClaw));
+          setFeeMultiplier(Number(st.feeMultiplier ?? 1));
+          setTier(String(st.tier ?? "Standard"));
+          setVip(Boolean(st.vip));
+        }
+      } catch {
+        /* ignore */
       }
     } catch {
       /* ignore */
@@ -143,38 +160,46 @@ export function useArcadePlayer() {
   }, [wallet.publicKey]);
 
   /**
-   * Phase 1: stake credit disabled (amount alone cannot raise staked).
-   * Calls API only to surface server message; refreshes status from server.
+   * Phase 2: stake = SOL to treasury + server verify; unstake = request (no mint).
    */
   const onStake = useCallback(
     async (action: "stake" | "unstake") => {
       if (!wallet.publicKey) return;
       try {
+        if (action === "stake") {
+          setMessage("Confirm SOL stake payment…");
+          // Prefer server unit price
+          let unit = stakeLamportsPerUnit;
+          try {
+            const st = await fetchStakeStatus(wallet.publicKey.toBase58());
+            if (st?.stakeLamportsPerUnit) unit = st.stakeLamportsPerUnit;
+          } catch {
+            /* use local */
+          }
+          const r = await stakeWithSol(wallet, stakeAmt, unit);
+          await refreshState();
+          setMessage(
+            r.credited
+              ? `Staked +${stakeAmt} · ${r.tier} · fee ${Math.round(Number(r.feeMultiplier) * 100)}%`
+              : String(r.reason ?? "Stake not credited")
+          );
+          return;
+        }
         const r = await stakeClawApi(
           wallet.publicKey.toBase58(),
-          action,
+          "unstake",
           stakeAmt
         );
-        // Server never credits in Phase 1 — refresh authoritative status
         await refreshState();
-        if (r.credited === false) {
-          setMessage(
-            r.reason ??
-              "Phase 1: stake credit requires on-chain tx (coming in Phase 2)."
-          );
-        } else {
-          setMessage(
-            action === "stake"
-              ? `Staked ${stakeAmt} $CLAW · ${r.tier}`
-              : `Unstaked ${stakeAmt} $CLAW · ${r.tier}`
-          );
-        }
+        setMessage(
+          `Unstake request ${stakeAmt} · ${r.tier} · payout ${r.payoutStatus ?? "pending"}`
+        );
       } catch (e: unknown) {
         setMessage(e instanceof Error ? e.message : "Stake failed");
         setStatus("error");
       }
     },
-    [wallet.publicKey, stakeAmt, refreshState]
+    [wallet, stakeAmt, stakeLamportsPerUnit, refreshState]
   );
 
   const jackpotSol = (() => {

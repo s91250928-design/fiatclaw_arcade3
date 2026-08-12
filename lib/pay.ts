@@ -228,6 +228,7 @@ export type StakeStatusResponse = {
   }>;
   affectsWinProbability?: boolean;
   stakeCreditEnabled?: boolean;
+  stakeLamportsPerUnit?: number;
 };
 
 export async function fetchStakeStatus(
@@ -250,8 +251,49 @@ export async function faucetClaw(wallet: string, amount = 5000) {
 }
 
 /**
- * Phase 1: posts stake intent only — server never credits from amount.
- * Phase 2 will require txSignature and on-chain verify before credit.
+ * Pay SOL to treasury for stake units (server re-checks amount).
+ * Returns tx signature for POST /api/stake.
+ */
+export async function paySolForStake(
+  wallet: WalletContextState,
+  amount: number,
+  lamportsPerUnit: number
+): Promise<string> {
+  if (!wallet.publicKey || !wallet.sendTransaction) {
+    throw new Error("Wallet not connected");
+  }
+  if (!TREASURY) throw new Error("Treasury not configured");
+  if (!Number.isInteger(amount) || amount < 1) {
+    throw new Error("Invalid stake amount");
+  }
+  const unit = BigInt(Math.max(1, lamportsPerUnit));
+  const lamports = unit * BigInt(amount);
+
+  const conn = connection();
+  const tx = new Transaction().add(
+    SystemProgram.transfer({
+      fromPubkey: wallet.publicKey,
+      toPubkey: new PublicKey(TREASURY),
+      lamports: Number(lamports),
+    })
+  );
+
+  const { blockhash, lastValidBlockHeight } =
+    await conn.getLatestBlockhash("finalized");
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = wallet.publicKey;
+
+  const sig = await wallet.sendTransaction(tx, conn);
+  await conn.confirmTransaction(
+    { signature: sig, blockhash, lastValidBlockHeight },
+    "confirmed"
+  );
+  return sig;
+}
+
+/**
+ * Phase 2 stake: optional txSignature for credit; amount alone never credits.
+ * Unstake: server request (no claw mint).
  */
 export async function stakeClawApi(
   wallet: string,
@@ -269,10 +311,27 @@ export async function stakeClawApi(
       ...(txSignature ? { txSignature } : {}),
     }),
   });
-  const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
+  const data = await res
+    .json()
+    .catch(() => ({ ok: false, error: "bad response" }));
   if (!res.ok || !data.ok) throw new Error(data.error ?? "Stake failed");
-  // Phase 1 responses have credited: false
   return data;
+}
+
+/** Full client stake flow: pay SOL → POST signature → server credits. */
+export async function stakeWithSol(
+  wallet: WalletContextState,
+  amount: number,
+  lamportsPerUnit: number
+) {
+  if (!wallet.publicKey) throw new Error("Wallet not connected");
+  const signature = await paySolForStake(wallet, amount, lamportsPerUnit);
+  return stakeClawApi(
+    wallet.publicKey.toBase58(),
+    "stake",
+    amount,
+    signature
+  );
 }
 
 export async function getSolBalance(publicKey: PublicKey): Promise<number> {

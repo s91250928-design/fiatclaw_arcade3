@@ -27,6 +27,7 @@ import {
 import { secureRandom } from "./rng";
 import {
   buildStakeStatus,
+  canCreditStakeFromPayment,
   feeMultiplierForStake,
   stakeClaw,
   tierForStake,
@@ -150,7 +151,14 @@ export class GameStore {
   /** Server-owned stake status only — never from client body totals. */
   getStakeStatus(wallet: string): StakeStatusView {
     const p = this.ensurePlayer(wallet);
-    return buildStakeStatus(p.wallet, p.stakedClaw, p.updatedAt);
+    return buildStakeStatus(p.wallet, p.stakedClaw, p.updatedAt, {
+      stakeCreditEnabled: true,
+    });
+  }
+
+  /** Whether a stake/buy signature was already consumed (replay guard). */
+  isSignatureUsed(signature: string): boolean {
+    return this.consumedSignatures.has(signature);
   }
 
   /** Credit plays after verified SOL payment (signature anti-replay). */
@@ -404,8 +412,7 @@ export class GameStore {
   }
 
   /**
-   * Phase 1: record a non-crediting stake intent (optional audit).
-   * Never changes stakedClaw.
+   * Record a non-crediting stake intent (audit). Never changes stakedClaw.
    */
   recordStakeIntent(opts: {
     wallet: string;
@@ -435,6 +442,105 @@ export class GameStore {
       credited: false as const,
       stakedClaw: p.stakedClaw,
       status: this.getStakeStatus(opts.wallet),
+    };
+  }
+
+  /**
+   * Phase 2: credit stake only after on-chain verify + unused signature.
+   * Does NOT debit clawBalance — value is SOL paid to treasury.
+   * Never trusts client stakedAmount; only server `amount` after canCreditStakeFromPayment.
+   */
+  creditStakeFromVerifiedTx(opts: {
+    wallet: string;
+    amount: number;
+    signature: string;
+    receivedLamports: bigint;
+  }) {
+    const gate = canCreditStakeFromPayment({
+      verifyOk: true,
+      signatureUnused: !this.consumedSignatures.has(opts.signature),
+      amount: opts.amount,
+      receivedLamports: opts.receivedLamports,
+    });
+    if (!gate.ok) {
+      return { ok: false as const, error: gate.error };
+    }
+
+    const p = this.ensurePlayer(opts.wallet);
+    p.stakedClaw += opts.amount;
+    p.updatedAt = new Date().toISOString();
+    this.consumedSignatures.add(opts.signature);
+
+    const tier = tierForStake(p.stakedClaw);
+    this.transactions.push({
+      id: uid("tx"),
+      wallet: opts.wallet,
+      type: "stake",
+      amount: opts.amount,
+      asset: "SOL",
+      meta: {
+        phase: 2,
+        credited: true,
+        signature: opts.signature,
+        receivedLamports: String(opts.receivedLamports),
+        stakedClaw: p.stakedClaw,
+      },
+      createdAt: p.updatedAt,
+    });
+
+    return {
+      ok: true as const,
+      credited: true as const,
+      stakedClaw: p.stakedClaw,
+      tier: tier.label,
+      vip: tier.vip,
+      feeMultiplier: tier.feeMultiplier,
+      updated_at: p.updatedAt,
+      clawBalance: p.clawBalance,
+    };
+  }
+
+  /**
+   * Phase 2 unstake request: reduce staked (VIP drops), do NOT mint claw.
+   * Payout to user is a separate offline/service step (no treasury keys in browser).
+   */
+  requestUnstake(wallet: string, amount: number) {
+    if (!Number.isInteger(amount) || amount < 1) {
+      return { ok: false as const, error: "amount must be positive integer" };
+    }
+    const p = this.ensurePlayer(wallet);
+    if (p.stakedClaw < amount) {
+      return { ok: false as const, error: "insufficient staked amount" };
+    }
+    p.stakedClaw -= amount;
+    p.updatedAt = new Date().toISOString();
+    const tier = tierForStake(p.stakedClaw);
+    this.transactions.push({
+      id: uid("tx"),
+      wallet,
+      type: "unstake",
+      amount,
+      asset: "CLAW",
+      meta: {
+        phase: 2,
+        credited: false,
+        clawMinted: false,
+        payout: "pending_service",
+        stakedClaw: p.stakedClaw,
+      },
+      createdAt: p.updatedAt,
+    });
+    return {
+      ok: true as const,
+      credited: false as const,
+      unstaked: amount,
+      stakedClaw: p.stakedClaw,
+      tier: tier.label,
+      vip: tier.vip,
+      feeMultiplier: tier.feeMultiplier,
+      updated_at: p.updatedAt,
+      clawBalance: p.clawBalance,
+      payoutStatus: "pending_service" as const,
     };
   }
 

@@ -1,19 +1,25 @@
 /**
- * Stake status + mutation API (Phase 1).
+ * Stake status + mutation API (Phase 2).
  *
- * GET  ?wallet=…  → server-owned stake status (staked, tier, fee, updated_at)
- * POST body       → never credits stake from amount / stakedAmount alone
+ * GET  ?wallet=… → server stake status (staked, tier, fee, updated_at)
+ * POST stake     → wallet + amount + txSignature → verify SOL to treasury → credit
+ * POST unstake   → wallet + amount → request (reduce staked, no claw mint)
  *
- * Staking never mutates WIN_PROBABILITY (see lib/game/staking.ts, prizes.ts).
+ * Never: body.stakedAmount → save. Never credit from amount alone.
+ * Staking never mutates WIN_PROBABILITY.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getGameStore, STAKE_TIERS } from "@/lib/game";
+import {
+  getGameStore,
+  STAKE_TIERS,
+  solLamportsForStakeAmount,
+} from "@/lib/game";
 import {
   evaluateStakeMutationRequest,
-  mutationWouldCreditStake,
   type StakeMutationBody,
 } from "@/lib/game/staking";
+import { verifySolPayment } from "@/lib/verify-payment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +31,6 @@ function bad(msg: string, code = 400, extra?: Record<string, unknown>) {
   );
 }
 
-/** Server stake status — wallet from query only, never from forged body totals. */
 export async function GET(req: NextRequest) {
   const wallet = req.nextUrl.searchParams.get("wallet");
   if (!wallet || wallet.length < 32) {
@@ -45,10 +50,6 @@ export async function GET(req: NextRequest) {
   });
 }
 
-/**
- * Phase 1 POST: reject spoof fields; never credit from amount.
- * Optional intent is logged without changing staked_amount.
- */
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as StakeMutationBody | null;
   const decision = evaluateStakeMutationRequest(body);
@@ -60,46 +61,115 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Defense in depth — Phase 1 never credits
-  if (mutationWouldCreditStake(decision)) {
-    return bad("stake credit denied", 403, { wouldCredit: false });
+  const store = getGameStore();
+
+  // ── Unstake request (no free claw mint) ─────────────────────────────
+  if (decision.isUnstakeRequest) {
+    const r = store.requestUnstake(decision.wallet, decision.requestedAmount);
+    if (!r.ok) return bad(r.error);
+    return NextResponse.json({
+      ok: true,
+      action: "unstake",
+      credited: false,
+      clawMinted: false,
+      unstaked: r.unstaked,
+      stakedClaw: r.stakedClaw,
+      staked_amount: r.stakedClaw,
+      tier: r.tier,
+      vip: r.vip,
+      feeMultiplier: r.feeMultiplier,
+      updated_at: r.updated_at,
+      clawBalance: r.clawBalance,
+      payoutStatus: r.payoutStatus,
+      affectsWinProbability: false,
+      phase: 2,
+    });
   }
 
-  const store = getGameStore();
-  const before = store.getStakeStatus(decision.wallet);
+  // ── Stake without signature: no credit ──────────────────────────────
+  if (!decision.needsOnChainVerify || !decision.txSignature) {
+    const before = store.getStakeStatus(decision.wallet);
+    store.recordStakeIntent({
+      wallet: decision.wallet,
+      action: "stake",
+      requestedAmount: decision.requestedAmount,
+      txSignature: null,
+      note: decision.reason,
+    });
+    const after = store.getStakeStatus(decision.wallet);
+    if (after.stakedClaw !== before.stakedClaw) {
+      return bad("internal error: unexpected stake change", 500);
+    }
+    return NextResponse.json({
+      ok: true,
+      credited: false,
+      action: "stake",
+      reason: decision.reason,
+      stakedClaw: after.stakedClaw,
+      staked_amount: after.staked_amount,
+      tier: after.tier,
+      vip: after.vip,
+      feeMultiplier: after.feeMultiplier,
+      updated_at: after.updated_at,
+      clawBalance: store.ensurePlayer(decision.wallet).clawBalance,
+      affectsWinProbability: false,
+      phase: 2,
+      stakeLamportsPerUnit: after.stakeLamportsPerUnit,
+    });
+  }
 
-  const recorded = store.recordStakeIntent({
+  // ── Stake with txSignature: verify on-chain then credit ─────────────
+  const minLamports = solLamportsForStakeAmount(decision.requestedAmount);
+  if (minLamports <= 0n) {
+    return bad("invalid stake amount");
+  }
+
+  if (store.isSignatureUsed(decision.txSignature)) {
+    return bad("payment already used", 409);
+  }
+
+  const verified = await verifySolPayment({
     wallet: decision.wallet,
-    action: decision.action,
-    requestedAmount: decision.requestedAmount,
-    txSignature: decision.txSignature,
-    note: decision.reason,
+    signature: decision.txSignature,
+    minLamports,
   });
 
-  const after = store.getStakeStatus(decision.wallet);
+  if (!verified.ok) {
+    store.recordStakeIntent({
+      wallet: decision.wallet,
+      action: "stake",
+      requestedAmount: decision.requestedAmount,
+      txSignature: decision.txSignature,
+      note: `verify failed: ${verified.error}`,
+    });
+    return bad(verified.error, verified.status ?? 400);
+  }
 
-  // Prove no credit: staked must be unchanged
-  if (after.stakedClaw !== before.stakedClaw) {
-    return bad("internal error: unexpected stake change", 500);
+  const credited = store.creditStakeFromVerifiedTx({
+    wallet: decision.wallet,
+    amount: decision.requestedAmount,
+    signature: decision.txSignature,
+    receivedLamports: verified.receivedLamports,
+  });
+
+  if (!credited.ok) {
+    return bad(credited.error, credited.error.includes("already") ? 409 : 400);
   }
 
   return NextResponse.json({
     ok: true,
-    credited: false,
-    action: decision.action,
-    requestedAmount: decision.requestedAmount,
-    txSignature: decision.txSignature,
-    reason: decision.reason,
-    phase: 1,
-    // Server status after no-op credit
-    stakedClaw: after.stakedClaw,
-    staked_amount: after.staked_amount,
-    tier: after.tier,
-    vip: after.vip,
-    feeMultiplier: after.feeMultiplier,
-    updated_at: after.updated_at,
-    clawBalance: store.ensurePlayer(decision.wallet).clawBalance,
+    action: "stake",
+    credited: true,
+    stakedClaw: credited.stakedClaw,
+    staked_amount: credited.stakedClaw,
+    tier: credited.tier,
+    vip: credited.vip,
+    feeMultiplier: credited.feeMultiplier,
+    updated_at: credited.updated_at,
+    clawBalance: credited.clawBalance,
+    receivedLamports: String(verified.receivedLamports),
+    minLamportsRequired: String(minLamports),
     affectsWinProbability: false,
-    intentRecorded: recorded.ok,
+    phase: 2,
   });
 }

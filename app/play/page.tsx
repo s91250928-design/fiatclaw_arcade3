@@ -309,26 +309,51 @@ export default function ArcadeLobbyPage() {
                 {p.vip ? " VIP" : ""} · fee {Math.round(p.feeMultiplier * 100)}%
               </p>
               <p style={{ ...label, marginTop: 8, color: MUTED, fontSize: 10 }}>
-                Phase 1: status from server. On-chain stake credit in Phase 2.
+                Stake = SOL to treasury (verified). Unstake = request, no free mint.
               </p>
+              <input
+                type="number"
+                min={100}
+                step={100}
+                value={p.stakeAmt}
+                data-stake-input="amount"
+                onChange={(e) =>
+                  p.setStakeAmt(Math.max(1, Number(e.target.value) || 0))
+                }
+                style={{
+                  width: "100%",
+                  marginTop: 10,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(34,211,255,0.25)",
+                  background: "rgba(4,6,10,0.9)",
+                  color: "#EDEEF2",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontSize: 13,
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button
                   type="button"
                   data-stake-action="stake"
-                  disabled
-                  title="Phase 2: on-chain tx required"
-                  style={ctaStyle(true)}
+                  disabled={!p.wallet.connected}
+                  onClick={() => p.onStake("stake")}
+                  style={ctaStyle(!p.wallet.connected)}
                 >
-                  STAKE (P2)
+                  STAKE
                 </button>
                 <button
                   type="button"
                   data-stake-action="unstake"
-                  disabled
-                  title="Phase 2: controlled unstake"
-                  style={ctaGhostStyle(true)}
+                  disabled={!p.wallet.connected || p.stakedClaw < 1}
+                  onClick={() => p.onStake("unstake")}
+                  style={ctaGhostStyle(
+                    !p.wallet.connected || p.stakedClaw < 1
+                  )}
                 >
-                  UNSTAKE (P2)
+                  UNSTAKE
                 </button>
               </div>
               <Link
