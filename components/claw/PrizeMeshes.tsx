@@ -34,8 +34,11 @@ function PrizeBillboard({
     map.needsUpdate = true;
   }, [map]);
 
-  /** Larger billboards so coins/boxes read clearly in the dense etalon mound. */
-  const s = 0.56 * scale;
+  /**
+   * Readable emblem size at vault camera — high-contrast /refs textures.
+   * depthWrite keeps stack order so faces don't wash into neon rings.
+   */
+  const s = 0.72 * scale;
   return (
     <Billboard follow lockX={false} lockY={false} lockZ={false}>
       <mesh renderOrder={1}>
@@ -43,10 +46,11 @@ function PrizeBillboard({
         <meshBasicMaterial
           map={map}
           transparent
-          alphaTest={0.08}
+          alphaTest={0.12}
           side={THREE.DoubleSide}
-          depthWrite={false}
+          depthWrite
           toneMapped={false}
+          color="#ffffff"
         />
       </mesh>
     </Billboard>
