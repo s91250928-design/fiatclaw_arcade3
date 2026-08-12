@@ -1028,7 +1028,7 @@ test("visual pile is dense FIATCLAW + crystal + SOL billboards, lower band", () 
 // ── Premium industrial machine structure ───────────────────────────────
 console.log("\n(j) premium industrial claw machine");
 
-test("ClawScene ships glass cylinder vault + single 3-blade industrial claw", () => {
+test("ClawScene ships industrial rect vault + single 3-blade claw", () => {
   const fs = require("node:fs") as typeof import("node:fs");
   const path = require("node:path") as typeof import("node:path");
   const scenePath = path.join(
@@ -1042,22 +1042,29 @@ test("ClawScene ships glass cylinder vault + single 3-blade industrial claw", ()
   );
   const src = fs.readFileSync(scenePath, "utf8");
   assert.ok(src.includes('CABINET_SHELL_MODE = "hollow-open-front"'));
-  assert.ok(src.includes("VaultShell") || src.includes("glass-cylinder"));
-  assert.ok(src.includes("meshPhysicalMaterial"), "glass cylinder body");
-  assert.ok(src.includes("cylinderGeometry"), "cylindrical chamber");
-  assert.ok(src.includes("CLAW_BLADES") || src.includes("fingers"));
+  assert.ok(src.includes("VaultShell"));
   assert.ok(
-    src.includes("claw-industrial") ||
-      src.includes("claw-sprite") ||
-      src.includes("ClawAssembly")
+    src.includes("industrial-rect-vault") || src.includes("reinforced-glass"),
+    "rectangular industrial vault shell"
   );
+  assert.ok(src.includes("meshPhysicalMaterial"), "glass panel material");
+  assert.ok(src.includes("GlassPanel") || src.includes("planeGeometry"), "flat glass panels");
+  // No arcade cylinder chamber as primary shell
+  assert.equal(
+    src.includes("glass-cylinder-vault") ||
+      src.includes('MACHINE_STYLE = "crypto-vault-glass-cylinder"'),
+    false,
+    "must not keep arcade glass-cylinder machine style"
+  );
+  assert.ok(src.includes("CLAW_BLADES") || src.includes("fingers"));
+  assert.ok(src.includes("ClawAssembly"));
   const assemblies = src.match(/function ClawAssembly/g) || [];
   assert.equal(assemblies.length, 1, "one ClawAssembly definition");
   assert.ok(src.includes("<ClawAssembly"));
   assert.ok(src.includes("buildPrizePileLayout") || src.includes("PrizePile"));
   assert.ok(src.includes("InteriorFog") || src.includes("fog"));
   assert.ok(src.includes("solid-metal-3blade"), "solid metal 3-blade claw");
-  // Dark-neon lighting: no pure-white hero lights / white ceiling projector
+  // Dark-neon lighting: no pure-white hero lights
   assert.equal(
     src.includes('color="#ffffff"') || src.includes("color='#ffffff'"),
     false,
@@ -1066,21 +1073,21 @@ test("ClawScene ships glass cylinder vault + single 3-blade industrial claw", ()
   assert.equal(
     src.includes('emissive="#ffffff"') || src.includes("emissive='#ffffff'"),
     false,
-    "no pure-white emissive ceiling arc"
+    "no pure-white emissive"
   );
   assert.equal(src.includes("#fff0f4"), false, "no pink-white claw key light");
   assert.equal(src.includes("#f0f4ff"), false, "no white spotlight wash");
   assert.ok(src.includes("#FF3E5C") && src.includes("#22D3FF"), "red+cyan neon");
-  // Contained thin claw (not fat scale that pierces glass)
   assert.ok(
-    src.includes("inside-glass-cylinder") || src.includes("maxTravelX"),
+    src.includes("inside-glass-chamber") ||
+      src.includes("inside-glass-cylinder") ||
+      src.includes("maxTravelX"),
     "containment markers"
   );
-  // Thin finger capsules (radius ≤ 0.03) — not fat 0.06+ weight
   assert.ok(
     src.includes("capsuleGeometry args={[0.022") ||
       src.includes("capsuleGeometry args={[0.02"),
-    "thin finger capsules"
+    "finger capsules present"
   );
   assert.equal(src.includes("scale={2.05}"), false, "no oversize 2.05 claw scale");
   assert.equal(src.includes("boxGeometry args={[2.1"), false, "no wide rail piercing glass");

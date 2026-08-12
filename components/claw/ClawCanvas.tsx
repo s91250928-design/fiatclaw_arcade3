@@ -11,20 +11,20 @@ interface Props {
 }
 
 /**
- * Exterior-readable vault camera — front hero, slight elevation.
- * Premium industrial crypto vault framing (Mockup A).
+ * Full industrial vault camera — machine dominates the frame.
+ * Rectangular titanium vault (not arcade cylinder).
  */
 export default function ClawCanvas({ phase, clawX }: Props) {
   return (
     <div
       data-claw-webgl="r3f"
-      data-claw-style="crypto-vault-glass-cylinder"
+      data-claw-style="industrial-rect-vault"
       style={{
         position: "absolute",
         inset: 0,
         overflow: "hidden",
         background:
-          "radial-gradient(ellipse 72% 62% at 50% 42%, #1a0814 0%, #080a12 50%, #020306 100%)",
+          "radial-gradient(ellipse 70% 58% at 50% 40%, #140810 0%, #06080e 48%, #010204 100%)",
       }}
     >
       <Canvas
@@ -35,7 +35,7 @@ export default function ClawCanvas({ phase, clawX }: Props) {
           alpha: true,
           powerPreference: "high-performance",
         }}
-        camera={{ position: [0, 0.42, 6.85], fov: 33, near: 0.1, far: 60 }}
+        camera={{ position: [0, 0.28, 7.0], fov: 34, near: 0.1, far: 60 }}
         style={{ width: "100%", height: "100%" }}
       >
         <Suspense fallback={null}>

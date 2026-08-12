@@ -74,25 +74,28 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
    * Dense multi-layer mound — fewer larger sprites so emblems stay readable
    * at camera distance (not a sea of neon-ring edges).
    */
-  /** ~80 large readable sprites (dense but not ring soup). */
-  const count = 82;
+  /**
+   * Dense overflowing rectangular chamber mound.
+   * Soft packing across full floor footprint (not a sparse circle).
+   */
+  const count = 140;
 
   const pickKind = (): MoneyPrizeKind => {
     const r = rnd();
-    if (r < 0.4) return "fiatclaw_token";
-    if (r < 0.68) return "sol_token";
-    if (r < 0.76) return "crystal";
-    if (r < 0.88) return "nft_capsule";
-    if (r < 0.96) return "mystery_crate";
+    if (r < 0.38) return "fiatclaw_token";
+    if (r < 0.66) return "sol_token";
+    if (r < 0.74) return "crystal";
+    if (r < 0.86) return "nft_capsule";
+    if (r < 0.95) return "mystery_crate";
     return "jackpot_cube";
   };
 
-  // Landmark prizes (etalon center cluster)
+  // Landmark cluster near center
   out.push({
     kind: "jackpot_cube",
     rewardKind: "jackpot",
-    scale: 1.72,
-    position: [0, 0.28, 0.02],
+    scale: 1.65,
+    position: [0, 0.26, 0.02],
     seed: seed,
     bob: true,
     spin: false,
@@ -101,8 +104,8 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   out.push({
     kind: "nft_capsule",
     rewardKind: "mystery",
-    scale: 1.35,
-    position: [0.32, 0.2, -0.14],
+    scale: 1.28,
+    position: [0.38, 0.18, -0.18],
     seed: seed + 1,
     bob: true,
     spin: false,
@@ -111,8 +114,8 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   out.push({
     kind: "mystery_crate",
     rewardKind: "mystery",
-    scale: 1.3,
-    position: [-0.3, 0.19, 0.16],
+    scale: 1.25,
+    position: [-0.36, 0.17, 0.2],
     seed: seed + 2,
     bob: true,
     spin: false,
@@ -121,8 +124,8 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   out.push({
     kind: "sol_token",
     rewardKind: "sol",
-    scale: 1.45,
-    position: [0.18, 0.14, 0.28],
+    scale: 1.4,
+    position: [0.22, 0.12, 0.32],
     seed: seed + 3,
     bob: true,
     spin: false,
@@ -131,8 +134,8 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   out.push({
     kind: "fiatclaw_token",
     rewardKind: "claw",
-    scale: 1.5,
-    position: [-0.2, 0.14, -0.22],
+    scale: 1.42,
+    position: [-0.24, 0.12, -0.28],
     seed: seed + 4,
     bob: true,
     spin: false,
@@ -143,24 +146,24 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
   const cellKey = (x: number, z: number) =>
     `${Math.round(x * 8)},${Math.round(z * 8)}`;
 
+  // Rectangular floor footprint matching chamber (~1.2 x 0.95)
   for (let i = 5; i < count; i++) {
     const kind = pickKind();
-    const angle = rnd() * Math.PI * 2;
-    const radius = Math.sqrt(rnd()) * 1.15;
-    const x = Math.cos(angle) * radius + (rnd() - 0.5) * 0.04;
-    const z = Math.sin(angle) * radius * 0.88 + (rnd() - 0.5) * 0.04;
+    const x = (rnd() - 0.5) * 2.2 + (rnd() - 0.5) * 0.05;
+    const z = (rnd() - 0.5) * 1.7 + (rnd() - 0.5) * 0.05;
     const key = cellKey(x, z);
     const stack = cells.get(key) ?? 0;
     cells.set(key, stack + 1);
     const coinH =
       kind === "jackpot_cube"
-        ? 0.14
+        ? 0.13
         : kind === "nft_capsule" || kind === "mystery_crate"
-          ? 0.12
+          ? 0.11
           : kind === "crystal"
-            ? 0.1
-            : 0.075;
-    const centerBias = Math.max(0, 1 - radius / 1.15) * 0.1;
+            ? 0.09
+            : 0.07;
+    const dist = Math.sqrt(x * x + z * z);
+    const centerBias = Math.max(0, 1 - dist / 1.4) * 0.12;
     const y = 0.04 + stack * coinH + centerBias + rnd() * 0.02;
 
     out.push({
@@ -175,15 +178,15 @@ export function buildPrizePileLayout(seed = 42): PrizeVisualSpec[] {
               : "sol",
       scale:
         kind === "jackpot_cube"
-          ? 1.25 + rnd() * 0.25
+          ? 1.2 + rnd() * 0.28
           : kind === "nft_capsule" || kind === "mystery_crate"
-            ? 1.15 + rnd() * 0.28
+            ? 1.1 + rnd() * 0.3
             : kind === "crystal"
-              ? 1.0 + rnd() * 0.3
-              : 1.15 + rnd() * 0.35,
+              ? 0.95 + rnd() * 0.32
+              : 1.1 + rnd() * 0.38,
       position: [x, y, z],
       seed: i * 19 + seed,
-      bob: rnd() > 0.5,
+      bob: rnd() > 0.48,
       spin: false,
       texture: PRIZE_TEXTURES[kind] ?? PRIZE_TEXTURES.fiatclaw_token!,
     });
