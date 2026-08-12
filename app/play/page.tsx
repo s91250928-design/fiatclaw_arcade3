@@ -4,10 +4,12 @@
  * FiatClaw Arcade LOBBY (game lobby).
  * Responsive: 1 column <768px. Wallet: Phantom/Solflare via modal.
  * PLAY NOW opens /play/game when connected + plays > 0.
+ * Landing can open with ?connect=1 or #stake.
  */
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { useWalletUiError } from "@/components/SolanaProvider";
@@ -23,6 +25,7 @@ import {
   ctaStyle,
   ctaGhostStyle,
 } from "@/lib/arcade-ui";
+import { parseLobbyEntryFlags } from "@/lib/landing-cta";
 
 export default function ArcadeLobbyPage() {
   const router = useRouter();
@@ -30,6 +33,30 @@ export default function ArcadeLobbyPage() {
   const { error: walletError } = useWalletUiError();
   const p = useArcadePlayer();
   const busy = p.status === "buying";
+
+  // From landing: /play?connect=1 opens real wallet modal; #stake scrolls to stake panel
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const flags = parseLobbyEntryFlags({
+      search: window.location.search,
+      hash: window.location.hash,
+    });
+    if (flags.openConnect && !p.wallet.connected) {
+      openWalletModal(true);
+      try {
+        window.history.replaceState({}, "", "/play");
+      } catch {
+        /* ignore */
+      }
+    }
+    if (flags.scrollStake) {
+      requestAnimationFrame(() => {
+        document
+          .querySelector("[data-play-chrome='stake']")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [openWalletModal, p.wallet.connected]);
 
   const canEnterVault =
     p.wallet.connected && p.availablePlays > 0 && !busy;

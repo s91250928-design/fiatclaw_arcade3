@@ -1469,5 +1469,54 @@ test("WIN_PROBABILITY is 0.2 in code only; absent from lobby/game UI", () => {
   assert.ok(sessionSrc.includes("ClawMachine"), "game mounts ClawMachine");
 });
 
+// ── Landing CTAs → live Next routes ────────────────────────────────────
+console.log("\n(l) landing CTAs to live lobby");
+
+test("landing CTAs map to /play and /stake; no dead phantom stack", () => {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const root = path.join(__dirname, "..", "..", "..");
+  const landing = fs.readFileSync(
+    path.join(root, "public", "landing.html"),
+    "utf8"
+  );
+  assert.ok(
+    landing.includes('/play?connect=1') || landing.includes("/play?connect=1"),
+    "Connect CTA goes to /play?connect=1"
+  );
+  assert.ok(landing.includes('"/stake"') || landing.includes("/stake"), "Stake CTA → /stake");
+  assert.ok(landing.includes('"/play"') || landing.includes("/play"), "Play CTA → /play");
+  // No live connect() on static HTML phantom stack
+  assert.equal(
+    landing.includes("await p.connect()") ||
+      landing.includes("p.connect()"),
+    false,
+    "must not use broken static Phantom connect()"
+  );
+  const {
+    landingCtaHref,
+    parseLobbyEntryFlags,
+  } = require("../../landing-cta") as typeof import("../../landing-cta");
+  assert.equal(landingCtaHref("connect"), "/play?connect=1");
+  assert.equal(landingCtaHref("stake"), "/stake");
+  assert.equal(landingCtaHref("play"), "/play");
+  assert.deepEqual(parseLobbyEntryFlags({ search: "?connect=1", hash: "" }), {
+    openConnect: true,
+    scrollStake: false,
+  });
+  assert.deepEqual(parseLobbyEntryFlags({ search: "", hash: "#stake" }), {
+    openConnect: false,
+    scrollStake: true,
+  });
+  const lobbySrc = fs.readFileSync(
+    path.join(root, "app", "play", "page.tsx"),
+    "utf8"
+  );
+  assert.ok(
+    lobbySrc.includes("parseLobbyEntryFlags"),
+    "lobby handles landing connect query"
+  );
+});
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 if (failed > 0) process.exit(1);
