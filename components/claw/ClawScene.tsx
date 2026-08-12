@@ -53,7 +53,7 @@ function useSlipped(phase: ClawPhase) {
 
 /** Max X travel so claw stays inside glass radius (~1.55). */
 function mapClawX(pct: number) {
-  return ((Math.min(86, Math.max(14, pct)) - 50) / 36) * 0.48;
+  return ((Math.min(86, Math.max(14, pct)) - 50) / 36) * 0.42;
 }
 
 function targetClawY(phase: ClawPhase) {
@@ -113,6 +113,148 @@ function VaultSign({
         map={map}
         transparent
         alphaTest={0.05}
+        toneMapped={false}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
+/**
+ * Crown wordmark: FIATCLAW (red) + ARCADE (cyan) + hex claw emblem.
+ * Canvas-generated at runtime so we never depend on broken static PNGs.
+ */
+function FiatClawArcadeSign({
+  position,
+  rotation = [0, 0, 0],
+  width = 2.35,
+  height = 0.62,
+}: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  width?: number;
+  height?: number;
+}) {
+  const map = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const c = document.createElement("canvas");
+    c.width = 1024;
+    c.height = 280;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, c.width, c.height);
+
+    // dark plate
+    const plate = ctx.createLinearGradient(0, 20, 0, 260);
+    plate.addColorStop(0, "rgba(28,6,12,0.72)");
+    plate.addColorStop(1, "rgba(6,8,14,0.2)");
+    ctx.fillStyle = plate;
+    ctx.beginPath();
+    // roundRect may be missing in older engines — manual path
+    const x = 36,
+      y = 18,
+      w = 952,
+      h = 244,
+      r = 24;
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fill();
+
+    // Hex claw emblem
+    const cx = 118;
+    const cy = 140;
+    const R = 54;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i - Math.PI / 6;
+      const px = cx + Math.cos(a) * R;
+      const py = cy + Math.sin(a) * R;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "rgba(8,10,16,0.9)";
+    ctx.fill();
+    ctx.strokeStyle = RED;
+    ctx.lineWidth = 5;
+    ctx.shadowColor = RED;
+    ctx.shadowBlur = 22;
+    ctx.stroke();
+    // mini 3-blade
+    ctx.lineCap = "round";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy - 14, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    for (const o of [-0.55, 0, 0.55]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.sin(o) * 4, cy - 2);
+      ctx.quadraticCurveTo(
+        cx + Math.sin(o) * 28,
+        cy + 18,
+        cx + Math.sin(o) * 16,
+        cy + 40
+      );
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+
+    // FIATCLAW
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.font = "900 96px Impact, Arial Black, Arial, sans-serif";
+    ctx.shadowColor = RED;
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = RED;
+    ctx.fillText("FIATCLAW", 188, 118);
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = "#FF6B82";
+    ctx.fillText("FIATCLAW", 188, 118);
+
+    // ARCADE
+    ctx.font = "800 44px Arial, sans-serif";
+    ctx.shadowColor = CYAN;
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = CYAN;
+    ctx.fillText("A  R  C  A  D  E", 194, 190);
+    ctx.shadowBlur = 0;
+
+    // cyan under-line
+    ctx.strokeStyle = "rgba(34,211,255,0.7)";
+    ctx.lineWidth = 2;
+    ctx.shadowColor = CYAN;
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(194, 222);
+    ctx.lineTo(920, 222);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    tex.needsUpdate = true;
+    return tex;
+  }, []);
+
+  if (!map) return null;
+  return (
+    <mesh
+      position={position}
+      rotation={rotation}
+      renderOrder={3}
+      userData={{ signage: "FIATCLAW ARCADE" }}
+    >
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial
+        map={map}
+        transparent
+        alphaTest={0.04}
         toneMapped={false}
         side={THREE.DoubleSide}
         depthWrite={false}
@@ -315,41 +457,54 @@ function VaultShell() {
         />
       </mesh>
 
-      {/* === PREMIUM REINFORCED GLASS CYLINDER === */}
+      {/* === PREMIUM REINFORCED GLASS CYLINDER (etalon crystal chamber) === */}
       <mesh position={[0, 0.2, 0]}>
-        <cylinderGeometry args={[R + 0.03, R + 0.03, H, 72, 1, true]} />
+        <cylinderGeometry args={[R + 0.03, R + 0.03, H, 80, 1, true]} />
         <meshPhysicalMaterial
-          color="#6a9ab8"
-          metalness={0.08}
-          roughness={0.04}
-          transmission={0.82}
-          thickness={0.95}
+          color="#5a88a8"
+          metalness={0.06}
+          roughness={0.03}
+          transmission={0.86}
+          thickness={1.05}
           transparent
-          opacity={0.32}
-          ior={1.52}
+          opacity={0.28}
+          ior={1.5}
           side={THREE.DoubleSide}
           depthWrite={false}
           clearcoat={1}
-          clearcoatRoughness={0.04}
-          envMapIntensity={2.1}
-          reflectivity={0.72}
+          clearcoatRoughness={0.03}
+          envMapIntensity={2.3}
+          reflectivity={0.78}
         />
       </mesh>
       {/* Inner glass liner — deeper reflections */}
       <mesh position={[0, 0.2, 0]}>
-        <cylinderGeometry args={[R - 0.05, R - 0.05, H * 0.98, 56, 1, true]} />
+        <cylinderGeometry args={[R - 0.04, R - 0.04, H * 0.98, 64, 1, true]} />
         <meshPhysicalMaterial
-          color="#90c0d8"
+          color="#7ab0c8"
           metalness={0}
           roughness={0.02}
-          transmission={0.94}
+          transmission={0.95}
           transparent
-          opacity={0.1}
+          opacity={0.09}
           side={THREE.DoubleSide}
           depthWrite={false}
           clearcoat={1}
-          clearcoatRoughness={0.05}
-          envMapIntensity={1.8}
+          clearcoatRoughness={0.04}
+          envMapIntensity={2.0}
+        />
+      </mesh>
+      {/* Outer edge specular ring (glass rim catch) */}
+      <mesh position={[0, 0.2, 0]}>
+        <cylinderGeometry args={[R + 0.055, R + 0.055, H * 0.98, 64, 1, true]} />
+        <meshStandardMaterial
+          color={CYAN}
+          emissive={CYAN}
+          emissiveIntensity={0.18}
+          transparent
+          opacity={0.07}
+          side={THREE.DoubleSide}
+          depthWrite={false}
         />
       </mesh>
       {/* Glass rim highlight bands (cinematic reflections) */}
@@ -409,7 +564,7 @@ function VaultShell() {
       <VaultRing y={-0.55} radius={R + 0.04} tube={0.048} neon={CYAN} />
       <VaultRing y={-1.15} radius={R + 0.04} tube={0.05} neon={RED} />
 
-      {/* === ARMORED CROWN / GANTRY HOUSING === */}
+      {/* === ARMORED CROWN / GANTRY HOUSING (etalon dome top) === */}
       <mesh position={[0, 1.85, 0]} castShadow>
         <cylinderGeometry args={[1.72, 1.65, 0.32, 56]} />
         <meshStandardMaterial {...metal(TITANIUM, 0.96, 0.18)} />
@@ -426,21 +581,54 @@ function VaultShell() {
         <cylinderGeometry args={[1.2, 1.42, 0.18, 48]} />
         <meshStandardMaterial {...metal("#0e1218", 0.94, 0.22)} />
       </mesh>
-      <VaultRing y={2.0} radius={1.55} tube={0.035} neon={CYAN} />
-      <VaultRing y={1.72} radius={1.62} tube={0.032} neon={RED} />
-
-      {/* Crown badge strip */}
-      <mesh position={[0, 2.05, 1.35]} castShadow>
-        <boxGeometry args={[1.1, 0.14, 0.06]} />
-        <meshStandardMaterial {...metal("#0c1016", 0.9, 0.25)} />
+      {/* Domed crown cap */}
+      <mesh position={[0, 2.4, 0]} castShadow>
+        <sphereGeometry args={[0.95, 40, 20, 0, Math.PI * 2, 0, Math.PI * 0.45]} />
+        <meshStandardMaterial {...metal("#0a0e14", 0.94, 0.2)} />
       </mesh>
-      <mesh position={[0, 2.05, 1.39]}>
-        <boxGeometry args={[0.95, 0.05, 0.02]} />
+      <VaultRing y={2.0} radius={1.55} tube={0.035} neon={CYAN} />
+      <VaultRing y={1.72} radius={1.62} tube={0.038} neon={RED} />
+      <VaultRing y={2.18} radius={1.28} tube={0.028} neon={RED} />
+
+      {/* Front crown marquee plate — etalon FIATCLAW ARCADE header */}
+      <mesh position={[0, 1.82, 1.42]} castShadow>
+        <boxGeometry args={[2.7, 0.78, 0.12]} />
+        <meshStandardMaterial {...metal("#080a10", 0.92, 0.22)} />
+      </mesh>
+      <mesh position={[0, 1.82, 1.5]}>
+        <boxGeometry args={[2.55, 0.62, 0.02]} />
         <meshStandardMaterial
           ref={crownGlow}
           color={RED}
           emissive={RED}
-          emissiveIntensity={1.4}
+          emissiveIntensity={1.55}
+          toneMapped={false}
+          transparent
+          opacity={0.28}
+        />
+      </mesh>
+      {/* Primary etalon signage — FIATCLAW ARCADE */}
+      <FiatClawArcadeSign
+        position={[0, 1.82, 1.55]}
+        width={2.5}
+        height={0.68}
+      />
+      {/* Marquee neon rim */}
+      <mesh position={[0, 1.48, 1.48]}>
+        <boxGeometry args={[2.65, 0.028, 0.03]} />
+        <meshStandardMaterial
+          color={CYAN}
+          emissive={CYAN}
+          emissiveIntensity={1.6}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[0, 2.16, 1.48]}>
+        <boxGeometry args={[2.65, 0.028, 0.03]} />
+        <meshStandardMaterial
+          color={RED}
+          emissive={RED}
+          emissiveIntensity={1.7}
           toneMapped={false}
         />
       </mesh>
@@ -495,20 +683,33 @@ function VaultShell() {
         <meshStandardMaterial {...carbonMat()} />
       </mesh>
 
-      {/* Neon signs ON outer glass */}
+      {/* Side neon plates (secondary brand — primary is crown FIATCLAW ARCADE) */}
       <VaultSign
         url="/refs/sign-win.png"
-        position={[-1.62, 0.6, 0.6]}
-        rotation={[0, 0.72, 0]}
-        width={1.1}
-        height={0.58}
+        position={[-1.58, 0.55, 0.55]}
+        rotation={[0, 0.75, 0]}
+        width={0.85}
+        height={0.42}
       />
       <VaultSign
         url="/refs/sign-claw.png"
-        position={[1.62, 0.6, 0.6]}
-        rotation={[0, -0.72, 0]}
-        width={1.1}
-        height={0.48}
+        position={[1.58, 0.55, 0.55]}
+        rotation={[0, -0.75, 0]}
+        width={0.85}
+        height={0.42}
+      />
+      {/* Extra canvas FIATCLAW ARCADE wrap on glass sides for brand density */}
+      <FiatClawArcadeSign
+        position={[-1.55, 1.15, 0.35]}
+        rotation={[0, 0.95, 0]}
+        width={1.15}
+        height={0.32}
+      />
+      <FiatClawArcadeSign
+        position={[1.55, 1.15, 0.35]}
+        rotation={[0, -0.95, 0]}
+        width={1.15}
+        height={0.32}
       />
 
       {/* Base cooling fans */}
@@ -870,13 +1071,13 @@ function ClawAssembly({ phase, clawX }: { phase: ClawPhase; clawX: number }) {
   return (
     <group
       ref={group}
-      position={[0, 0.9, 0.05]}
-      scale={1.18}
+      position={[0, 0.72, 0.05]}
+      scale={1.42}
       userData={{
         clawBlades: CLAW_BLADES,
         style: "solid-metal-3blade",
         containment: "inside-glass-cylinder",
-        maxTravelX: 0.48,
+        maxTravelX: 0.42,
       }}
     >
       {/* Heavy ceiling carriage — under crown, inside R */}
@@ -1111,20 +1312,21 @@ export function ClawScene({ phase, clawX }: ClawSceneProps) {
     const cam = state.camera;
     const idle = phase === "idle" || phase === "ready";
     if (idle) {
-      cam.position.x = Math.sin(t.current * 0.15) * 0.14;
-      cam.position.y = 0.12 + Math.sin(t.current * 0.11) * 0.045;
+      cam.position.x = Math.sin(t.current * 0.15) * 0.1;
+      cam.position.y = 0.35 + Math.sin(t.current * 0.11) * 0.035;
     }
     if (phase === "win") {
-      cam.position.z = THREE.MathUtils.damp(cam.position.z, 5.8, 2.5, dt);
+      cam.position.z = THREE.MathUtils.damp(cam.position.z, 6.1, 2.5, dt);
       if (root.current) {
         root.current.position.x = Math.sin(performance.now() * 0.04) * 0.025;
       }
     } else if (phase === "lose" || phase === "slip") {
-      cam.position.z = THREE.MathUtils.damp(cam.position.z, 6.6, 2, dt);
+      cam.position.z = THREE.MathUtils.damp(cam.position.z, 6.75, 2, dt);
     } else {
-      cam.position.z = THREE.MathUtils.damp(cam.position.z, 6.5, 1.5, dt);
+      cam.position.z = THREE.MathUtils.damp(cam.position.z, 6.55, 1.5, dt);
     }
-    cam.lookAt(0, 0.08, 0);
+    // Frame full vault: crown marquee + claw + dense prize floor
+    cam.lookAt(0, 0.28, 0);
     if (root.current && idle) {
       root.current.rotation.y = Math.sin(t.current * 0.1) * 0.035;
     }
@@ -1136,33 +1338,35 @@ export function ClawScene({ phase, clawX }: ClawSceneProps) {
       <fog attach="fog" args={["#030508", 8, 22]} />
 
       {/* Dark-neon lighting — red #FF3E5C + cyan #22D3FF only (no white flood) */}
-      <ambientLight intensity={0.18} color="#0a1520" />
+      <ambientLight intensity={0.16} color="#0a121c" />
       <directionalLight
-        position={[3.5, 5, 4]}
-        intensity={0.45}
+        position={[3.2, 5.2, 3.8]}
+        intensity={0.42}
         color={CYAN}
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
-      <directionalLight position={[-3, 3, 2]} intensity={0.28} color={RED} />
-      <pointLight position={[-2.4, 2.0, 2.6]} intensity={1.75} color={CYAN} />
-      <pointLight position={[2.4, 1.6, 2.6]} intensity={1.9} color={RED} />
-      <pointLight position={[0, 1.4, 1.6]} intensity={1.05} color={CYAN} />
-      <pointLight position={[0, 0.2, 1.5]} intensity={1.15} color={RED} />
-      <pointLight position={[0, -1.0, 0.5]} intensity={0.55} color={CYAN} />
-      <pointLight position={[0, 2.3, 0]} intensity={0.7} color={RED} />
+      <directionalLight position={[-3.2, 3.2, 2.2]} intensity={0.32} color={RED} />
+      <pointLight position={[-2.2, 2.1, 2.8]} intensity={1.9} color={CYAN} />
+      <pointLight position={[2.2, 1.7, 2.8]} intensity={2.05} color={RED} />
+      <pointLight position={[0, 1.5, 1.8]} intensity={1.2} color={CYAN} />
+      <pointLight position={[0, 0.15, 1.7]} intensity={1.35} color={RED} />
+      <pointLight position={[0, -0.95, 0.6]} intensity={0.7} color={CYAN} />
+      <pointLight position={[0, 2.35, 1.2]} intensity={1.15} color={RED} />
+      {/* Crown marquee wash */}
+      <pointLight position={[0, 2.0, 2.2]} intensity={1.4} color={RED} distance={4.5} />
       <spotLight
-        position={[0, 3.4, 2.0]}
-        angle={0.48}
-        penumbra={0.7}
-        intensity={1.15}
+        position={[0, 3.5, 2.2]}
+        angle={0.46}
+        penumbra={0.72}
+        intensity={1.25}
         color={CYAN}
       />
       <spotLight
-        position={[0, 1.5, -1.6]}
+        position={[0, 1.6, -1.5]}
         angle={0.55}
         penumbra={0.75}
-        intensity={0.85}
+        intensity={0.9}
         color={RED}
       />
 
@@ -1175,17 +1379,17 @@ export function ClawScene({ phase, clawX }: ClawSceneProps) {
 
       <ContactShadows
         position={[0, -1.92, 0]}
-        opacity={0.82}
+        opacity={0.85}
         scale={14}
-        blur={2.6}
+        blur={2.5}
         far={7}
       />
 
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={0.78}
-          luminanceThreshold={0.58}
-          luminanceSmoothing={0.35}
+          intensity={0.88}
+          luminanceThreshold={0.52}
+          luminanceSmoothing={0.32}
           mipmapBlur
         />
       </EffectComposer>

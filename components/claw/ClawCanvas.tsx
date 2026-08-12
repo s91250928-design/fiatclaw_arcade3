@@ -35,7 +35,7 @@ export default function ClawCanvas({ phase, clawX }: Props) {
           alpha: true,
           powerPreference: "high-performance",
         }}
-        camera={{ position: [0, 0.12, 6.5], fov: 33, near: 0.1, far: 60 }}
+        camera={{ position: [0, 0.35, 6.55], fov: 34, near: 0.1, far: 60 }}
         style={{ width: "100%", height: "100%" }}
       >
         <Suspense fallback={null}>

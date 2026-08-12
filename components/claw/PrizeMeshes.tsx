@@ -34,7 +34,8 @@ function PrizeBillboard({
     map.needsUpdate = true;
   }, [map]);
 
-  const s = 0.44 * scale;
+  /** Larger billboards so coins/boxes read clearly in the dense etalon mound. */
+  const s = 0.56 * scale;
   return (
     <Billboard follow lockX={false} lockY={false} lockZ={false}>
       <mesh renderOrder={1}>
