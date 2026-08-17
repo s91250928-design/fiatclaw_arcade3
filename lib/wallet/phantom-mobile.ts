@@ -16,7 +16,11 @@ export const PHANTOM_UL_CONNECT = "https://phantom.app/ul/v1/connect";
 export const PHANTOM_MOBILE_OPEN_MESSAGE =
   "Opening Phantom… Approve the connection, then return here.";
 
-/** sessionStorage keys for deeplink round-trip (public data only). */
+/**
+ * Storage keys for deeplink round-trip (public data + dapp encryption secret only).
+ * Secret is dual-written to sessionStorage + localStorage: Phantom HTTPS redirect
+ * often opens a new browser context that does not share sessionStorage.
+ */
 export const PHANTOM_SS_SECRET = "fiatclaw_phantom_dapp_sk";
 export const PHANTOM_SS_PENDING = "fiatclaw_phantom_mobile_pending";
 export const PHANTOM_SS_PUBLIC_KEY = "fiatclaw_phantom_pk";
@@ -64,7 +68,7 @@ export type PhantomConnectKeypair = {
   secretKeyBs58: string;
 };
 
-/** x25519 keypair for Phantom connect encryption (secret stays in sessionStorage). */
+/** x25519 keypair for Phantom connect encryption. */
 export function createPhantomConnectKeypair(
   randomBytes?: (n: number) => Uint8Array
 ): PhantomConnectKeypair {
@@ -174,12 +178,49 @@ export function parsePhantomConnectReturn(
   }
 }
 
-/** sessionStorage-shaped bag for pure tests */
+/** Web Storage–shaped bag for pure tests */
 export type StorageLike = {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
 };
+
+/**
+ * Read primary first, then durable (localStorage).
+ * Write/remove both so Phantom redirect into a new tab still decrypts.
+ */
+export function dualWriteStorage(
+  primary: StorageLike,
+  durable?: StorageLike | null
+): StorageLike {
+  return {
+    getItem(key: string) {
+      return primary.getItem(key) ?? durable?.getItem(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      primary.setItem(key, value);
+      durable?.setItem(key, value);
+    },
+    removeItem(key: string) {
+      primary.removeItem(key);
+      durable?.removeItem(key);
+    },
+  };
+}
+
+/** Browser dual bag: sessionStorage + localStorage. */
+export function browserPhantomStorage(): StorageLike | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return dualWriteStorage(sessionStorage, localStorage);
+  } catch {
+    try {
+      return sessionStorage;
+    } catch {
+      return null;
+    }
+  }
+}
 
 export function storePhantomConnectSecret(
   storage: StorageLike,

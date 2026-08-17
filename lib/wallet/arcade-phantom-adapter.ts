@@ -27,7 +27,9 @@ import {
   type PhantomWindowLike,
 } from "./phantom-official";
 import {
+  browserPhantomStorage,
   buildPhantomMobileOpenUrl,
+  clearPhantomMobileSession,
   createPhantomConnectKeypair,
   isMobileUserAgent,
   loadPhantomMobilePublicKey,
@@ -107,11 +109,9 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
         publicKeyStr = result.publicKey;
         provider = getPhantomProvider(win());
       } else {
-        // Mobile deep-link return: restore publicKey from sessionStorage
-        const cached =
-          typeof sessionStorage !== "undefined"
-            ? loadPhantomMobilePublicKey(sessionStorage)
-            : null;
+        // Mobile deep-link return: restore publicKey (session+local dual storage)
+        const bag = browserPhantomStorage();
+        const cached = bag ? loadPhantomMobilePublicKey(bag) : null;
         if (cached) {
           publicKeyStr = cached;
           provider = null;
@@ -126,9 +126,7 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
           ) {
             // Open Phantom UL connect (Approve → redirect back with public_key)
             const kp = createPhantomConnectKeypair();
-            if (typeof sessionStorage !== "undefined") {
-              storePhantomConnectSecret(sessionStorage, kp.secretKeyBs58);
-            }
+            if (bag) storePhantomConnectSecret(bag, kp.secretKeyBs58);
             const openUrl = buildPhantomMobileOpenUrl({
               pageHref: window.location.href,
               origin: window.location.origin,
@@ -204,14 +202,17 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
         "accountChanged",
         this._accountChanged as (...args: unknown[]) => void
       );
-      this._wallet = null;
-      this._publicKey = null;
       try {
         await wallet.disconnect?.();
       } catch {
         /* ignore */
       }
     }
+    // Always clear — mobile-hydrated sessions have _wallet=null but _publicKey set
+    this._wallet = null;
+    this._publicKey = null;
+    const bag = browserPhantomStorage();
+    if (bag) clearPhantomMobileSession(bag);
     this.emit("disconnect");
   }
 

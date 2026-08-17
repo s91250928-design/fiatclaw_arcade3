@@ -22,9 +22,11 @@ import {
   type WaitProviderOptions,
 } from "./phantom-official";
 import {
+  browserPhantomStorage,
   buildPhantomMobileOpenUrl,
   clearPhantomConnectSecret,
   createPhantomConnectKeypair,
+  dualWriteStorage,
   isMobileUserAgent,
   loadPhantomConnectSecret,
   loadPhantomMobilePublicKey,
@@ -166,6 +168,7 @@ export type PhantomConnectEnv = {
   cluster?: "devnet" | "testnet" | "mainnet-beta";
   /** Assign location for deep link (default no-op in tests). */
   navigate?: (url: string) => void;
+  /** Dual bag preferred (session+local). Falls back to browserPhantomStorage(). */
   storage?: StorageLike;
 };
 
@@ -214,7 +217,7 @@ export async function runPhantomOfficialConnect(
       ((url: string) => {
         if (typeof window !== "undefined") window.location.assign(url);
       });
-    const storage = opts?.storage;
+    const storage = opts?.storage ?? browserPhantomStorage() ?? undefined;
 
     // Prefer encrypted connect UL (return to HTTPS origin with public_key)
     const kp = createPhantomConnectKeypair();
@@ -378,4 +381,10 @@ export {
   phantomAbsentMessage,
   PHANTOM_MOBILE_OPEN_MESSAGE,
   loadPhantomMobilePublicKey,
+  dualWriteStorage,
+  browserPhantomStorage,
+  clearPhantomMobileSession,
+  storePhantomMobileSession,
+  storePhantomConnectSecret,
+  loadPhantomConnectSecret,
 } from "./phantom-mobile";

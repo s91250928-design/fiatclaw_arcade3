@@ -29,6 +29,12 @@ import {
   phantomAbsentMessage,
   PHANTOM_MOBILE_OPEN_MESSAGE,
   tryRestorePhantomConnectReturn,
+  dualWriteStorage,
+  storePhantomConnectSecret,
+  loadPhantomConnectSecret,
+  clearPhantomMobileSession,
+  storePhantomMobileSession,
+  loadPhantomMobilePublicKey,
 } from "../connect-after-select";
 import {
   ARCADE_WALLET_NAMES,
@@ -571,6 +577,116 @@ const cases = [
     assert.equal(store["fiatclaw_phantom_pk"], "RestoredKey2222222222222222222222222222");
     assert.equal(store["fiatclaw_phantom_dapp_sk"], undefined);
     assert.ok(cleaned && !String(cleaned).includes("data="));
+  }),
+
+  test("dualWriteStorage: secret written in tab1 readable from tab2 bag", () => {
+    const tab1: Record<string, string> = {};
+    const durable: Record<string, string> = {};
+    const bag1 = dualWriteStorage(
+      {
+        getItem: (k) => tab1[k] ?? null,
+        setItem: (k, v) => {
+          tab1[k] = v;
+        },
+        removeItem: (k) => {
+          delete tab1[k];
+        },
+      },
+      {
+        getItem: (k) => durable[k] ?? null,
+        setItem: (k, v) => {
+          durable[k] = v;
+        },
+        removeItem: (k) => {
+          delete durable[k];
+        },
+      }
+    );
+    storePhantomConnectSecret(bag1, "SecretKeyFromTab1");
+    assert.equal(tab1["fiatclaw_phantom_dapp_sk"], "SecretKeyFromTab1");
+    assert.equal(durable["fiatclaw_phantom_dapp_sk"], "SecretKeyFromTab1");
+
+    // New browser context: empty session, only durable (localStorage)
+    const tab2: Record<string, string> = {};
+    const bag2 = dualWriteStorage(
+      {
+        getItem: (k) => tab2[k] ?? null,
+        setItem: (k, v) => {
+          tab2[k] = v;
+        },
+        removeItem: (k) => {
+          delete tab2[k];
+        },
+      },
+      {
+        getItem: (k) => durable[k] ?? null,
+        setItem: (k, v) => {
+          durable[k] = v;
+        },
+        removeItem: (k) => {
+          delete durable[k];
+        },
+      }
+    );
+    assert.equal(loadPhantomConnectSecret(bag2), "SecretKeyFromTab1");
+
+    // Cross-tab restore decrypt
+    const dapp = createPhantomConnectKeypair();
+    storePhantomConnectSecret(bag1, dapp.secretKeyBs58);
+    const phantom = nacl.box.keyPair();
+    const shared = nacl.box.before(
+      phantom.publicKey,
+      bs58.decode(dapp.secretKeyBs58)
+    );
+    const payload = new TextEncoder().encode(
+      JSON.stringify({
+        public_key: "CrossTabKey333333333333333333333333333",
+        session: "s2",
+      })
+    );
+    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+    const boxed = nacl.secretbox(payload, nonce, shared);
+    const q = `?phantom_encryption_public_key=${bs58.encode(phantom.publicKey)}&nonce=${bs58.encode(nonce)}&data=${bs58.encode(boxed)}`;
+    const r = tryRestorePhantomConnectReturn({
+      search: q,
+      storage: bag2, // empty session, durable has secret
+    });
+    assert.ok(r?.ok);
+    assert.equal(
+      loadPhantomMobilePublicKey(bag2),
+      "CrossTabKey333333333333333333333333333"
+    );
+  }),
+
+  test("clearPhantomMobileSession clears dual storage after disconnect path", () => {
+    const a: Record<string, string> = {};
+    const b: Record<string, string> = {};
+    const bag = dualWriteStorage(
+      {
+        getItem: (k) => a[k] ?? null,
+        setItem: (k, v) => {
+          a[k] = v;
+        },
+        removeItem: (k) => {
+          delete a[k];
+        },
+      },
+      {
+        getItem: (k) => b[k] ?? null,
+        setItem: (k, v) => {
+          b[k] = v;
+        },
+        removeItem: (k) => {
+          delete b[k];
+        },
+      }
+    );
+    storePhantomMobileSession(bag, "PkDisconnect", "sess");
+    assert.equal(loadPhantomMobilePublicKey(bag), "PkDisconnect");
+    clearPhantomMobileSession(bag);
+    assert.equal(loadPhantomMobilePublicKey(bag), null);
+    assert.equal(a["fiatclaw_phantom_pk"], undefined);
+    assert.equal(b["fiatclaw_phantom_pk"], undefined);
   }),
 ];
 

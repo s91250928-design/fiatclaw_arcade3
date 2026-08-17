@@ -7,6 +7,7 @@
  * - Solflare → adapter connect when Loadable/Installed
  *
  * Also restores Phantom deep-link return (?data&nonce&phantom_encryption_public_key).
+ * Retries select/connect when wallets list gains Phantom after first paint.
  */
 
 import { useEffect, useRef } from "react";
@@ -14,6 +15,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useWalletUiError } from "@/components/SolanaProvider";
 import {
+  browserPhantomStorage,
   loadPhantomMobilePublicKey,
   runSelectedWalletConnect,
   shouldConnectAfterModalClose,
@@ -45,7 +47,10 @@ export function WalletConnectAfterSelect() {
   const inFlight = useRef(false);
   const gen = useRef(0);
   const lastAttemptWallet = useRef<string | null>(null);
-  const restored = useRef(false);
+  /** Query decrypt done once; select/connect may retry when Phantom appears. */
+  const queryRestored = useRef(false);
+  /** True after select+connect for mobile session succeeded. */
+  const hydrateDone = useRef(false);
 
   const walletRef = useRef(wallet);
   walletRef.current = wallet;
@@ -72,6 +77,7 @@ export function WalletConnectAfterSelect() {
     const myGen = ++gen.current;
 
     void (async () => {
+      const bag = browserPhantomStorage() ?? undefined;
       const result = await runSelectedWalletConnect({
         walletName,
         connect: () => connectRef.current(),
@@ -87,8 +93,7 @@ export function WalletConnectAfterSelect() {
           origin:
             typeof window !== "undefined" ? window.location.origin : undefined,
           cluster: clusterFromEnv(),
-          storage:
-            typeof sessionStorage !== "undefined" ? sessionStorage : undefined,
+          storage: bag,
         },
         readyOpts: { timeoutMs: 12_000, pollMs: 100 },
       });
@@ -99,6 +104,7 @@ export function WalletConnectAfterSelect() {
       if (result.ok) {
         setError(null);
         userOpenedModal.current = false;
+        if (reason === "restore") hydrateDone.current = true;
       } else {
         setError(result.message);
         userOpenedModal.current = false;
@@ -106,68 +112,73 @@ export function WalletConnectAfterSelect() {
     })();
   };
 
-  // Restore deep-link connect return on first mount (mobile Approve → redirect)
+  // Decrypt Phantom UL return query once (dual storage survives new tab)
   useEffect(() => {
-    if (restored.current) return;
-    if (typeof window === "undefined" || typeof sessionStorage === "undefined") {
+    if (queryRestored.current) return;
+    if (typeof window === "undefined") return;
+    const bag = browserPhantomStorage();
+    if (!bag) return;
+
+    const hasReturnParams =
+      /[?&](data|phantom_encryption_public_key|errorCode)=/.test(
+        window.location.search
+      );
+    if (!hasReturnParams) {
+      // No query to parse — still allow cached-session hydrate below
       return;
     }
-    restored.current = true;
 
+    queryRestored.current = true;
     const restoredResult = tryRestorePhantomConnectReturn({
       search: window.location.search,
-      storage: sessionStorage,
+      storage: bag,
       currentHref: window.location.href,
       replaceUrl: (clean) => {
         window.history.replaceState({}, "", clean);
       },
     });
 
-    if (restoredResult?.ok && restoredResult.publicKey) {
-      setError(null);
-      // Select Phantom adapter and connect (hydrates publicKey from session)
-      const phantom = wallets.find(
-        (w) => String(w.adapter.name) === "Phantom"
-      );
-      if (phantom) {
-        selectRef.current(phantom.adapter.name);
-        // connect after select settles
-        window.setTimeout(() => {
-          void connectRef.current().then(
-            () => setError(null),
-            (e: unknown) => {
-              const msg =
-                e instanceof Error ? e.message : "Wallet restore failed";
-              setError(msg);
-            }
-          );
-        }, 50);
-      }
-      return;
-    }
-
     if (restoredResult && !restoredResult.ok) {
       setError(restoredResult.message);
+    } else if (restoredResult?.ok) {
+      setError(null);
+    }
+  }, [setError]);
+
+  // Hydrate Phantom adapter when wallets list is ready (retry if first paint empty)
+  useEffect(() => {
+    if (hydrateDone.current || connected || connecting) return;
+    if (typeof window === "undefined") return;
+    const bag = browserPhantomStorage();
+    if (!bag) return;
+
+    const cached = loadPhantomMobilePublicKey(bag);
+    if (!cached) return;
+
+    const phantom = wallets.find((w) => String(w.adapter.name) === "Phantom");
+    if (!phantom) {
+      // wallets not ready yet — effect re-runs when wallets updates
       return;
     }
 
-    // Cached mobile session (already returned earlier this tab)
-    const cached = loadPhantomMobilePublicKey(sessionStorage);
-    if (cached && !connected) {
-      const phantom = wallets.find(
-        (w) => String(w.adapter.name) === "Phantom"
-      );
-      if (phantom) {
-        selectRef.current(phantom.adapter.name);
-        window.setTimeout(() => {
-          void connectRef.current().catch(() => {
-            /* user can reconnect */
-          });
-        }, 50);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount restore only
-  }, [wallets]);
+    selectRef.current(phantom.adapter.name);
+    const t = window.setTimeout(() => {
+      void connectRef
+        .current()
+        .then(() => {
+          hydrateDone.current = true;
+          setError(null);
+        })
+        .catch((e: unknown) => {
+          // Keep hydrateDone false so a later wallets change can retry once
+          const msg =
+            e instanceof Error ? e.message : "Wallet restore failed";
+          // Only surface if still not connected
+          if (!connected) setError(msg);
+        });
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [wallets, connected, connecting, setError]);
 
   // Track modal open / close → connect (covers same-name reselect)
   useEffect(() => {
@@ -218,6 +229,7 @@ export function WalletConnectAfterSelect() {
       userOpenedModal.current = false;
       inFlight.current = false;
       lastAttemptWallet.current = null;
+      hydrateDone.current = true;
       setError(null);
     }
   }, [connected, setError]);
