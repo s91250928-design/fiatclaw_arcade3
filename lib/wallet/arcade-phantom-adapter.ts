@@ -30,12 +30,11 @@ import {
   browserPhantomStorage,
   buildPhantomMobileOpenUrl,
   clearPhantomMobileSession,
-  createPhantomConnectKeypair,
   isMobileUserAgent,
   loadPhantomMobilePublicKey,
   PHANTOM_MOBILE_OPEN_MESSAGE,
   shouldUsePhantomMobileDeepLink,
-  storePhantomConnectSecret,
+  withPhantomBrowseIntent,
 } from "./phantom-mobile";
 
 export const ArcadePhantomWalletName = "Phantom" as WalletName<"Phantom">;
@@ -124,11 +123,9 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
               hasInjectedProvider: false,
             })
           ) {
-            // Open Phantom UL connect (Approve → redirect back with public_key)
-            const kp = createPhantomConnectKeypair();
-            if (bag) storePhantomConnectSecret(bag, kp.secretKeyBs58);
+            // jup.ag-style browse UL → site in Phantom in-app browser (inject)
             const openUrl = buildPhantomMobileOpenUrl({
-              pageHref: window.location.href,
+              pageHref: withPhantomBrowseIntent(window.location.href),
               origin: window.location.origin,
               cluster:
                 (process.env.NEXT_PUBLIC_SOLANA_CLUSTER as
@@ -136,8 +133,7 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
                   | "testnet"
                   | "mainnet-beta"
                   | undefined) ?? "devnet",
-              mode: "connect",
-              dappEncryptionPublicKey: kp.publicKeyBs58,
+              mode: "browse",
             });
             window.location.assign(openUrl);
             throw new WalletConnectionError(PHANTOM_MOBILE_OPEN_MESSAGE);

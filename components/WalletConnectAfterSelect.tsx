@@ -3,11 +3,11 @@
 /**
  * After user opens Connect modal and picks a wallet:
  * - Phantom desktop / in-app → official window.phantom.solana.connect()
- * - Phantom mobile (no inject) → deep link UL connect / browse (jup.ag-style)
+ * - Phantom mobile (no inject) → browse UL into Phantom in-app browser (jup.ag)
  * - Solflare → adapter connect when Loadable/Installed
  *
- * Also restores Phantom deep-link return (?data&nonce&phantom_encryption_public_key).
- * Retries select/connect when wallets list gains Phantom after first paint.
+ * Also restores encrypted connect return (legacy) and auto-connects after browse
+ * intent (`fc_phantom=1`) when inject is present. Retries select when wallets ready.
  */
 
 import { useEffect, useRef } from "react";
@@ -16,10 +16,14 @@ import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useWalletUiError } from "@/components/SolanaProvider";
 import {
   browserPhantomStorage,
+  getPhantomProvider,
+  hasPhantomBrowseIntent,
   loadPhantomMobilePublicKey,
   runSelectedWalletConnect,
   shouldConnectAfterModalClose,
   shouldConnectAfterWalletSelect,
+  shouldSurfaceConnectError,
+  stripPhantomBrowseIntent,
   tryRestorePhantomConnectReturn,
 } from "@/lib/wallet/connect-after-select";
 import type { PhantomWindowLike } from "@/lib/wallet/phantom-official";
@@ -51,6 +55,8 @@ export function WalletConnectAfterSelect() {
   const queryRestored = useRef(false);
   /** True after select+connect for mobile session succeeded. */
   const hydrateDone = useRef(false);
+  /** Browse-intent auto-connect fired once (fc_phantom=1 in Phantom in-app). */
+  const browseIntentHandled = useRef(false);
 
   const walletRef = useRef(wallet);
   walletRef.current = wallet;
@@ -106,7 +112,19 @@ export function WalletConnectAfterSelect() {
         userOpenedModal.current = false;
         if (reason === "restore") hydrateDone.current = true;
       } else {
-        setError(result.message);
+        // Never paint unlock/decrypt when session already has publicKey
+        const cachedPk = bag ? loadPhantomMobilePublicKey(bag) : null;
+        if (
+          shouldSurfaceConnectError({
+            connected: false,
+            publicKey: cachedPk,
+          }) &&
+          result.message
+        ) {
+          setError(result.message);
+        } else {
+          setError(null);
+        }
         userOpenedModal.current = false;
       }
     })();
@@ -138,12 +156,48 @@ export function WalletConnectAfterSelect() {
       },
     });
 
-    if (restoredResult && !restoredResult.ok) {
-      setError(restoredResult.message);
-    } else if (restoredResult?.ok) {
+    if (restoredResult?.ok) {
       setError(null);
+    } else if (restoredResult && !restoredResult.ok) {
+      const cachedPk = loadPhantomMobilePublicKey(bag);
+      if (
+        shouldSurfaceConnectError({ publicKey: cachedPk }) &&
+        restoredResult.message
+      ) {
+        setError(restoredResult.message);
+      } else {
+        setError(null);
+      }
     }
   }, [setError]);
+
+  // After browse UL: site opened in Phantom in-app with inject + fc_phantom=1
+  useEffect(() => {
+    if (browseIntentHandled.current || connected || connecting) return;
+    if (typeof window === "undefined") return;
+    if (!hasPhantomBrowseIntent(window.location.search)) return;
+
+    const provider = getPhantomProvider(getBrowserWin());
+    if (!provider) {
+      // Inject may arrive shortly after first paint inside Phantom browser
+      return;
+    }
+
+    const phantom = wallets.find((w) => String(w.adapter.name) === "Phantom");
+    if (!phantom) return;
+
+    browseIntentHandled.current = true;
+    window.history.replaceState(
+      {},
+      "",
+      stripPhantomBrowseIntent(window.location.href)
+    );
+
+    userOpenedModal.current = true;
+    lastAttemptWallet.current = null;
+    selectRef.current(phantom.adapter.name);
+    // select effect / runConnect will call official provider.connect()
+  }, [wallets, connected, connecting]);
 
   // Hydrate Phantom adapter when wallets list is ready (retry if first paint empty)
   useEffect(() => {

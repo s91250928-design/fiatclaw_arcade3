@@ -25,17 +25,16 @@ import {
   browserPhantomStorage,
   buildPhantomMobileOpenUrl,
   clearPhantomConnectSecret,
-  createPhantomConnectKeypair,
-  dualWriteStorage,
   isMobileUserAgent,
+  isPhantomInAppBrowser,
   loadPhantomConnectSecret,
   loadPhantomMobilePublicKey,
   parsePhantomConnectReturn,
   PHANTOM_MOBILE_OPEN_MESSAGE,
   phantomAbsentMessage,
   shouldUsePhantomMobileDeepLink,
-  storePhantomConnectSecret,
   storePhantomMobileSession,
+  withPhantomBrowseIntent,
   type StorageLike,
 } from "./phantom-mobile";
 
@@ -81,11 +80,21 @@ export type ConnectResult =
  * Format errors for UI.
  * CRITICAL: WalletNotReady / adapter races → unlock message, NOT Install.
  * Install only when message is already the install path or explicit absent.
+ * When already connected / publicKey present, never surface unlock/install.
  */
 export function formatWalletConnectError(
   e: unknown,
-  opts?: { providerPresent?: boolean }
+  opts?: {
+    providerPresent?: boolean;
+    /** True when inject or restored session already has a publicKey. */
+    alreadyConnected?: boolean;
+  }
 ): string {
+  if (opts?.alreadyConnected) {
+    // Connected UI owns success — do not paint false unlock/decrypt errors
+    return "";
+  }
+
   const providerPresent = opts?.providerPresent === true;
 
   if (e instanceof Error) {
@@ -106,9 +115,7 @@ export function formatWalletConnectError(
       /not ready/i.test(name)
     ) {
       // Adapter race — NOT "Install Phantom"
-      return providerPresent
-        ? PHANTOM_UNLOCK_MESSAGE
-        : PHANTOM_UNLOCK_MESSAGE;
+      return PHANTOM_UNLOCK_MESSAGE;
     }
 
     if (
@@ -128,6 +135,16 @@ export function formatWalletConnectError(
     return e;
   }
   return "Wallet connect failed. Unlock Phantom/Solflare and try again.";
+}
+
+/** Whether UI should show a connect error (never when session/provider already connected). */
+export function shouldSurfaceConnectError(input: {
+  connected?: boolean;
+  publicKey?: string | null;
+}): boolean {
+  if (input.connected) return false;
+  if (input.publicKey) return false;
+  return true;
 }
 
 function isInstallText(msg: string): boolean {
@@ -217,18 +234,17 @@ export async function runPhantomOfficialConnect(
       ((url: string) => {
         if (typeof window !== "undefined") window.location.assign(url);
       });
-    const storage = opts?.storage ?? browserPhantomStorage() ?? undefined;
 
-    // Prefer encrypted connect UL (return to HTTPS origin with public_key)
-    const kp = createPhantomConnectKeypair();
-    if (storage) storePhantomConnectSecret(storage, kp.secretKeyBs58);
-
+    // jup.ag-style: browse UL → site in Phantom in-app browser → inject connect.
+    // Encrypted connect UL + HTTPS redirect is fragile (new tab / decrypt fails).
+    const target = withPhantomBrowseIntent(
+      pageHref || origin || "https://localhost"
+    );
     const openUrl = buildPhantomMobileOpenUrl({
-      pageHref: pageHref || origin || "https://localhost",
+      pageHref: target,
       origin: origin || "https://localhost",
       cluster: opts?.cluster ?? "devnet",
-      mode: "connect",
-      dappEncryptionPublicKey: kp.publicKeyBs58,
+      mode: "browse",
     });
 
     navigate(openUrl);
@@ -244,8 +260,15 @@ export async function runPhantomOfficialConnect(
   });
 
   if (!official.ok) {
+    // Phantom in-app without inject yet: unlock/retry, not Install
+    if (isPhantomInAppBrowser(ua)) {
+      return { ok: false, message: PHANTOM_UNLOCK_MESSAGE };
+    }
     // On mobile residual absent: never Install-loop — offer deep link message
-    if (official.kind === "install" && isMobileUserAgent(ua)) {
+    if (
+      (official.kind === "install" || official.kind === "error") &&
+      isMobileUserAgent(ua)
+    ) {
       const policy = phantomAbsentMessage({
         userAgent: ua,
         hasInjectedProvider: false,
@@ -277,9 +300,30 @@ export async function runPhantomOfficialConnect(
   };
 }
 
+function stripPhantomConnectReturnParams(
+  href: string,
+  replaceUrl?: (cleanHref: string) => void
+): void {
+  if (!replaceUrl) return;
+  try {
+    const u = new URL(href);
+    [
+      "phantom_encryption_public_key",
+      "nonce",
+      "data",
+      "errorCode",
+      "errorMessage",
+    ].forEach((k) => u.searchParams.delete(k));
+    replaceUrl(u.pathname + u.search + u.hash);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Handle return from Phantom connect deep link (?phantom_encryption_public_key&nonce&data).
  * Stores publicKey session and strips sensitive query from URL when possible.
+ * If a publicKey session already exists, never surfaces decrypt/unlock as failure.
  */
 export function tryRestorePhantomConnectReturn(input: {
   search: string;
@@ -296,9 +340,17 @@ export function tryRestorePhantomConnectReturn(input: {
     params.has("errorCode");
   if (!hasReturn) return null;
 
+  const existingPk = loadPhantomMobilePublicKey(input.storage);
   const secret = loadPhantomConnectSecret(input.storage);
+
   if (!secret) {
-    // May be stale return without secret — clear noise
+    // Stale return without secret: keep prior session if present
+    if (existingPk) {
+      if (input.currentHref) {
+        stripPhantomConnectReturnParams(input.currentHref, input.replaceUrl);
+      }
+      return { ok: true, publicKey: existingPk };
+    }
     return {
       ok: false,
       message: PHANTOM_UNLOCK_MESSAGE,
@@ -314,22 +366,18 @@ export function tryRestorePhantomConnectReturn(input: {
       parsed.publicKey,
       parsed.session
     );
-    if (input.replaceUrl && input.currentHref) {
-      try {
-        const u = new URL(input.currentHref);
-        [
-          "phantom_encryption_public_key",
-          "nonce",
-          "data",
-          "errorCode",
-          "errorMessage",
-        ].forEach((k) => u.searchParams.delete(k));
-        input.replaceUrl(u.pathname + u.search + u.hash);
-      } catch {
-        /* ignore */
-      }
+    if (input.currentHref) {
+      stripPhantomConnectReturnParams(input.currentHref, input.replaceUrl);
     }
     return { ok: true, publicKey: parsed.publicKey };
+  }
+
+  // Decrypt failed but session already connected — do not false-unlock
+  if (existingPk) {
+    if (input.currentHref) {
+      stripPhantomConnectReturnParams(input.currentHref, input.replaceUrl);
+    }
+    return { ok: true, publicKey: existingPk };
   }
 
   return { ok: false, message: parsed.message };
@@ -372,6 +420,7 @@ export {
 } from "./phantom-official";
 export {
   isMobileUserAgent,
+  isPhantomInAppBrowser,
   shouldUsePhantomMobileDeepLink,
   buildPhantomBrowseDeepLink,
   buildPhantomConnectDeepLink,
@@ -380,6 +429,10 @@ export {
   parsePhantomConnectReturn,
   phantomAbsentMessage,
   PHANTOM_MOBILE_OPEN_MESSAGE,
+  PHANTOM_BROWSE_INTENT,
+  withPhantomBrowseIntent,
+  hasPhantomBrowseIntent,
+  stripPhantomBrowseIntent,
   loadPhantomMobilePublicKey,
   dualWriteStorage,
   browserPhantomStorage,

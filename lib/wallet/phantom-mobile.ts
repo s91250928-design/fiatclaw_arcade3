@@ -13,8 +13,15 @@ import nacl from "tweetnacl";
 
 export const PHANTOM_UL_BROWSE = "https://phantom.app/ul/browse";
 export const PHANTOM_UL_CONNECT = "https://phantom.app/ul/v1/connect";
+/** Shown while handing off to the Phantom app (browse UL / in-app browser). */
 export const PHANTOM_MOBILE_OPEN_MESSAGE =
-  "Opening Phantom… Approve the connection, then return here.";
+  "Opening Phantom… When the site opens inside Phantom, approve Connect.";
+
+/**
+ * Query flag appended to browse target so the in-app page auto-selects Phantom
+ * and runs inject connect() after the Universal Link opens the site.
+ */
+export const PHANTOM_BROWSE_INTENT = "fc_phantom";
 
 /**
  * Storage keys for deeplink round-trip (public data + dapp encryption secret only).
@@ -266,21 +273,52 @@ export function clearPhantomMobileSession(storage: StorageLike): void {
 }
 
 /**
+ * Append browse-intent query so the site auto-connects once opened in Phantom.
+ */
+export function withPhantomBrowseIntent(pageHref: string): string {
+  try {
+    const u = new URL(pageHref);
+    u.searchParams.set(PHANTOM_BROWSE_INTENT, "1");
+    return u.toString();
+  } catch {
+    const sep = pageHref.includes("?") ? "&" : "?";
+    return `${pageHref}${sep}${PHANTOM_BROWSE_INTENT}=1`;
+  }
+}
+
+export function hasPhantomBrowseIntent(search: string): boolean {
+  const q = search.startsWith("?") ? search.slice(1) : search;
+  return new URLSearchParams(q).get(PHANTOM_BROWSE_INTENT) === "1";
+}
+
+/** Strip browse-intent flag; returns pathname+search+hash (or full href on parse fail). */
+export function stripPhantomBrowseIntent(href: string): string {
+  try {
+    const u = new URL(href);
+    u.searchParams.delete(PHANTOM_BROWSE_INTENT);
+    return u.pathname + u.search + u.hash;
+  } catch {
+    return href;
+  }
+}
+
+/**
  * Build browse OR connect deep link for mobile (no inject).
- * Prefer connect UL (return to HTTPS origin with publicKey) when encryption ready;
- * browse UL as always-available open-in-Phantom path.
+ *
+ * Default is **browse** (jup.ag-style): open the dApp inside Phantom’s in-app
+ * browser so `window.phantom.solana` inject is available and connect() works.
+ * Encrypted connect UL remains available when mode:"connect" + encryption key
+ * (HTTPS redirect_link is fragile — new browser tab, decrypt/secret identity).
  */
 export function buildPhantomMobileOpenUrl(input: {
   pageHref: string;
   origin: string;
   cluster?: "devnet" | "testnet" | "mainnet-beta";
-  /** Prefer browse (in-app) vs connect (redirect). Default: connect if keypair provided. */
+  /** browse = in-app inject (default); connect = encrypted redirect return. */
   mode?: "browse" | "connect";
   dappEncryptionPublicKey?: string;
 }): string {
-  const mode =
-    input.mode ??
-    (input.dappEncryptionPublicKey ? "connect" : "browse");
+  const mode = input.mode ?? "browse";
   if (mode === "connect" && input.dappEncryptionPublicKey) {
     return buildPhantomConnectDeepLink({
       appUrl: input.origin,

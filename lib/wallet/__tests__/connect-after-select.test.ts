@@ -11,6 +11,7 @@ import {
   runWalletConnectWhenReady,
   shouldConnectAfterModalClose,
   shouldConnectAfterWalletSelect,
+  shouldSurfaceConnectError,
   PHANTOM_INSTALL_MESSAGE,
   PHANTOM_INSTALL_URL,
   PHANTOM_UNLOCK_MESSAGE,
@@ -28,6 +29,10 @@ import {
   parsePhantomConnectReturn,
   phantomAbsentMessage,
   PHANTOM_MOBILE_OPEN_MESSAGE,
+  PHANTOM_BROWSE_INTENT,
+  withPhantomBrowseIntent,
+  hasPhantomBrowseIntent,
+  stripPhantomBrowseIntent,
   tryRestorePhantomConnectReturn,
   dualWriteStorage,
   storePhantomConnectSecret,
@@ -428,6 +433,17 @@ const cases = [
     assert.equal(q.get("cluster"), "devnet");
   }),
 
+  test("buildPhantomMobileOpenUrl default is browse UL", () => {
+    const u = buildPhantomMobileOpenUrl({
+      pageHref: "https://example.com/play",
+      origin: "https://example.com",
+      dappEncryptionPublicKey: "Pk123",
+      cluster: "devnet",
+    });
+    assert.ok(u.includes("phantom.app/ul/browse/"));
+    assert.ok(!u.includes("ul/v1/connect"));
+  }),
+
   test("buildPhantomMobileOpenUrl connect mode uses UL connect", () => {
     const u = buildPhantomMobileOpenUrl({
       pageHref: "https://example.com/play",
@@ -437,6 +453,15 @@ const cases = [
       cluster: "devnet",
     });
     assert.ok(u.includes("phantom.app/ul/v1/connect"));
+  }),
+
+  test("withPhantomBrowseIntent + strip round-trip", () => {
+    const withFlag = withPhantomBrowseIntent("https://app.example.com/play");
+    assert.ok(withFlag.includes(`${PHANTOM_BROWSE_INTENT}=1`));
+    assert.equal(hasPhantomBrowseIntent(new URL(withFlag).search), true);
+    const stripped = stripPhantomBrowseIntent(withFlag);
+    assert.equal(stripped, "/play");
+    assert.equal(hasPhantomBrowseIntent(stripped.includes("?") ? stripped : ""), false);
   }),
 
   test("phantomAbsentMessage: mobile → open; desktop → install", () => {
@@ -454,7 +479,7 @@ const cases = [
     assert.ok(isPhantomInstallMessage(d.message));
   }),
 
-  test("runPhantomOfficialConnect mobile no inject → navigates deep link not Install", async () => {
+  test("runPhantomOfficialConnect mobile no inject → navigates browse UL not Install", async () => {
     let navigated: string | null = null;
     const store: Record<string, string> = {};
     const storage = {
@@ -492,9 +517,33 @@ const cases = [
         /Opening Phantom/i.test(r.message)
     );
     assert.ok(navigated);
-    assert.ok(String(navigated).includes("phantom.app/ul/v1/connect"));
-    assert.ok(String(navigated).includes("redirect_link"));
-    assert.ok(store["fiatclaw_phantom_dapp_sk"]);
+    // jup.ag-style browse into Phantom in-app browser
+    assert.ok(String(navigated).includes("phantom.app/ul/browse/"));
+    assert.ok(String(navigated).includes(encodeURIComponent(PHANTOM_BROWSE_INTENT)));
+    // Browse path does not need encryption secret
+    assert.equal(store["fiatclaw_phantom_dapp_sk"], undefined);
+  }),
+
+  test("formatWalletConnectError alreadyConnected → empty (no false unlock)", () => {
+    const msg = formatWalletConnectError(new Error("Could not decrypt Phantom connect response."), {
+      alreadyConnected: true,
+    });
+    assert.equal(msg, "");
+    assert.equal(
+      shouldSurfaceConnectError({ connected: true, publicKey: null }),
+      false
+    );
+    assert.equal(
+      shouldSurfaceConnectError({
+        connected: false,
+        publicKey: "SomePk111",
+      }),
+      false
+    );
+    assert.equal(
+      shouldSurfaceConnectError({ connected: false, publicKey: null }),
+      true
+    );
   }),
 
   test("parsePhantomConnectReturn decrypts public_key (nacl round-trip)", () => {
@@ -656,6 +705,96 @@ const cases = [
       loadPhantomMobilePublicKey(bag2),
       "CrossTabKey333333333333333333333333333"
     );
+  }),
+
+  test("tryRestore: missing secret but existing session → ok (no false unlock)", () => {
+    const store: Record<string, string> = {
+      fiatclaw_phantom_pk: "AlreadyConnectedPk4444444444444444444",
+      fiatclaw_phantom_session: "sess-existing",
+    };
+    const storage = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+    };
+    const r = tryRestorePhantomConnectReturn({
+      search:
+        "?phantom_encryption_public_key=x&nonce=y&data=z",
+      storage,
+      currentHref:
+        "https://app.example.com/play?phantom_encryption_public_key=x&nonce=y&data=z",
+      replaceUrl: () => {},
+    });
+    assert.ok(r?.ok);
+    if (r?.ok) {
+      assert.equal(r.publicKey, "AlreadyConnectedPk4444444444444444444");
+    }
+  }),
+
+  test("tryRestore: decrypt fail but existing session → ok (no false unlock)", () => {
+    const dapp = createPhantomConnectKeypair();
+    const store: Record<string, string> = {
+      fiatclaw_phantom_dapp_sk: dapp.secretKeyBs58,
+      fiatclaw_phantom_pk: "SessionPk555555555555555555555555555",
+      fiatclaw_phantom_session: "s",
+    };
+    const storage = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+    };
+    // Garbage ciphertext → decrypt fails
+    const r = tryRestorePhantomConnectReturn({
+      search:
+        "?phantom_encryption_public_key=11111111111111111111111111111111&nonce=22222222222222222222222222222222&data=33333333333333333333333333333333",
+      storage,
+    });
+    assert.ok(r?.ok);
+    if (r?.ok) {
+      assert.equal(r.publicKey, "SessionPk555555555555555555555555555");
+    }
+  }),
+
+  test("runPhantomOfficialConnect: cached mobile session → ok publicKey no navigate", async () => {
+    let navigated: string | null = null;
+    const store: Record<string, string> = {
+      fiatclaw_phantom_pk: "CachedMobilePk666666666666666666666",
+      fiatclaw_phantom_session: "sess",
+    };
+    const storage = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+    };
+    const r = await runPhantomOfficialConnect(
+      () => ({}),
+      async () => {},
+      {
+        userAgent:
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+        pageHref: "https://app.example.com/play",
+        origin: "https://app.example.com",
+        navigate: (url) => {
+          navigated = url;
+        },
+        storage,
+      }
+    );
+    assert.equal(r.ok, true);
+    if (r.ok) assert.equal(r.publicKey, "CachedMobilePk666666666666666666666");
+    assert.equal(navigated, null);
   }),
 
   test("clearPhantomMobileSession clears dual storage after disconnect path", () => {
