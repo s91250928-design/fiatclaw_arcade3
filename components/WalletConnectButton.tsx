@@ -44,7 +44,12 @@ export function WalletConnectButton() {
 
   const names = wallets.map((w) => String(w.adapter.name));
   const address = publicKey?.toBase58() ?? "";
-  const showInstall = Boolean(error && isPhantomInstallMessage(error));
+  // Install link only for true install copy — not "Opening Phantom…" mobile deep-link
+  const showInstall = Boolean(
+    error &&
+      isPhantomInstallMessage(error) &&
+      !/opening phantom/i.test(error)
+  );
 
   return (
     <div

@@ -19,6 +19,16 @@ import {
   connectPhantomOfficial,
   waitForPhantomProvider,
   isPhantomInstallMessage,
+  isMobileUserAgent,
+  shouldUsePhantomMobileDeepLink,
+  buildPhantomBrowseDeepLink,
+  buildPhantomConnectDeepLink,
+  buildPhantomMobileOpenUrl,
+  createPhantomConnectKeypair,
+  parsePhantomConnectReturn,
+  phantomAbsentMessage,
+  PHANTOM_MOBILE_OPEN_MESSAGE,
+  tryRestorePhantomConnectReturn,
 } from "../connect-after-select";
 import {
   ARCADE_WALLET_NAMES,
@@ -26,6 +36,8 @@ import {
   buildArcadeWalletAdapters,
   usesPackagePhantomWalletAdapter,
 } from "../adapters";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
 
 function test(name: string, fn: () => void | Promise<void>) {
   return { name, fn };
@@ -334,6 +346,231 @@ const cases = [
     assert.equal(isWalletReadyForConnect("Installed"), true);
     assert.equal(isWalletReadyForConnect("Loadable"), true);
     assert.equal(isWalletReadyForConnect("NotDetected"), false);
+  }),
+
+  // ── Mobile Phantom deep link (jup.ag-style) ───────────────────────
+
+  test("isMobileUserAgent detects phones; desktop false", () => {
+    assert.equal(
+      isMobileUserAgent(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+      ),
+      true
+    );
+    assert.equal(
+      isMobileUserAgent(
+        "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36"
+      ),
+      true
+    );
+    assert.equal(
+      isMobileUserAgent(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
+      ),
+      false
+    );
+  }),
+
+  test("shouldUsePhantomMobileDeepLink: mobile no inject → true; inject → false", () => {
+    const iphone =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15";
+    assert.equal(
+      shouldUsePhantomMobileDeepLink({
+        userAgent: iphone,
+        hasInjectedProvider: false,
+      }),
+      true
+    );
+    assert.equal(
+      shouldUsePhantomMobileDeepLink({
+        userAgent: iphone,
+        hasInjectedProvider: true,
+      }),
+      false
+    );
+    assert.equal(
+      shouldUsePhantomMobileDeepLink({
+        userAgent: "Mozilla/5.0 Phantom/25.0",
+        hasInjectedProvider: false,
+      }),
+      false
+    );
+  }),
+
+  test("buildPhantomBrowseDeepLink encodes page + ref", () => {
+    const u = buildPhantomBrowseDeepLink(
+      "https://app.example.com/play?connect=1",
+      "https://app.example.com"
+    );
+    assert.ok(u.startsWith("https://phantom.app/ul/browse/"));
+    assert.ok(u.includes(encodeURIComponent("https://app.example.com/play?connect=1")));
+    assert.ok(u.includes("ref=" + encodeURIComponent("https://app.example.com")));
+  }),
+
+  test("buildPhantomConnectDeepLink has app_url redirect_link encryption key HTTPS", () => {
+    const u = buildPhantomConnectDeepLink({
+      appUrl: "https://fiatclaw.vercel.app",
+      redirectLink: "https://fiatclaw.vercel.app/play",
+      dappEncryptionPublicKey: "AbCdEf123",
+      cluster: "devnet",
+    });
+    assert.ok(u.startsWith("https://phantom.app/ul/v1/connect?"));
+    const q = new URL(u).searchParams;
+    assert.equal(q.get("app_url"), "https://fiatclaw.vercel.app");
+    assert.equal(q.get("redirect_link"), "https://fiatclaw.vercel.app/play");
+    assert.equal(q.get("dapp_encryption_public_key"), "AbCdEf123");
+    assert.equal(q.get("cluster"), "devnet");
+  }),
+
+  test("buildPhantomMobileOpenUrl connect mode uses UL connect", () => {
+    const u = buildPhantomMobileOpenUrl({
+      pageHref: "https://example.com/play",
+      origin: "https://example.com",
+      mode: "connect",
+      dappEncryptionPublicKey: "Pk123",
+      cluster: "devnet",
+    });
+    assert.ok(u.includes("phantom.app/ul/v1/connect"));
+  }),
+
+  test("phantomAbsentMessage: mobile → open; desktop → install", () => {
+    const m = phantomAbsentMessage({
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+      hasInjectedProvider: false,
+    });
+    assert.equal(m.kind, "mobile_open");
+    assert.ok(/Opening Phantom/i.test(m.message));
+    const d = phantomAbsentMessage({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      hasInjectedProvider: false,
+    });
+    assert.equal(d.kind, "install");
+    assert.ok(isPhantomInstallMessage(d.message));
+  }),
+
+  test("runPhantomOfficialConnect mobile no inject → navigates deep link not Install", async () => {
+    let navigated: string | null = null;
+    const store: Record<string, string> = {};
+    const storage = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+    };
+    const r = await runPhantomOfficialConnect(
+      () => ({}),
+      async () => {},
+      {
+        timeoutMs: 50,
+        pollMs: 10,
+        sleep: async () => {},
+        now: fakeClock(30),
+        userAgent:
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+        pageHref: "https://app.example.com/play",
+        origin: "https://app.example.com",
+        cluster: "devnet",
+        navigate: (url) => {
+          navigated = url;
+        },
+        storage,
+      }
+    );
+    assert.equal(r.ok, false);
+    assert.ok(!isPhantomInstallMessage(r.message));
+    assert.ok(
+      r.message === PHANTOM_MOBILE_OPEN_MESSAGE ||
+        /Opening Phantom/i.test(r.message)
+    );
+    assert.ok(navigated);
+    assert.ok(String(navigated).includes("phantom.app/ul/v1/connect"));
+    assert.ok(String(navigated).includes("redirect_link"));
+    assert.ok(store["fiatclaw_phantom_dapp_sk"]);
+  }),
+
+  test("parsePhantomConnectReturn decrypts public_key (nacl round-trip)", () => {
+    const dapp = createPhantomConnectKeypair();
+    const phantom = nacl.box.keyPair();
+    const shared = nacl.box.before(
+      bs58.decode(dapp.publicKeyBs58),
+      phantom.secretKey
+    );
+    // Phantom encrypts with shared secret from nacl.box.before(dappPk, phantomSk)
+    // App decrypts with nacl.box.before(phantomPk, dappSk) — same shared secret
+    const sharedApp = nacl.box.before(
+      phantom.publicKey,
+      bs58.decode(dapp.secretKeyBs58)
+    );
+    assert.deepEqual(shared, sharedApp);
+
+    const payload = new TextEncoder().encode(
+      JSON.stringify({
+        public_key: "UserWallet1111111111111111111111111111111",
+        session: "sessionTokenBase58",
+      })
+    );
+    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+    const boxed = nacl.secretbox(payload, nonce, shared);
+
+    const q = new URLSearchParams({
+      phantom_encryption_public_key: bs58.encode(phantom.publicKey),
+      nonce: bs58.encode(nonce),
+      data: bs58.encode(boxed),
+    });
+    const parsed = parsePhantomConnectReturn(q, dapp.secretKeyBs58);
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) {
+      assert.equal(parsed.publicKey, "UserWallet1111111111111111111111111111111");
+      assert.equal(parsed.session, "sessionTokenBase58");
+    }
+  }),
+
+  test("tryRestorePhantomConnectReturn stores publicKey session", () => {
+    const dapp = createPhantomConnectKeypair();
+    const phantom = nacl.box.keyPair();
+    const shared = nacl.box.before(
+      phantom.publicKey,
+      bs58.decode(dapp.secretKeyBs58)
+    );
+    const payload = new TextEncoder().encode(
+      JSON.stringify({
+        public_key: "RestoredKey2222222222222222222222222222",
+        session: "sess",
+      })
+    );
+    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+    const boxed = nacl.secretbox(payload, nonce, shared);
+    const store: Record<string, string> = {
+      fiatclaw_phantom_dapp_sk: dapp.secretKeyBs58,
+      fiatclaw_phantom_mobile_pending: "1",
+    };
+    const storage = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+    };
+    const search = `?phantom_encryption_public_key=${bs58.encode(phantom.publicKey)}&nonce=${bs58.encode(nonce)}&data=${bs58.encode(boxed)}`;
+    let cleaned: string | null = null;
+    const r = tryRestorePhantomConnectReturn({
+      search,
+      storage,
+      currentHref: `https://app.example.com/play${search}`,
+      replaceUrl: (h) => {
+        cleaned = h;
+      },
+    });
+    assert.ok(r);
+    assert.equal(r!.ok, true);
+    assert.equal(store["fiatclaw_phantom_pk"], "RestoredKey2222222222222222222222222222");
+    assert.equal(store["fiatclaw_phantom_dapp_sk"], undefined);
+    assert.ok(cleaned && !String(cleaned).includes("data="));
   }),
 ];
 

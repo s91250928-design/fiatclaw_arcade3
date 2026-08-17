@@ -144,14 +144,26 @@ function publicKeyToString(key: {
 
 /**
  * Jupiter/docs flow: wait (brief) → await provider.connect() → publicKey.
- * Opens the Phantom extension popup when installed.
+ * Opens the Phantom extension popup when installed (desktop / in-app browser).
+ * On mobile without inject, callers should open deep link first (see phantom-mobile).
  */
 export async function connectPhantomOfficial(
   getWin: () => PhantomWindowLike | null | undefined,
-  opts?: WaitProviderOptions & { onlyIfTrusted?: boolean }
+  opts?: WaitProviderOptions & {
+    onlyIfTrusted?: boolean;
+    /** When true, absent provider returns unlock/mobile message instead of Install. */
+    allowMobileDeepLink?: boolean;
+  }
 ): Promise<OfficialConnectResult> {
   const waited = await waitForPhantomProvider(getWin, opts);
   if (!waited.ok) {
+    if (opts?.allowMobileDeepLink) {
+      return {
+        ok: false,
+        message: waited.message,
+        kind: "error",
+      };
+    }
     return { ok: false, message: waited.message, kind: "install" };
   }
 

@@ -26,6 +26,15 @@ import {
   type OfficialPhantomProvider,
   type PhantomWindowLike,
 } from "./phantom-official";
+import {
+  buildPhantomMobileOpenUrl,
+  createPhantomConnectKeypair,
+  isMobileUserAgent,
+  loadPhantomMobilePublicKey,
+  PHANTOM_MOBILE_OPEN_MESSAGE,
+  shouldUsePhantomMobileDeepLink,
+  storePhantomConnectSecret,
+} from "./phantom-mobile";
 
 export const ArcadePhantomWalletName = "Phantom" as WalletName<"Phantom">;
 
@@ -86,8 +95,8 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
           typeof provider.publicKey.toBase58 === "function"
             ? provider.publicKey.toBase58()
             : provider.publicKey.toString();
-      } else {
-        // Official docs: brief inject wait → provider.connect() (extension popup)
+      } else if (provider) {
+        // Official docs: brief inject wait → provider.connect() (extension / in-app)
         const result = await connectPhantomOfficial(() => win(), {
           timeoutMs: 2_500,
           pollMs: 50,
@@ -97,15 +106,56 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
         }
         publicKeyStr = result.publicKey;
         provider = getPhantomProvider(win());
+      } else {
+        // Mobile deep-link return: restore publicKey from sessionStorage
+        const cached =
+          typeof sessionStorage !== "undefined"
+            ? loadPhantomMobilePublicKey(sessionStorage)
+            : null;
+        if (cached) {
+          publicKeyStr = cached;
+          provider = null;
+        } else {
+          const ua =
+            typeof navigator !== "undefined" ? navigator.userAgent : "";
+          if (
+            shouldUsePhantomMobileDeepLink({
+              userAgent: ua,
+              hasInjectedProvider: false,
+            })
+          ) {
+            // Open Phantom UL connect (Approve → redirect back with public_key)
+            const kp = createPhantomConnectKeypair();
+            if (typeof sessionStorage !== "undefined") {
+              storePhantomConnectSecret(sessionStorage, kp.secretKeyBs58);
+            }
+            const openUrl = buildPhantomMobileOpenUrl({
+              pageHref: window.location.href,
+              origin: window.location.origin,
+              cluster:
+                (process.env.NEXT_PUBLIC_SOLANA_CLUSTER as
+                  | "devnet"
+                  | "testnet"
+                  | "mainnet-beta"
+                  | undefined) ?? "devnet",
+              mode: "connect",
+              dappEncryptionPublicKey: kp.publicKeyBs58,
+            });
+            window.location.assign(openUrl);
+            throw new WalletConnectionError(PHANTOM_MOBILE_OPEN_MESSAGE);
+          }
+          // Desktop / no mobile path: Install
+          throw new WalletConnectionError(PHANTOM_INSTALL_MESSAGE);
+        }
       }
 
-      if (!provider?.publicKey || !publicKeyStr) {
+      if (!publicKeyStr) {
         throw new WalletAccountError();
       }
 
       let publicKey: PublicKey;
       try {
-        if (provider.publicKey.toBytes) {
+        if (provider?.publicKey?.toBytes) {
           publicKey = new PublicKey(provider.publicKey.toBytes());
         } else {
           publicKey = new PublicKey(publicKeyStr);
@@ -119,14 +169,16 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
 
       this._wallet = provider;
       this._publicKey = publicKey;
-      provider.on?.(
-        "disconnect",
-        this._disconnected as (...args: unknown[]) => void
-      );
-      provider.on?.(
-        "accountChanged",
-        this._accountChanged as (...args: unknown[]) => void
-      );
+      if (provider) {
+        provider.on?.(
+          "disconnect",
+          this._disconnected as (...args: unknown[]) => void
+        );
+        provider.on?.(
+          "accountChanged",
+          this._accountChanged as (...args: unknown[]) => void
+        );
+      }
       this.emit("readyStateChange", this.readyState);
       this.emit("connect", publicKey);
     } catch (error: unknown) {
@@ -166,23 +218,42 @@ export class ArcadePhantomWalletAdapter extends BaseMessageSignerWalletAdapter {
   async signTransaction<
     T extends TransactionOrVersionedTransaction<this["supportedTransactionVersions"]>,
   >(transaction: T): Promise<T> {
-    if (!this._wallet || !this._publicKey) {
+    // Prefer live inject (desktop or Phantom in-app browser)
+    const live = getPhantomProvider(win());
+    const wallet = this._wallet ?? live;
+    if (!wallet || !this._publicKey) {
+      const ua =
+        typeof navigator !== "undefined" ? navigator.userAgent : "";
+      if (isMobileUserAgent(ua) && !live) {
+        throw new WalletConnectionError(
+          "Open this site in Phantom (or reconnect) to sign transactions."
+        );
+      }
       throw new WalletConnectionError(PHANTOM_INSTALL_MESSAGE);
     }
-    if (!this._wallet.signTransaction) {
+    if (!wallet.signTransaction) {
       throw new WalletConnectionError("Phantom signTransaction unavailable");
     }
-    return this._wallet.signTransaction(transaction) as Promise<T>;
+    return wallet.signTransaction(transaction) as Promise<T>;
   }
 
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
-    if (!this._wallet || !this._publicKey) {
+    const live = getPhantomProvider(win());
+    const wallet = this._wallet ?? live;
+    if (!wallet || !this._publicKey) {
+      const ua =
+        typeof navigator !== "undefined" ? navigator.userAgent : "";
+      if (isMobileUserAgent(ua) && !live) {
+        throw new WalletConnectionError(
+          "Open this site in Phantom (or reconnect) to sign messages."
+        );
+      }
       throw new WalletConnectionError(PHANTOM_INSTALL_MESSAGE);
     }
-    if (!this._wallet.signMessage) {
+    if (!wallet.signMessage) {
       throw new WalletConnectionError("Phantom signMessage unavailable");
     }
-    const out = await this._wallet.signMessage(message, "utf8");
+    const out = await wallet.signMessage(message, "utf8");
     if (out instanceof Uint8Array) return out;
     return out.signature;
   }

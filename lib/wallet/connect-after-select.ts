@@ -1,8 +1,9 @@
 /**
- * PC wallet connect after modal select (Jupiter-like Phantom UX).
- * Phantom: official provider.connect() only when isPhantom provider exists.
+ * Wallet connect after modal select (Jupiter-like Phantom UX).
+ * Desktop / Phantom in-app: official provider.connect().
+ * Mobile (no inject): Phantom browse/connect deep link — not Install loop.
  * Solflare: adapter ready-gate (Installed|Loadable).
- * Install text ONLY when provider truly absent — never for NotReady races.
+ * Install text ONLY when provider truly absent AND no mobile deep-link path.
  */
 
 import {
@@ -20,6 +21,21 @@ import {
   type PhantomWindowLike,
   type WaitProviderOptions,
 } from "./phantom-official";
+import {
+  buildPhantomMobileOpenUrl,
+  clearPhantomConnectSecret,
+  createPhantomConnectKeypair,
+  isMobileUserAgent,
+  loadPhantomConnectSecret,
+  loadPhantomMobilePublicKey,
+  parsePhantomConnectReturn,
+  PHANTOM_MOBILE_OPEN_MESSAGE,
+  phantomAbsentMessage,
+  shouldUsePhantomMobileDeepLink,
+  storePhantomConnectSecret,
+  storePhantomMobileSession,
+  type StorageLike,
+} from "./phantom-mobile";
 
 export type ConnectAfterModalInput = {
   userOpenedModal: boolean;
@@ -143,62 +159,187 @@ export async function runWalletConnectWhenReady(
   return runWalletConnect(connect);
 }
 
+export type PhantomConnectEnv = {
+  userAgent?: string;
+  pageHref?: string;
+  origin?: string;
+  cluster?: "devnet" | "testnet" | "mainnet-beta";
+  /** Assign location for deep link (default no-op in tests). */
+  navigate?: (url: string) => void;
+  storage?: StorageLike;
+};
+
 /**
- * Jupiter-like Phantom: provider.connect() opens extension popup.
+ * Jupiter-like Phantom:
+ * 1) Inject present → provider.connect() (desktop extension / Phantom in-app browser).
+ * 2) Mobile no inject → open Phantom UL (browse or connect) — never Install-loop.
  * Then best-effort adapter sync for header publicKey.
- * If official connect succeeds → always ok (never flip to Install on adapter race).
  */
 export async function runPhantomOfficialConnect(
   getWin: () => PhantomWindowLike | null | undefined,
   syncAdapterConnect: () => Promise<void>,
-  opts?: WaitProviderOptions
+  opts?: WaitProviderOptions & PhantomConnectEnv
 ): Promise<ConnectResult> {
   const presentBefore = isPhantomInstalled(getWin());
+  const ua =
+    opts?.userAgent ??
+    (typeof navigator !== "undefined" ? navigator.userAgent : "");
+  const useMobile = shouldUsePhantomMobileDeepLink({
+    userAgent: ua,
+    hasInjectedProvider: presentBefore,
+  });
+
+  // Mobile session restored from prior deep-link return (publicKey only)
+  if (!presentBefore && opts?.storage) {
+    const cached = loadPhantomMobilePublicKey(opts.storage);
+    if (cached) {
+      try {
+        await syncAdapterConnect();
+      } catch {
+        /* adapter may still hydrate from storage in ArcadePhantomWalletAdapter */
+      }
+      return { ok: true, publicKey: cached };
+    }
+  }
+
+  if (useMobile) {
+    const pageHref =
+      opts?.pageHref ??
+      (typeof window !== "undefined" ? window.location.href : "");
+    const origin =
+      opts?.origin ??
+      (typeof window !== "undefined" ? window.location.origin : "");
+    const navigate =
+      opts?.navigate ??
+      ((url: string) => {
+        if (typeof window !== "undefined") window.location.assign(url);
+      });
+    const storage = opts?.storage;
+
+    // Prefer encrypted connect UL (return to HTTPS origin with public_key)
+    const kp = createPhantomConnectKeypair();
+    if (storage) storePhantomConnectSecret(storage, kp.secretKeyBs58);
+
+    const openUrl = buildPhantomMobileOpenUrl({
+      pageHref: pageHref || origin || "https://localhost",
+      origin: origin || "https://localhost",
+      cluster: opts?.cluster ?? "devnet",
+      mode: "connect",
+      dappEncryptionPublicKey: kp.publicKeyBs58,
+    });
+
+    navigate(openUrl);
+    return { ok: false, message: PHANTOM_MOBILE_OPEN_MESSAGE };
+  }
 
   const official = await connectPhantomOfficial(getWin, {
     timeoutMs: opts?.timeoutMs ?? 2_500,
     pollMs: opts?.pollMs ?? 50,
     sleep: opts?.sleep,
     now: opts?.now,
+    allowMobileDeepLink: isMobileUserAgent(ua),
   });
 
   if (!official.ok) {
-    // install | reject | error — do not upgrade reject/error to install
+    // On mobile residual absent: never Install-loop — offer deep link message
+    if (official.kind === "install" && isMobileUserAgent(ua)) {
+      const policy = phantomAbsentMessage({
+        userAgent: ua,
+        hasInjectedProvider: false,
+      });
+      return { ok: false, message: policy.message };
+    }
     return { ok: false, message: official.message };
   }
 
-  // Official success — extension popup was used. Sync wallet-adapter for UI.
+  // Official success — extension popup / in-app. Sync wallet-adapter for UI.
   try {
     await syncAdapterConnect();
   } catch {
     try {
       await syncAdapterConnect();
     } catch {
-      // Adapter race (Standard vs legacy) must not undo a successful provider.connect()
+      // Adapter race must not undo successful provider.connect()
     }
   }
 
-  // Confirm provider still holds session
   const after = getPhantomProvider(getWin());
   if (after?.publicKey || after?.isConnected || official.publicKey) {
     return { ok: true, publicKey: official.publicKey };
   }
 
-  // Extremely rare: official ok but key gone
   return {
     ok: false,
     message: presentBefore ? PHANTOM_UNLOCK_MESSAGE : PHANTOM_INSTALL_MESSAGE,
   };
 }
 
-/** Phantom → official popup path; Solflare → ready-gated adapter. */
+/**
+ * Handle return from Phantom connect deep link (?phantom_encryption_public_key&nonce&data).
+ * Stores publicKey session and strips sensitive query from URL when possible.
+ */
+export function tryRestorePhantomConnectReturn(input: {
+  search: string;
+  storage: StorageLike;
+  replaceUrl?: (cleanHref: string) => void;
+  currentHref?: string;
+}): ConnectResult | null {
+  const params = new URLSearchParams(
+    input.search.startsWith("?") ? input.search.slice(1) : input.search
+  );
+  const hasReturn =
+    params.has("data") ||
+    params.has("phantom_encryption_public_key") ||
+    params.has("errorCode");
+  if (!hasReturn) return null;
+
+  const secret = loadPhantomConnectSecret(input.storage);
+  if (!secret) {
+    // May be stale return without secret — clear noise
+    return {
+      ok: false,
+      message: PHANTOM_UNLOCK_MESSAGE,
+    };
+  }
+
+  const parsed = parsePhantomConnectReturn(params, secret);
+  clearPhantomConnectSecret(input.storage);
+
+  if (parsed.ok) {
+    storePhantomMobileSession(
+      input.storage,
+      parsed.publicKey,
+      parsed.session
+    );
+    if (input.replaceUrl && input.currentHref) {
+      try {
+        const u = new URL(input.currentHref);
+        [
+          "phantom_encryption_public_key",
+          "nonce",
+          "data",
+          "errorCode",
+          "errorMessage",
+        ].forEach((k) => u.searchParams.delete(k));
+        input.replaceUrl(u.pathname + u.search + u.hash);
+      } catch {
+        /* ignore */
+      }
+    }
+    return { ok: true, publicKey: parsed.publicKey };
+  }
+
+  return { ok: false, message: parsed.message };
+}
+
+/** Phantom → official popup or mobile deep link; Solflare → ready-gated adapter. */
 export async function runSelectedWalletConnect(input: {
   walletName: string | null | undefined;
   connect: () => Promise<void>;
   getReadyState: () => WalletReadyStateName | null | undefined;
   getWin: () => PhantomWindowLike | null | undefined;
   readyOpts?: WaitForReadyOptions;
-  phantomOpts?: WaitProviderOptions;
+  phantomOpts?: WaitProviderOptions & PhantomConnectEnv;
 }): Promise<ConnectResult> {
   const name = String(input.walletName ?? "");
   if (name === "Phantom") {
@@ -226,3 +367,15 @@ export {
   waitForPhantomProvider,
   isPhantomInstallMessage,
 } from "./phantom-official";
+export {
+  isMobileUserAgent,
+  shouldUsePhantomMobileDeepLink,
+  buildPhantomBrowseDeepLink,
+  buildPhantomConnectDeepLink,
+  buildPhantomMobileOpenUrl,
+  createPhantomConnectKeypair,
+  parsePhantomConnectReturn,
+  phantomAbsentMessage,
+  PHANTOM_MOBILE_OPEN_MESSAGE,
+  loadPhantomMobilePublicKey,
+} from "./phantom-mobile";
