@@ -18,3 +18,4 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+<!-- force sync deploy 2026-08-17 18:17:52 +03:00 -->
