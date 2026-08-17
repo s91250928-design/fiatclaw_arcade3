@@ -5179,47 +5179,33 @@ body{ animation:fx2-poweron 1.5s steps(1,end) 1; }
 </style>
 
 <style id="fcfix15-css">
-  /* секция растёт под контент */
-  #fcstage.is-in .stage,.stage{height:auto!important;min-height:100svh!important}
-  .shell{height:auto!important;min-height:100svh!important}
-
+  /* Desktop only: full-viewport stage + 2-col hero grid.
+     Mobile must NOT inherit min-height:100svh or display:contents — those caused collapse. */
   @media(min-width:901px){
-    #fcstage .hero{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)!important;
+    #fcstage.is-in .stage,.stage{height:auto!important;min-height:100svh!important}
+    .shell{height:auto!important;min-height:100svh!important}
+    #fcstage .hero{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)!important;
       grid-template-rows:auto auto!important;align-items:start!important;
       row-gap:clamp(14px,2vh,26px)!important;column-gap:clamp(20px,3vw,56px)!important;
       padding-bottom:clamp(20px,4vh,52px)!important}
-    /* текст слева сверху */
     #fcstage .hero>.col:first-child{grid-column:1!important;grid-row:1!important;align-self:start!important}
-    /* автомат справа сверху (колонка растворяется, чтобы её дети встали по сетке) */
     #fcstage .col.machine-col{display:contents!important}
     #fcstage .col.machine-col>.mstage{grid-column:2!important;grid-row:1!important;justify-self:center!important}
     #fcstage .col.machine-col>.floaters{grid-column:2!important;grid-row:1!important}
-    /* статистика — под автоматом */
     #fcstage .strip{grid-column:2!important;grid-row:2!important;justify-self:center!important;
       width:100%!important;max-width:560px!important;margin:0 auto!important}
-    /* лента — в левую колонку, под чипами */
     #fcstage .col.rail{grid-column:1!important;grid-row:2!important;justify-self:start!important;
       position:static!important;width:100%!important;max-width:440px!important;
       margin:0!important;transform:none!important}
     #fcstage .col.rail .mirror{transform:none!important}
-  }
-
-  /* автомат крупнее */
-  #fcstage .machine{width:min(100%,540px)!important}
-
-  /* статистика: сетка 3×2, без наложений */
-  #fcstage .strip{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
-    gap:14px 12px!important;padding:18px 20px!important}
-  #fcstage .strip .stat{flex:none!important;min-width:0!important;white-space:nowrap!important;
-    display:flex!important;align-items:center!important;gap:9px!important;justify-content:center!important}
-  #fcstage .strip .stat>div{min-width:0!important}
-  #fcstage .strip .stat b{font-size:clamp(13px,1.15vw,16px)!important}
-
-  /* лента компактнее в левой колонке */
-  #fcstage .panel.feed{width:100%!important;max-width:440px!important;margin:0!important}
-  @media(max-width:900px){
-    #fcstage .strip{grid-template-columns:repeat(2,minmax(0,1fr))!important;max-width:460px!important}
-    #fcstage .col.rail,#fcstage .panel.feed{max-width:100%!important}
+    #fcstage .machine{width:min(100%,540px)!important}
+    #fcstage .strip{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+      gap:14px 12px!important;padding:18px 20px!important}
+    #fcstage .strip .stat{flex:none!important;min-width:0!important;white-space:nowrap!important;
+      display:flex!important;align-items:center!important;gap:9px!important;justify-content:center!important}
+    #fcstage .strip .stat>div{min-width:0!important}
+    #fcstage .strip .stat b{font-size:clamp(13px,1.15vw,16px)!important}
+    #fcstage .panel.feed{width:100%!important;max-width:440px!important;margin:0!important}
   }
 </style>
 
@@ -5590,6 +5576,181 @@ h1,h2,h3,.tt,.s2-title,.s3-title,.s4-t1,.s4-t2,.s5-title,.s6-title,
   #hero .eyebrow{font-size:8px!important;padding:6px 10px 6px 8px!important}
   #hero .machine,.machine{width:min(100%,min(92vw,300px))!important}
   #hero .shell{padding-top:calc(62px + env(safe-area-inset-top,0px))!important}
+}
+</style>
+
+<style id="fc-mobile-flow-v2">
+/* ═══════════════════════════════════════════════════════════
+   FINAL mobile hero stack — last cascade wins over all patches.
+   Natural DOM order only: copy → cabinet → stats. No absolute hero UI.
+   ═══════════════════════════════════════════════════════════ */
+@media screen and (max-width:900px){
+  /* Kill fixed/absolute atmosphere that paints over / steals space */
+  .fx2,.fx2__holo,.fx2__shaft,.fx2__coins,.fx2__glitch,.fx2__hud,.fx2__status,.fx2__aura,
+  .fcfx__rain,.fcfx__scan,.fcfx__motes,
+  #hero .world,#hero .street,#hero .fog,#hero .streak,#hero .grain,#hero .scan,#hero .vig,
+  #hero .floaters,#hero .mirror,#hero .arcology,#hero .shaft,#hero canvas{
+    display:none!important;visibility:hidden!important;pointer-events:none!important
+  }
+  .fcfx{opacity:.55!important}
+
+  html,body{
+    height:auto!important;min-height:100%!important;
+    overflow-x:clip!important;overflow-y:auto!important;
+    max-width:100vw!important
+  }
+
+  /* Fixed nav stays; content clears it */
+  .fcnav{
+    position:fixed!important;top:0!important;left:0!important;right:0!important;
+    z-index:900!important;height:56px!important;
+    padding:0 16px!important;box-sizing:border-box!important
+  }
+  .fcnav__logo img{height:28px!important;width:auto!important;max-width:140px!important}
+
+  #fcstage,.fcstage,#hero.fcsec{
+    display:block!important;width:100%!important;max-width:100vw!important;
+    position:relative!important;overflow:visible!important;
+    margin:0!important;padding:0!important;inset:auto!important;transform:none!important
+  }
+
+  #hero .stage,#fcstage .stage,.stage,#fcstage.is-in .stage{
+    display:block!important;position:relative!important;
+    width:100%!important;max-width:100vw!important;
+    height:auto!important;min-height:0!important;max-height:none!important;
+    overflow:visible!important;isolation:auto!important;
+    inset:auto!important;top:auto!important;left:auto!important;
+    transform:none!important;padding:0!important;margin:0!important
+  }
+
+  /* Shell = vertical flex column */
+  #hero .shell,.shell{
+    display:flex!important;flex-direction:column!important;align-items:stretch!important;
+    width:100%!important;max-width:100%!important;
+    height:auto!important;min-height:0!important;
+    overflow:visible!important;position:relative!important;z-index:5!important;
+    padding:calc(64px + env(safe-area-inset-top,0px)) 0 28px!important;
+    margin:0!important;gap:0!important;transform:none!important;inset:auto!important
+  }
+
+  /* Hero = vertical flex; NEVER grid / contents on mobile */
+  #hero .hero,#fcstage .hero,.hero{
+    display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;
+    align-items:stretch!important;justify-content:flex-start!important;
+    width:100%!important;max-width:100%!important;min-width:0!important;
+    height:auto!important;min-height:0!important;
+    gap:16px!important;
+    padding:12px 20px 8px!important; /* px-5 */
+    margin:0!important;box-sizing:border-box!important;
+    overflow:visible!important;position:relative!important;
+    grid-template-columns:none!important;grid-template-rows:none!important;
+    grid:none!important;inset:auto!important;transform:none!important
+  }
+
+  #hero .hero > .col,
+  #fcstage .hero > .col,
+  .hero > .col{
+    display:flex!important;flex-direction:column!important;
+    position:relative!important;float:none!important;
+    width:100%!important;max-width:100%!important;min-width:0!important;
+    height:auto!important;margin:0!important;padding:0!important;
+    inset:auto!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;
+    transform:none!important;grid-column:auto!important;grid-row:auto!important
+  }
+
+  /* Explicit stack order matching required DOM sequence */
+  #hero .hero > .col:first-child{order:1!important}
+  #hero .hero > .col.machine-col,
+  #fcstage .col.machine-col{
+    order:2!important;align-items:center!important;display:flex!important; /* never contents */
+  }
+  #hero .hero > .col.rail,
+  #fcstage .col.rail{display:none!important}
+
+  /* Copy blocks: full width, wrap, no absolute */
+  #hero .eyebrow,#hero h2.tt,#hero .lede,#hero .cta,#hero .powered,#hero .badges,
+  #hero .eyebrow b,#hero .tt .l1,#hero .tt .l2{
+    position:relative!important;inset:auto!important;top:auto!important;left:auto!important;
+    transform:none!important;float:none!important;
+    width:100%!important;max-width:100%!important;min-width:0!important;
+    box-sizing:border-box!important;
+    overflow:hidden!important;overflow-wrap:anywhere!important;word-break:break-word!important
+  }
+  #hero .eyebrow{
+    display:inline-flex!important;width:auto!important;max-width:100%!important;
+    align-self:flex-start!important;white-space:normal!important;
+    font-size:9px!important;line-height:1.4!important;padding:8px 12px!important;margin:0!important
+  }
+  #hero h2.tt{
+    font-size:clamp(30px,10vw,52px)!important;line-height:.95!important;
+    letter-spacing:-.03em!important;margin:6px 0 0!important;padding:0!important
+  }
+  #hero .tt .l1,#hero .tt .l2{display:block!important;width:100%!important}
+  #hero .lede{
+    font-size:14px!important;line-height:1.6!important;margin:8px 0 0!important;
+    color:#A8AEBC!important
+  }
+  #hero .cta{
+    display:flex!important;flex-direction:column!important;gap:10px!important;
+    margin-top:12px!important;overflow:visible!important
+  }
+  #hero .play,#hero .ghost{
+    width:100%!important;min-width:0!important;flex:none!important;
+    justify-content:center!important;min-height:48px!important;
+    padding:14px 16px!important;font-size:12px!important;
+    position:relative!important;top:auto!important;left:auto!important;transform:none!important
+  }
+  #hero .powered{
+    display:flex!important;flex-wrap:wrap!important;gap:8px!important;
+    margin-top:8px!important;font-size:9px!important;overflow:visible!important
+  }
+
+  /* Badges: 2-column fluid grid */
+  #hero .badges{
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:12px!important;margin-top:10px!important;overflow:visible!important
+  }
+  #hero .badge{
+    display:flex!important;flex-direction:row!important;align-items:flex-start!important;
+    gap:8px!important;min-width:0!important;max-width:100%!important;width:100%!important;
+    padding:12px!important;font-size:9px!important;letter-spacing:.04em!important;
+    white-space:normal!important;overflow:hidden!important;overflow-wrap:anywhere!important;
+    box-sizing:border-box!important
+  }
+  #hero .badge span{
+    display:block!important;width:100%!important;margin-top:3px!important;
+    font-size:8px!important;white-space:normal!important;overflow-wrap:anywhere!important
+  }
+
+  /* Cabinet in normal flow */
+  #hero .mstage,#hero .machine{
+    position:relative!important;display:block!important;
+    width:min(100%,320px)!important;max-width:100%!important;
+    height:auto!important;margin:12px auto 0!important;
+    inset:auto!important;top:auto!important;left:auto!important;
+    transform:none!important;overflow:visible!important
+  }
+  #hero .fcm3dwrap{position:absolute!important;inset:0!important;transform:none!important}
+  #hero .fcm3d{width:100%!important;height:100%!important;object-fit:contain!important}
+
+  /* Stats under hero, full width, 2-col */
+  #hero .shell > .strip,#fcstage .strip,.shell > .strip,.strip{
+    order:3!important;position:relative!important;
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    width:auto!important;max-width:none!important;
+    margin:16px 20px 0!important;padding:12px!important;gap:10px!important;
+    box-sizing:border-box!important;inset:auto!important;transform:none!important;
+    grid-column:auto!important;grid-row:auto!important
+  }
+  .strip .stat{min-width:0!important;padding:8px!important}
+  .strip .stat b{font-size:13px!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .strip .stat span{font-size:7px!important;white-space:normal!important;overflow-wrap:anywhere!important}
+}
+@media screen and (max-width:400px){
+  #hero .hero{padding:10px 16px 8px!important}
+  #hero h2.tt{font-size:clamp(28px,11vw,40px)!important}
+  #hero .shell > .strip,.strip{margin-left:16px!important;margin-right:16px!important}
+  #hero .machine{width:min(100%,280px)!important}
 }
 </style>
 </head>
