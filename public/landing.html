@@ -4300,8 +4300,9 @@ body{ overflow-x:clip!important; overflow:visible!important; }
 }
 
 /* контент выше слоя */
-.fcsec, .fcnav, .fcfoot, .fctop, .fcdemo{ position:relative; z-index:1; }
-.fcnav{ z-index:900; } .fctop{ z-index:800; } .fcdemo{ z-index:850; }
+.fcsec, .fcnav, .fcfoot, .fctop{ position:relative; z-index:1; }
+.fcnav{ z-index:900; } .fctop{ z-index:800; }
+/* fcdemo stays position:fixed (see .fcdemo rules) so the banner remains visible */
 
 /* ── на телефоне: убираем самое дорогое, оставляем узнаваемое ── */
 @media (max-width:900px), (pointer:coarse){
@@ -8468,7 +8469,11 @@ body{padding-bottom:44px!important}
       try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);done();}});
 
   var dx=document.getElementById('fcdemox');
-  dx.addEventListener('click',function(){document.getElementById('fcdemo').style.display='none';});
+  if(dx){dx.addEventListener('click',function(){
+    var b=document.getElementById('fcdemo');
+    if(b) b.style.display='none';
+    document.body.style.paddingBottom='0';
+  });}
 })();
 
 /* ═══════════ СЛОЙ ЭФФЕКТОВ 2 ═══════════
