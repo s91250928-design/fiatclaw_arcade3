@@ -5753,6 +5753,174 @@ h1,h2,h3,.tt,.s2-title,.s3-title,.s4-t1,.s4-t2,.s5-title,.s6-title,
   #hero .machine{width:min(100%,280px)!important}
 }
 </style>
+
+<style id="fc-ux-bugs-css">
+/* ═══════════════════════════════════════════════════════════
+   UX BUGFIXES — overflow, truncation, counters, z-index, demo
+   ═══════════════════════════════════════════════════════════ */
+
+/* 1) Horizontal overflow / scroll-drift
+   Root: decorative layers used 108vw / left:-30% and unclamped
+   translateX during scroll. Clamp at source, not with body-only hide. */
+html{overflow-x:clip;max-width:100%}
+body{overflow-x:clip!important;max-width:100%;width:100%;position:relative}
+.fcsec,
+.s2-sec,.s3-sec,.s4-sec,.s5-sec,.s6-sec,.s7-sec,.s8-sec,.s9-sec,.s10-sec,
+[class$="-sec"],[class$="-wrap"]{
+  max-width:100%!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+  overflow-x:clip!important
+}
+/* Decorative walls / wet floors that bled past the viewport */
+.s2-wall,.s5-wall,.s6-wall,.s7-city,.s8-racks,.s8-grid,.s10-city,
+.s2-ground,.s5-ground,.s6-ground,.s8-ground,
+.s2-wet,.s5-wet,.s6-wet,.s8-wet,
+.s2-laser,.s5-laser,.s6-laser,.s8-laser,
+.s4-bg,.s5-bg,.s6-bg,.s8-bg,.s9-bg{
+  max-width:100%!important;
+  left:0!important;right:0!important;
+  width:100%!important;
+  transform:none!important
+}
+/* Reveal animation: only vertical, never sideways */
+.fc-reveal .fcsec{transform:translate3d(0,18px,0)!important}
+.fc-reveal .fcsec.is-in{transform:none!important}
+.s2-card,.s3-panel,.s4-panel,.s5-panel,.s6-tier,.s7-phase,.s8-p,.s9-card{
+  max-width:100%!important;box-sizing:border-box!important
+}
+/* Marquee tapes stay inside overflow-hidden frames only */
+.s2-tape{max-width:none} /* intentional infinite strip inside clipped .s2-viz */
+.s2-viz,.s5-rows,.s6-benefits{overflow-x:hidden!important}
+
+/* 2) Truncated text — remove line clamps / forced nowrap on copy */
+.s2-lede,.s2-note,.s2-label,.s2-eyebrow,.s2-title,
+.s3-cap,.s3-lede,.s3-h,
+.s4-lede,.s5-t1,.s5-t2,.s5-odds,
+.s6-perk,.s6-ben p,.s6-ben h4,.s6-term dd,.s6-term dt,
+.s7-lede,.s8-lede,.s9-a,.s9-h,.s10-nl,
+p,h1,h2,h3,h4{
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  -webkit-line-clamp:unset!important;
+  line-clamp:unset!important;
+  max-width:100%!important;
+  overflow-wrap:anywhere!important;
+  word-break:break-word!important;
+  box-sizing:border-box!important
+}
+/* Labels that used extreme letter-spacing + nowrap on mobile */
+.s2-eyebrow,.s2-label,.s2-legend span,.s5-jlabel h3,.s5-ph h3{
+  white-space:normal!important;
+  letter-spacing:.12em!important
+}
+.s2-delta{white-space:normal!important;max-width:100%}
+.s2-delta s{display:inline}
+
+/* 3) Counter font — legible mono digits, no bloom/glitch */
+.s2-num,.s2-num u,
+.s5-num .digits,.s5-num .digits span,
+.jnum,.jnum small,
+#s6staked,#s6stakers,#s6tvl,#s6cd,
+.s4-stat b,.s4-hole b,.s7-stat b,.s8-metric b,.s9-st b{
+  font-family:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace!important;
+  letter-spacing:-.02em!important;
+  font-variant-numeric:tabular-nums!important;
+  -webkit-text-fill-color:currentColor!important;
+  background:none!important;
+  -webkit-background-clip:unset!important;background-clip:unset!important;
+  filter:none!important
+}
+.s2-num{
+  color:#fff!important;
+  text-shadow:0 0 12px color-mix(in srgb,var(--c,#22D3FF) 28%,transparent)!important
+}
+.s2-num.s2-beat{text-shadow:0 0 18px color-mix(in srgb,var(--c,#22D3FF) 45%,transparent)!important}
+.s5-num .digits span{
+  color:#FFD277!important;
+  text-shadow:0 0 10px rgba(255,194,75,.45)!important
+}
+.s5-num .digits span.sep{color:#C98F2E!important;text-shadow:none!important}
+
+/* 4) Demo disclaimer — always visible English bar */
+.fcdemo{
+  position:fixed!important;left:0!important;right:0!important;bottom:0!important;
+  z-index:960!important;display:block!important;
+  padding:10px 14px!important;text-align:center!important;
+  font-family:"JetBrains Mono",ui-monospace,monospace!important;
+  font-size:10px!important;letter-spacing:.12em!important;
+  color:#E8C96A!important;
+  background:rgba(28,18,4,.96)!important;
+  border-top:1px solid rgba(255,194,75,.35)!important;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)
+}
+.fcdemo b{color:#FFD277!important}
+.fcdemo button{
+  margin-left:10px!important;padding:4px 10px!important;border-radius:6px!important;
+  cursor:pointer!important;font-size:10px!important;
+  border:1px solid rgba(255,194,75,.45)!important;background:transparent!important;color:#FFD277!important
+}
+/* Keep page content clear of the banner */
+body{padding-bottom:44px!important}
+
+/* 5) Recent winners — compact list, no dead vertical gap */
+.s5-rows{
+  min-height:0!important;
+  display:flex!important;flex-direction:column!important;gap:0!important;
+  padding:0 11px 8px!important
+}
+.s5-row{min-height:0!important;padding:9px 4px!important}
+.s5-panel{display:flex!important;flex-direction:column!important}
+.s5-all{margin-top:auto!important}
+
+/* 6) Elite benefits — icons never cover body copy */
+.s6-benefits{position:relative!important;z-index:1!important;overflow:hidden!important}
+.s6-ben{position:relative!important;z-index:2!important;overflow:visible!important}
+.s6-bic{
+  position:relative!important;z-index:1!important;
+  flex:0 0 auto!important;pointer-events:none
+}
+.s6-ben h4,.s6-ben p{position:relative!important;z-index:3!important}
+.s6-bic svg{animation:none!important} /* spinning orb was obscuring text */
+@media (max-width:900px){
+  .s6-ben{display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:6px!important}
+  .s6-bic{margin-bottom:2px!important}
+}
+
+/* 7) Staking tier terms always legible — never opacity:0 race before s6-in */
+.s6-tier{overflow:visible!important;opacity:1!important;transform:none!important}
+.s6-rise{opacity:1!important;transform:none!important}
+.s6-terms{position:relative!important;z-index:4!important;opacity:1!important}
+.s6-term{opacity:1!important;visibility:visible!important}
+.s6-term dt,.s6-term dd{
+  opacity:1!important;visibility:visible!important;color:inherit!important;
+  min-height:1.1em!important
+}
+.s6-term dd{color:#EDEEF2!important;font-weight:600!important}
+.s6-term dd.apr{color:#14F195!important}
+.s6-holo,.s6-spot{z-index:0!important;pointer-events:none!important}
+.s6-medal{z-index:1!important}
+
+/* 8) Mystery boxes — icon centered, no giant "?" glyph */
+.s3-mys,.s5-mbox,.prize.mbox .f{
+  display:grid!important;place-items:center!important;
+  font-size:0!important;color:transparent!important
+}
+.s3-mys svg,.s5-mbox svg,.prize.mbox .f svg{
+  display:block!important;width:70%!important;height:auto!important
+}
+
+/* 9) Section cards don't force min-heights that leave empty holes */
+.s5-vaultcol{min-height:0!important}
+@media (max-width:900px){
+  .s5-main{gap:18px!important}
+  .s5-panel{min-height:0!important}
+  .s2-grid{gap:14px!important}
+  .s2-card{padding:16px!important}
+  .s2-num{font-size:clamp(26px,8vw,36px)!important;line-height:1.05!important}
+}
+</style>
 </head>
 <body>
 
@@ -6478,7 +6646,9 @@ h1,h2,h3,.tt,.s2-title,.s3-title,.s4-t1,.s4-t2,.s5-title,.s6-title,
 
               <span class="s3-orb" style="left:38%;top:2%;width:26%;aspect-ratio:1;animation-delay:-1.2s"></span>
               <span class="s3-nft" style="left:4%;top:26%;width:24%;aspect-ratio:.72"><span>NFT</span></span>
-              <span class="s3-mys" style="right:6%;top:22%;width:22%;aspect-ratio:1">?</span>
+              <span class="s3-mys" style="right:6%;top:22%;width:22%;aspect-ratio:1" aria-label="Mystery box">
+                <svg viewBox="0 0 32 32" width="70%" height="70%" aria-hidden="true"><rect x="4" y="12" width="24" height="16" rx="3" fill="#3a1568" stroke="#9945FF" stroke-width="1.5"/><path d="M4 16h24M16 12v16" stroke="#C79BFF" stroke-width="1.2"/><path d="M10 12V9a6 6 0 0 1 12 0v3" stroke="#9945FF" stroke-width="1.4" fill="none"/></svg>
+              </span>
               <span class="s3-cash" style="left:30%;bottom:8%;width:26%;height:15%"></span>
               <span class="s3-tkt" style="right:16%;bottom:12%;width:22%;height:8%;transform:rotate(-9deg)"></span>
               <span class="s3-coin" style="left:8%;bottom:6%;width:19%;aspect-ratio:1">
@@ -8182,7 +8352,7 @@ h1,h2,h3,.tt,.s2-title,.s3-title,.s4-t1,.s4-t2,.s5-title,.s6-title,
 <div class="fcfoot__bar"><span>BUILT WITH <span style="color:var(--fc-red)">♥</span> ON <b>SOLANA</b></span>
 <span>POWERED BY <b>ANCHOR</b></span><span><b>WALLET ADAPTER</b></span><span>100% <b>ON-CHAIN</b></span></div></footer>
 <button class="fctop" id="fctop" type="button" aria-label="Наверх">↑</button>
-<div class="fcdemo" id="fcdemo">ДЕМО · ЦИФРЫ <b>ВЫМЫШЛЕННЫЕ</b><button type="button" id="fcdemox">скрыть</button></div>
+<div class="fcdemo" id="fcdemo" role="status">DEMO &middot; STATS ARE <b>ILLUSTRATIVE</b> <button type="button" id="fcdemox" aria-label="Hide demo banner">hide</button></div>
 <script>
 
 /* ═══════════════ ЗАЩИТА ПАМЯТИ НА МОБИЛЬНЫХ ═══════════════
@@ -8435,8 +8605,11 @@ buildBand(document.getElementById("bandNear"), 15, 30, 100, 54,120, .5);
   }
   function sol(style, id){ return '<div class="prize coin" style="'+style+'">'+solGlyph(id)+'</div>'; }
   function box(style, fs){
-    return '<div class="prize mbox" style="'+style+'"><div class="t"></div>'+
-           '<div class="f"'+(fs?' style="font-size:'+fs+'px"':'')+'>?</div></div>';
+    /* Mystery box — gift icon, never a bare "?" placeholder */
+    return '<div class="prize mbox" style="'+style+'" aria-label="Mystery box"><div class="t"></div>'+
+           '<div class="f"'+(fs?' style="font-size:'+fs+'px"':'')+'>'+
+           '<svg viewBox="0 0 24 24" width="62%" height="62%" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="2" fill="#2b1046" stroke="#9945FF" stroke-width="1.4"/><path d="M3 13h18M12 9v12" stroke="#C79BFF" stroke-width="1.2"/><path d="M8 9V7a4 4 0 0 1 8 0v2" stroke="#9945FF" stroke-width="1.3" fill="none"/></svg>'+
+           '</div></div>';
   }
 
   /* приз под клешнёй */
@@ -8706,7 +8879,10 @@ var rnd = function(a,b){ return a + Math.random()*(b-a); };
 var ri  = function(a,b){ return Math.round(rnd(a,b)); };
 var pick= function(a){ return a[ri(0,a.length-1)]; };
 var $   = function(id){ return document.getElementById(id); };
-function fmt(n,d){ return n.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function fmt(n,d){
+  var dec = (typeof d === "number" && !isNaN(d)) ? d : 0;
+  return Number(n).toLocaleString("en-US",{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
 
 /* ------------------------------------------------------------
    single source of truth — change these and everything follows
@@ -8796,15 +8972,25 @@ var LIT = Math.round(STATS.players.v/200);           /* 1 cell = 200 wallets */
 /* ---------- 4. count up on reveal ---------- */
 function paint(key){
   var s = STATS[key], el = $(s.el);
+  if(!el) return;
+  /* JetBrains Mono digits only — never glitch/Orbitron bloom on counters */
+  el.style.fontFamily = '"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace';
+  el.style.letterSpacing = "-0.02em";
+  el.style.textShadow = "none";
   el.innerHTML = fmt(s.v, s.d) + (s.unit ? "<u>"+s.unit+"</u>" : "");
 }
 function beat(key){
   var el = $(STATS[key].el);
+  if(!el) return;
   el.classList.add("s2-beat");
   setTimeout(function(){ el.classList.remove("s2-beat"); }, 420);
 }
 function countUp(key, ms, delay){
   var s = STATS[key], el = $(s.el), from = 0, to = s.v, t0 = null;
+  if(!el) return;
+  el.style.fontFamily = '"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace';
+  el.style.letterSpacing = "-0.02em";
+  el.style.textShadow = "none";
   function step(t){
     if(t0 === null) t0 = t;
     var p = Math.min(1,(t-t0)/ms);
@@ -9219,9 +9405,9 @@ var fmt = function(n,d){ return n.toLocaleString("en-US",{minimumFractionDigits:
   html += '<span class="s5-bundle" style="left:24%;width:34px;height:30%"></span>';
   html += '<span class="s5-bundle" style="left:29%;width:28px;height:22%"></span>';
   html += '<span class="s5-case" style="left:38%;width:26px;height:46%"></span>';
-  html += '<span class="s5-mbox" style="left:50%;width:28px;height:34%">?</span>';
+  html += '<span class="s5-mbox" style="left:50%;width:28px;height:34%" aria-label="Mystery box"><svg viewBox="0 0 24 24" width="70%" height="70%" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="2" fill="#2b1046" stroke="#9945FF" stroke-width="1.4"/><path d="M3 13h18M12 9v12" stroke="#C79BFF" stroke-width="1.2"/><path d="M8 9V7a4 4 0 0 1 8 0v2" stroke="#9945FF" stroke-width="1.3" fill="none"/></svg></span>';
   html += '<span class="s5-case" style="left:60%;width:23px;height:38%;transform:rotate(6deg)"></span>';
-  html += '<span class="s5-mbox" style="left:69%;width:23px;height:26%;font-size:9px">?</span>';
+  html += '<span class="s5-mbox" style="left:69%;width:23px;height:26%" aria-label="Mystery box"><svg viewBox="0 0 24 24" width="70%" height="70%" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="2" fill="#2b1046" stroke="#9945FF" stroke-width="1.4"/><path d="M3 13h18M12 9v12" stroke="#C79BFF" stroke-width="1.2"/><path d="M8 9V7a4 4 0 0 1 8 0v2" stroke="#9945FF" stroke-width="1.3" fill="none"/></svg></span>';
   host.innerHTML = html;
 })();
 
@@ -9229,8 +9415,10 @@ var fmt = function(n,d){ return n.toLocaleString("en-US",{minimumFractionDigits:
 var JACK = { v:12582.49, delta:3.27, floor:12000, next:13000 };
 var digitsEl = $("s5digits"), prev = "";
 function renderJack(v){
-  var str = fmt(v,2);
-  if(str.length !== prev.length){
+  /* Always exactly 2 decimal places — never 12,585.3 vs 12,585.56 */
+  var str = Number(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(!digitsEl) return;
+  if(str.length !== prev.length || !digitsEl.children.length){
     var html = "";
     for(var i=0;i<str.length;i++){
       var c = str.charAt(i);
@@ -9241,17 +9429,18 @@ function renderJack(v){
     var kids = digitsEl.children;
     for(var j=0;j<str.length;j++){
       var ch = str.charAt(j);
-      if(kids[j].textContent !== ch){
+      if(kids[j] && kids[j].textContent !== ch){
         kids[j].textContent = ch;
         kids[j].classList.remove("hit");
-        void kids[j].offsetWidth;       /* restart the flash on this digit only */
+        void kids[j].offsetWidth;
         kids[j].classList.add("hit");
       }
     }
   }
   prev = str;
   var pct = Math.max(0, Math.min(100, (v - JACK.floor) / (JACK.next - JACK.floor) * 100));
-  $("s5fill").style.width = pct.toFixed(1) + "%";
+  var fill = $("s5fill");
+  if(fill) fill.style.width = pct.toFixed(1) + "%";
 }
 
 function countUp(ms){
@@ -9284,14 +9473,25 @@ function rowHTML(w, prize, cls, rank, ago, fresh){
          '<span class="s5-w">'+w+'</span><span class="s5-rk">'+rank+'</span>'+
          '<span class="s5-pz '+cls+'">'+prize+'</span><span class="s5-ago">'+ago+'</span></div>';
 }
-(function seed(){
+function seedWinners(){
+  if(!rowsEl) rowsEl = $("s5rows");
+  if(!rowsEl) return;
   var ages = ["Just now","1 min ago","2 min ago","5 min ago","8 min ago"];
-  var seeded = [["0.75 SOL",""],["0.55 SOL",""],["Legendary NFT","nft"],["0.40 SOL",""],["0.18 SOL",""]];
+  var seeded = [
+    ["0.75 SOL",""],["0.55 SOL",""],["Legendary NFT","nft"],
+    ["0.40 SOL",""],["0.18 SOL",""]
+  ];
   var out = "";
   for(var i=0;i<5;i++) out += rowHTML(wallet(), seeded[i][0], seeded[i][1], "R"+(i+1), ages[i], false);
   rowsEl.innerHTML = out;
-})();
+}
+seedWinners();
+/* If mount race left the list empty, re-seed once the section is live */
+setTimeout(function(){
+  if(rowsEl && rowsEl.children.length < 3) seedWinners();
+}, 400);
 function ageUp(){
+  if(!rowsEl) return;
   var list = rowsEl.querySelectorAll(".s5-ago");
   for(var i=list.length-1;i>=0;i--){
     var t = list[i].textContent;
@@ -9303,14 +9503,18 @@ function ageUp(){
   }
 }
 function reRank(){
+  if(!rowsEl) return;
   var list = rowsEl.querySelectorAll(".s5-rk");
   for(var i=0;i<list.length;i++) list[i].textContent = "R"+(i+1);
 }
 function newWinner(){
+  if(!rowsEl) rowsEl = $("s5rows");
+  if(!rowsEl) return;
+  if(rowsEl.children.length < 3) seedWinners();
   ageUp();
   var prize, cls;
   if(Math.random() < .24){ var sp = pick(SPECIAL); prize = sp[0]; cls = sp[1]; }
-  else { prize = fmt(rnd(.12,2.6)) + " SOL"; cls = ""; }
+  else { prize = Number(rnd(.12,2.6)).toFixed(2) + " SOL"; cls = ""; }
   rowsEl.insertAdjacentHTML("afterbegin", rowHTML(wallet(), prize, cls, "R1", "Just now", true));
   while(rowsEl.children.length > 5) rowsEl.removeChild(rowsEl.lastElementChild);
   reRank();
@@ -9327,7 +9531,8 @@ function start(){
     var inc = rnd(.01,.12);
     JACK.v += inc; JACK.delta += inc;
     renderJack(JACK.v);
-    $("s5delta").textContent = fmt(JACK.delta) + " SOL";
+    var dEl = $("s5delta");
+    if(dEl) dEl.textContent = Number(JACK.delta).toFixed(2) + " SOL";
   }, 1150);
   setInterval(newWinner, 4600);
 }
@@ -9408,11 +9613,25 @@ var picked = 3;
 function applyTier(i){
   picked = i;
   var t = TIERS[i], cards = document.querySelectorAll(".s6-tier");
-  for(var k=0;k<cards.length;k++) cards[k].classList.toggle("on", k === i);
-  $("s6ctalabel").textContent = "STAKE " + fmt(t.min) + " $FIATCLAW";
-  $("s6ctasub").innerHTML = t.name + " TIER · " + fmt(t.min) + " $FIATCLAW · <em>" + t.apr +
+  for(var k=0;k<cards.length;k++){
+    cards[k].classList.toggle("on", k === i);
+    /* Keep MIN STAKE / LOCK / APR always painted from TIERS source of truth */
+    var dds = cards[k].querySelectorAll(".s6-term dd");
+    if(dds && dds.length >= 3 && TIERS[k]){
+      dds[0].textContent = Number(TIERS[k].min).toLocaleString("en-US");
+      dds[1].textContent = TIERS[k].lock.replace("-"," ") + (TIERS[k].lock.indexOf("DAY")>=0 && TIERS[k].lock.indexOf("DAYS")<0 ? "S" : "");
+      /* lock strings are like 7-DAY → show "7 DAYS" */
+      var lockN = String(TIERS[k].lock).match(/(\d+)/);
+      dds[1].textContent = lockN ? (lockN[1] + " DAYS") : TIERS[k].lock;
+      dds[2].textContent = TIERS[k].apr + "%";
+      dds[2].classList.add("apr");
+    }
+  }
+  var lab = $("s6ctalabel"), sub = $("s6ctasub"), yld = $("s6yield");
+  if(lab) lab.textContent = "STAKE " + fmt(t.min,0) + " $FIATCLAW";
+  if(sub) sub.innerHTML = t.name + " TIER · " + fmt(t.min,0) + " $FIATCLAW · <em>" + t.apr +
                             "% APR</em> · " + t.lock + " LOCK";
-  $("s6yield").textContent = fmt(Math.round(t.min * t.apr / 100)) + " $FIATCLAW / YEAR";
+  if(yld) yld.textContent = fmt(Math.round(t.min * t.apr / 100),0) + " $FIATCLAW / YEAR";
 }
 (function(){
   var cards = document.querySelectorAll(".s6-tier");
@@ -9427,7 +9646,9 @@ function applyTier(i){
       });
     })(cards[i]);
   }
+  /* Always paint tier fields immediately — no blank race before interaction */
   applyTier(3);
+  setTimeout(function(){ applyTier(picked); }, 300);
 })();
 
 $("s6cta").addEventListener("click", function(){
@@ -9694,8 +9915,13 @@ var PARTNERS = [
    m:'<svg viewBox="0 0 40 40" fill="none"><path d="M20 34 8 12h24z" stroke="#14F195" stroke-width="3" stroke-linejoin="round"/>'+
      '<path d="M20 34V6" stroke="#7CFFC9" stroke-width="2.6" stroke-linecap="round"/></svg>'},
   {n:"WALLET ADAPTER",d:"Seamless wallet integration", c:"#4C6FFF", t:"SDK",
-   m:'<svg viewBox="0 0 40 40" fill="none"><path d="M6 10l8 20 8-20" stroke="#4C6FFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'+
-     '<path d="M22 10l8 20 4-10" stroke="#8FA6FF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'}
+   /* Proper wallet icon (not the prior wavy stroke) */
+   m:'<svg viewBox="0 0 40 40" fill="none" aria-hidden="true">'+
+     '<rect x="5" y="11" width="30" height="20" rx="4" stroke="#4C6FFF" stroke-width="2.6"/>'+
+     '<path d="M5 17h30" stroke="#4C6FFF" stroke-width="2.2"/>'+
+     '<path d="M9 11V9.5A3.5 3.5 0 0 1 12.5 6H22" stroke="#8FA6FF" stroke-width="2.2" stroke-linecap="round"/>'+
+     '<circle cx="28.5" cy="24" r="2.4" fill="#8FA6FF"/>'+
+     '</svg>'}
 ];
 (function(){
   var host = $("s8partners"), html = "";
