@@ -888,3 +888,14 @@ body.unified #trRow,body.unified [data-act="transfer"]{display:none!important}
 .pp-sub .tag{margin-left:0;padding:0 5px;font-size:10px;line-height:15px}
 .pp-head,.pp-row{grid-template-columns:24px minmax(0,2fr) minmax(0,1fr) 64px}
 .pp-head{grid-template-columns:minmax(0,2.2fr) minmax(0,1fr) 64px}
+/* ADL: кнопка-индикатор и окно пояснения */
+button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
+.adl.lv1 i.on,.adl.lv2 i.on{background:#16a34a}.adl.lv3 i.on{background:#eab308}.adl.lv4 i.on{background:#f97316}.adl.lv5 i.on{background:#e11d48}
+.th-help{border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:0}
+.th-help:hover{color:var(--accent)}
+.adl-dlg{max-width:520px}
+.adl-dlg h3{font-size:15px;margin:16px 0 6px}
+.adl-dlg p{margin:0 0 8px;line-height:1.5}
+.adl-now{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;background:var(--panel2)}
+.adl-now .adl i{height:16px;width:7px}
+.adl-now small{display:block;color:var(--muted)}

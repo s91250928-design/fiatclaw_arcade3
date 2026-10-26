@@ -2590,6 +2590,7 @@ async function refreshAccount(i = {}) {
       $("accValue").textContent = usd(S.accountValue);
       (["home", "assets"].includes(document.body.dataset.app) && renderAppPage(),
         Date.now() - fundingAt > 6e4 && loadFundingAccrued(),
+        updateAdlMoves(),
         renderPositions(),
         renderOrders(),
         drawChartLines(),
@@ -2691,27 +2692,83 @@ var sgnUsd = (i) => {
     return t === 0 ? usd(0) : `${t > 0 ? "+" : ""}${usd(t)}`;
   },
   clsOf = (i) => (i >= 0 ? "pos" : "neg");
-/* ADL (автоделеверидж). Когда чья-то позиция уходит в минус глубже залога, Hyperliquid
-   принудительно закрывает прибыльные позиции на противоположной стороне. Очередь строится по
-   (маркировка / цена входа) × (размер позиции / стоимость счёта) — у шорта отношение цен обратное.
-   Номер в очереди биржа не показывает, поэтому выводим свою оценку: уровень 1–5. */
+/* ============================================================
+   ADL (автоделеверидж) — оценка риска для каждой позиции.
+
+   Как работает на Hyperliquid: если чью-то позицию ликвидировали, а закрыть её
+   в рынок не получилось (убыток больше залога), биржа принудительно закрывает
+   ПРИБЫЛЬНЫЕ позиции на другой стороне по маркировке. Кого первым — решает очередь:
+   (маркировка / цена входа) × (размер позиции / стоимость счёта).
+   Чем больше прибыль и плечо, тем ближе к началу очереди.
+
+   Сама очередь включается редко: только при резком обвале или взлёте, когда
+   ликвидации не успевают закрываться. Поэтому уровень = место в очереди,
+   ограниченное условиями рынка:
+   • спокойно (за 15 мин цена ушла в вашу сторону меньше чем на 1,5%) — не выше 2 делений;
+   • резкое движение 1,5–3% — не выше 3;
+   • от 3% — полная шкала, красный при начале очереди.
+   ============================================================ */
+const ADL_STRESS_MID = 0.015, ADL_STRESS_HIGH = 0.03;
+S.adlMove = {};
+let adlMoveAt = 0;
+async function updateAdlMoves() {
+  if (Date.now() - adlMoveAt < 6e4 || !S.positions?.length) return;
+  adlMoveAt = Date.now();
+  const since = Date.now() - 15 * 6e4;
+  await Promise.all(
+    [...new Set(S.positions.map((p) => p.coin))].slice(0, 8).map(async (coin) => {
+      try {
+        const bars = await info.candleSnapshot({ coin, interval: "1m", startTime: since });
+        if (!bars?.length) return;
+        const hi = Math.max(...bars.map((b) => +b.h)), lo = Math.min(...bars.map((b) => +b.l)), last = +bars[bars.length - 1].c;
+        S.adlMove[coin] = { up: lo > 0 ? last / lo - 1 : 0, down: hi > 0 ? 1 - last / hi : 0, at: Date.now() };
+      } catch {
+        /* нет данных — считаем рынок спокойным */
+      }
+    }),
+  );
+  renderPositions();
+}
 function adlRisk(p) {
   const mark = Number(S.ctx[p.coin]?.markPx || 0), entry = Number(p.entryPx || 0), long = Number(p.szi) > 0;
   if (!mark || !entry) return null;
   const ratio = long ? mark / entry : entry / mark;
   const notional = Math.abs(Number(p.szi)) * mark;
-  const equity = p.leverage?.type === "isolated" ? Number(p.marginUsed || 0) : S.crossValue || S.accountValue || 0;
+  const equity = p.leverage?.type === "isolated" ? Number(p.marginUsed || 0) : S.accountValue || S.crossValue || 0;
   if (!(equity > 0)) return null;
   const score = ratio * (notional / equity);
-  const level = ratio <= 1 ? 1 : score < 2 ? 1 : score < 5 ? 2 : score < 10 ? 3 : score < 20 ? 4 : 5;
-  return { level, score, inProfit: ratio > 1 };
+  // место в очереди: 1 — в конце, 5 — среди первых (убыточные позиции — всегда в конце)
+  const queue = ratio <= 1 ? 1 : score < 3 ? 1 : score < 8 ? 2 : score < 15 ? 3 : score < 25 ? 4 : 5;
+  // условия для ADL: резкое движение цены в сторону вашей прибыли за 15 минут
+  const mv = S.adlMove[p.coin], move = mv ? (long ? mv.up : mv.down) : 0;
+  const stress = move >= ADL_STRESS_HIGH ? 2 : move >= ADL_STRESS_MID ? 1 : 0;
+  const cap = stress === 2 ? 5 : stress === 1 ? 3 : 2;
+  return { level: Math.min(queue, cap), queue, stress, move, score, inProfit: ratio > 1 };
 }
-const ADL_TEXT = ["", "низкий", "умеренный", "заметный", "высокий", "очень высокий"];
+const ADL_TEXT = ["", "низкий", "низкий", "умеренный", "высокий", "очень высокий"];
+const ADL_STRESS_TEXT = ["рынок спокойный", "цена резко движется", "резкое движение — возможны ADL"];
+const adlBars = (lv) => [1, 2, 3, 4, 5].map((k) => `<i class="${k <= lv ? "on" : ""}"></i>`).join("");
 function adlBadge(p) {
   const r = adlRisk(p);
   if (!r) return "—";
-  const tip = `Риск ADL: ${ADL_TEXT[r.level]} (оценка Totum по формуле Hyperliquid, индекс ${r.score.toFixed(2)}). ${r.inProfit ? "Чем больше прибыль и плечо, тем раньше позицию могут принудительно закрыть при каскаде ликвидаций." : "Убыточные позиции стоят в конце очереди ADL."}`;
-  return `<span class="adl lv${r.level}" title="${esc(tip)}">${[1, 2, 3, 4, 5].map((k) => `<i class="${k <= r.level ? "on" : ""}"></i>`).join("")}</span>`;
+  const tip = `Риск ADL: ${ADL_TEXT[r.level]}. Место в очереди: ${r.queue} из 5. Сейчас: ${ADL_STRESS_TEXT[r.stress]}. Нажмите, чтобы узнать подробнее.`;
+  return `<button type="button" class="adl lv${r.level}" data-adl="${esc(p.coin)}" title="${esc(tip)}">${adlBars(r.level)}</button>`;
+}
+function openAdlInfo(coin) {
+  const p = coin && S.positions.find((x) => x.coin === coin), r = p && adlRisk(p);
+  const pct = (x) => `${(x * 100).toFixed(2).replace(".", ",")}%`;
+  $("adlBody").innerHTML = `
+    ${r ? `<div class="adl-now"><span class="adl lv${r.level}">${adlBars(r.level)}</span>
+      <div><b>${esc(pairLabel(coin))}: риск ${ADL_TEXT[r.level]}</b><small>Место в очереди ${r.queue} из 5 · ${ADL_STRESS_TEXT[r.stress]}${r.move > 0.001 ? ` (${pct(r.move)} за 15 мин в вашу сторону)` : ""}</small></div></div>` : ""}
+    <h3>Что такое ADL</h3>
+    <p>ADL — автоделеверидж. Иногда при резком обвале или взлёте позицию проигравшего трейдера не успевают закрыть по рынку, и его убыток становится больше залога. Тогда биржа закрывает часть <b>прибыльных</b> позиций на другой стороне по текущей цене, чтобы покрыть этот убыток.</p>
+    <h3>Что это значит для вас</h3>
+    <p>Если ADL сработает, позиция закроется <b>с прибылью</b> по текущей маркировке. Денег вы не теряете, но позиция закроется раньше, чем вы планировали.</p>
+    <h3>Как читать индикатор</h3>
+    <p><b>Место в очереди.</b> Считается по формуле биржи: чем больше прибыль и плечо относительно счёта, тем раньше закроют. Убыточные позиции — всегда в конце.</p>
+    <p><b>Условия на рынке.</b> ADL бывает только при резком движении. Пока рынок спокойный, индикатор не поднимается выше 2 зелёных делений, даже при большом плече. Жёлтый — цена резко движется в вашу сторону (от 1,5% за 15 минут). Красный — от 3% за 15 минут и вы в начале очереди.</p>
+    <p class="muted small">Это оценка Totum: точное место в очереди биржа не публикует. Снизить риск: уменьшить плечо или зафиксировать часть прибыли.</p>`;
+  $("adlDialog").showModal();
 }
 function renderPositions() {
   (($("cntPos").textContent = S.positions.length ? `(${S.positions.length})` : ""),
@@ -5254,6 +5311,7 @@ function bindSettings() {
     ($("btnConnect").onclick = () => (S.user ? disconnectWallet() : connectWallet())),
     ($("btnConnect2").onclick = connectWallet),
     ($("btnEnable").onclick = enableTrading),
+    ($("adlClose").onclick = () => $("adlDialog").close()),
     ($("btnUnified").onclick = () => ensureUnified(!0)));
   try {
     $("consent").checked = localStorage.getItem("totum.consent") === "1";
@@ -5397,6 +5455,8 @@ function bindSettings() {
       e && openCloseLimit(e.dataset.coin, e.dataset.szi, e.dataset.ct || "market");
       let n = i.target.closest("[data-reverse]");
       n && reversePosition(n.dataset.coin, n.dataset.szi);
+      let ad = i.target.closest("[data-adl]");
+      ad && openAdlInfo(ad.dataset.adl);
       let s = i.target.closest("[data-pos-share]");
       s &&
         S.posShare?.[s.dataset.posShare] &&
