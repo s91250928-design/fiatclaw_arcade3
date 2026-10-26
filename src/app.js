@@ -153,6 +153,10 @@ function humanError(i) {
       [/does not exist|User or API Wallet/i, "Ключ для сделок устарел. Нажмите «Включить торговлю» ещё раз."],
       [/must deposit|insufficient|Insufficient margin/i, "Недостаточно средств на счёте Hyperliquid."],
       [/User rejected|denied|4001/i, "Вы отменили подпись в кошельке."],
+      [
+        /origin not allowed|Connection request reset|Proposal expired|relay|pairing|session/i,
+        "Не удалось подключить кошелёк. Попробуйте ещё раз или выберите другой кошелёк.",
+      ],
       [/chainId|chain id/i, "Кошелёк не смог подписать: проверьте выбранную сеть в кошельке."],
       [
         /could not immediately match/i,
@@ -4480,7 +4484,7 @@ function renderHome() {
   (($("pgHome").innerHTML = `
     <div class="hero-card">
       <div class="hc-top"><img src="brand/mark-128.webp" alt="" class="hc-mark"><span>${S.user ? "Ваши активы" : "Добро пожаловать в Totum"}</span>${CFG.isTestnet ? '<span class="badge">ТЕСТ</span>' : ""}</div>
-      ${S.user ? `<div class="hc-sum">${usd(i)}</div><div class="hc-sub">Фьючерсы ${usd(S.accountValue || 0)} · Спот ${usd(spotTotal())}</div>` : '<div class="hc-lead">Торговля фьючерсами и спотом Hyperliquid. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
+      ${S.user ? `<div class="hc-sum">${usd(i)}</div><div class="hc-sub">Фьючерсы ${usd(S.accountValue || 0)} · Спот ${usd(spotTotal())}</div>` : '<div class="hc-lead">Фьючерсы, спот и акции в одном приложении. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
     </div>
     <div class="quick">
       <button type="button" data-act="futures"><i>${NAV_IC.futures}</i>Фьючерсы</button>
@@ -4678,7 +4682,7 @@ function setView(i, t = !1) {
     ($("landing").hidden = i !== "landing"),
     t && history.pushState(null, "", i === "landing" ? "/" : "/trade"),
     i === "landing"
-      ? ((document.title = "Totum — фьючерсы и спот Hyperliquid"),
+      ? ((document.title = "Totum — фьючерсы, спот и акции в одном окне"),
         renderLanding(),
         LN.mob ||
           ((LN.mob = "loading"),
@@ -4712,14 +4716,20 @@ var pctTxt2 = (i) =>
   `${i >= 0 ? "+" : "−"}${Math.abs(i * 100)
     .toFixed(2)
     .replace(".", ",")}%`;
+/* Итоговая комиссия для пользователя (биржа + Totum), базовый уровень Hyperliquid:
+   фьючерсы 0,045% / 0,015%, спот 0,07% / 0,04% (тейкер / мейкер) + комиссия Totum из config.js. */
+function totalFeeText() {
+  const t = CFG.feeTenthBps / 1e5, f = (x) => `${(x * 100).toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",")}%`;
+  return `фьючерсы — <b>${f(45e-5 + t)}</b> по рынку и <b>${f(15e-5 + t)}</b> лимитом, спот — <b>${f(7e-4 + t)}</b> и <b>${f(4e-4 + t)}</b>`;
+}
 function renderLanding() {
   if (document.body.dataset.view !== "landing") return;
-  (($("lnNet").hidden = !CFG.isTestnet), ($("lnFee").textContent = FEE_PCT.replace(".", ",")));
+  (($("lnNet").hidden = !CFG.isTestnet), ($("lnFee").innerHTML = totalFeeText()));
   let i = Math.max(0, ...S.meta.map((a) => Number(a.maxLeverage || 0)));
   (i && ($("lnMaxLev").textContent = i),
     ($("lnStep3").textContent = CFG.isTestnet
-      ? "В тестовой сети возьмите бесплатные USDC в кране Hyperliquid и откройте первую сделку."
-      : "Переведите USDC на свой счёт Hyperliquid и откройте первую сделку."));
+      ? "В тестовой сети возьмите бесплатные тестовые USDC в кране и откройте первую сделку."
+      : "Пополните счёт в USDC и откройте первую сделку."));
   let t = S.meta
       .map((a) => {
         let c = S.ctx[a.name] || {};
