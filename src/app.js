@@ -194,15 +194,22 @@ var HL_SPOT_TAKER = 7e-4,
   isSpot = (i = S.coin) => !!S.spot.find((t) => t.name === i) || /^@\d+$/.test(i) || i.includes("/"),
   pairLabel = (i) => {
     let t = S.spot.find((e) => e.name === i);
-    return t ? t.label : /^@\d+$/.test(i) ? i : `${i}-USDC`;
+    if (t) return t.label;
+    if (/^@\d+$/.test(i)) return i;
+    const m = S.meta.find((e) => e.name === i);
+    return `${dexBase(i)}-${m?.dex ? collName(m) : "USDC"}`;
   },
-  baseOf = (i = S.coin) => S.spot.find((t) => t.name === i)?.base || i,
+  // HIP-3: «xyz:TSLA» → площадка «xyz», монета «TSLA»
+  dexOf = (i) => (i && i.includes(":") ? i.split(":")[0] : ""),
+  dexBase = (i) => (i && i.includes(":") ? i.slice(i.indexOf(":") + 1) : i),
+  collName = (m) => (m?.collToken ? S.tokenNames?.[m.collToken] || "USDC" : "USDC"),
+  baseOf = (i = S.coin) => S.spot.find((t) => t.name === i)?.base || dexBase(i),
   fmtP = (i, t) => formatPrice(i, t.szDecimals, t.spot ? "spot" : "perp"),
   spotBal = (i) => {
     let t = S.spotBal.find((e) => e.coin === i);
     return t ? Math.max(0, Number(t.total) - Number(t.hold)) : 0;
   },
-  MKT_CACHE_KEY = `totum.mkts.v1.${CFG.isTestnet ? "t" : "m"}`,
+  MKT_CACHE_KEY = `totum.mkts.v2.${CFG.isTestnet ? "t" : "m"}`,
   PERP_REFRESH_MS = 6e4,
   SPOT_REFRESH_MS = 6e5;
 S.loadedAt = {
@@ -213,6 +220,16 @@ S.wsCtx = {
   perp: 0,
   spot: 0,
 };
+/* Категории фьючерсов Hyperliquid (perpCategories): stocks, indices, commodities, fx, preipo, rates, crypto…
+   Сводим к двум группам вкладок: «Крипто» и «Традфи» (RWA). */
+const TRADFI_CATS = new Set(["stocks", "stock", "equity", "equities", "indices", "index", "commodities", "commodity", "fx", "preipo", "rates", "rwa", "bonds"]);
+const CAT_RU = { stocks: "Акции", stock: "Акции", equity: "Акции", equities: "Акции", indices: "Индекс", index: "Индекс", commodities: "Сырьё", commodity: "Сырьё", fx: "Валюта", preipo: "Pre-IPO", rates: "Ставки", rwa: "RWA", bonds: "Облигации" };
+function catOf(name, dex) {
+  const c = String(S.cats?.[name] || "").toLowerCase();
+  if (TRADFI_CATS.has(c)) return { group: "tradfi", raw: c };
+  if (c === "crypto" || !dex) return { group: "crypto", raw: "crypto" };
+  return { group: "other", raw: c };
+}
 var perpCtxLite = (i) => ({
     markPx: i.markPx,
     midPx: i.midPx || i.markPx,
@@ -234,6 +251,7 @@ var perpCtxLite = (i) => ({
 async function loadSpotMarkets() {
   let [i, t] = await infoHeavy.spotMetaAndAssetCtxs(),
     e = new Map(i.tokens.map((s) => [s.index, s])),
+    _tn = (S.tokenNames = Object.fromEntries(i.tokens.map((s) => [s.index, s.name]))),
     n = new Map(t.map((s) => [s.coin, s]));
   ((S.spot = i.universe
     .map((s) => {
@@ -257,24 +275,63 @@ async function loadSpotMarkets() {
     .filter(Boolean)),
     (S.loadedAt.spot = Date.now()));
 }
+/* Фьючерсы: основная площадка Hyperliquid + все площадки HIP-3 (акции, индексы, сырьё и т.д.).
+   Номер актива для ордера: основная — индекс в meta; HIP-3 — 100000 + номер площадки × 10000 + индекс. */
+const DEX_META_MS = 10 * 6e4;
 async function loadPerpMarkets() {
-  let [i, t] = await infoHeavy.metaAndAssetCtxs();
-  ((S.perpUniverse = i.universe.map((e) => e.name)),
-    (S.meta = i.universe
-      .map((e, n) => ({
-        name: e.name,
-        szDecimals: e.szDecimals,
-        maxLeverage: e.maxLeverage,
-        index: n,
-        delisted: e.isDelisted,
-        onlyIsolated: !!e.onlyIsolated,
-      }))
-      .filter((e) => !e.delisted)),
-    i.universe.forEach((e, n) => {
-      t[n] && (S.ctx[e.name] = perpCtxLite(t[n]));
-    }),
-    (S.loadedAt.perp = Date.now()),
-    netGood("markets"));
+  const needDex = !S.dexMetaAt || Date.now() - S.dexMetaAt > DEX_META_MS;
+  const [[i, t], all, cats] = await Promise.all([
+    infoHeavy.metaAndAssetCtxs(),
+    needDex ? infoHeavy.allPerpMetas().catch((e) => (console.warn("[hip3]", e?.message || e), null)) : Promise.resolve(null),
+    S.cats ? Promise.resolve(null) : info.perpCategories().catch(() => null),
+  ]);
+  if (cats) S.cats = Object.fromEntries(cats);
+  S.perpUniverse = i.universe.map((e) => e.name);
+  const main = i.universe
+    .map((e, n) => ({
+      name: e.name,
+      szDecimals: e.szDecimals,
+      maxLeverage: e.maxLeverage,
+      index: n,
+      dex: "",
+      cat: catOf(e.name, "").raw,
+      group: catOf(e.name, "").group,
+      delisted: e.isDelisted,
+      onlyIsolated: !!e.onlyIsolated,
+    }))
+    .filter((e) => !e.delisted);
+  if (all) {
+    S.dexUniverse = {};
+    S.dexMarkets = [];
+    all.forEach((m, di) => {
+      if (di === 0 || !m?.universe?.length) return;
+      const dex = dexOf(m.universe[0].name);
+      S.dexUniverse[dex] = m.universe.map((u) => u.name);
+      m.universe.forEach((u, k) => {
+        if (u.isDelisted) return;
+        const c = catOf(u.name, dex);
+        S.dexMarkets.push({
+          name: u.name,
+          szDecimals: u.szDecimals,
+          maxLeverage: u.maxLeverage,
+          index: 1e5 + di * 1e4 + k,
+          dex,
+          collToken: m.collateralToken || 0,
+          cat: c.raw,
+          group: c.group,
+          onlyIsolated: !!u.onlyIsolated,
+          marginMode: u.marginMode || null,
+        });
+      });
+    });
+    S.dexMetaAt = Date.now();
+  }
+  S.meta = [...main, ...(S.dexMarkets || [])];
+  i.universe.forEach((e, n) => {
+    t[n] && (S.ctx[e.name] = perpCtxLite(t[n]));
+  });
+  S.loadedAt.perp = Date.now();
+  netGood("markets");
 }
 function saveMarketsCache() {
   try {
@@ -296,6 +353,10 @@ function saveMarketsCache() {
         meta: S.meta,
         spot: S.spot,
         perpUniverse: S.perpUniverse,
+        dexUniverse: S.dexUniverse,
+        dexMarkets: S.dexMarkets,
+        tokenNames: S.tokenNames,
+        cats: S.cats,
         ctx: i,
       }),
     );
@@ -309,6 +370,10 @@ function loadMarketsCache() {
       : ((S.meta = i.meta),
         (S.spot = i.spot || []),
         (S.perpUniverse = i.perpUniverse || []),
+        (S.dexUniverse = i.dexUniverse || {}),
+        (S.dexMarkets = i.dexMarkets || []),
+        (S.tokenNames = i.tokenNames || {}),
+        (S.cats = i.cats || null),
         (S.ctx = i.ctx || {}),
         !0);
   } catch {
@@ -376,6 +441,20 @@ async function subscribeAllPrices() {
         }),
           (S.wsCtx.perp = Date.now()),
           onCtxBatch());
+      }),
+    ),
+    // цены всех площадок HIP-3 (приходят раз в ~10 с; основная площадка — отдельной быстрой подпиской выше)
+    subscribeRetry("allDexsAssetCtxs", () =>
+      subs.allDexsAssetCtxs((i) => {
+        for (const [dex, ctxs] of i?.ctxs || []) {
+          if (!dex) continue;
+          const names = S.dexUniverse?.[dex] || [];
+          (ctxs || []).forEach((e, n) => {
+            const s = names[n];
+            s && e && (S.ctx[s] = { ...S.ctx[s], ...perpCtxLite(e) });
+          });
+        }
+        ((S.wsCtx.dex = Date.now()), onCtxBatch());
       }),
     ),
     subscribeRetry("spotAssetCtxs", () =>
@@ -809,6 +888,11 @@ function renderBook() {
     h = mkt(S.coin),
     p = h ? Math.min(h.szDecimals, 4) : 4;
   $("obSzHead").textContent = `Размер (${baseOf()})`;
+  {
+    const m = mkt(), q = m?.spot ? m.quote : m?.dex ? collName(m) : "USDC";
+    document.querySelectorAll(".q-px").forEach((e) => (e.textContent = `Цена (${q})`));
+    document.querySelectorAll(".q-sum").forEach((e) => (e.textContent = `Сумма (${q})`));
+  }
   let f = new Map();
   for (let q of S.orders || []) {
     if (q.coin !== S.coin || q.isTrigger) continue;
@@ -1308,7 +1392,7 @@ async function refreshStatus() {
   if (S.user) {
     try {
       let i = isAddress(CFG.builder),
-        [t, e] = await Promise.all([
+        [t, e, _abs] = await Promise.all([
           i
             ? info.maxBuilderFee({
                 user: S.user,
@@ -1318,7 +1402,9 @@ async function refreshStatus() {
           info.extraAgents({
             user: S.user,
           }),
+          info.userAbstraction({ user: S.user }).catch(() => S.abstraction || null),
         ]);
+      S.abstraction = _abs || S.abstraction || null;
       S.approvedFee = Number(t) || 0;
       let n = Date.now();
       S.agentOk = !!(
@@ -1331,7 +1417,30 @@ async function refreshStatus() {
     } catch (i) {
       netBad(i);
     }
-    (updateSetupUI(), await refreshAccount());
+    (updateSetupUI(), document.body.classList.toggle("unified", isUnified()), await refreshAccount(), ensureUnified());
+  }
+}
+/* Единый счёт: один баланс USDC на фьючерсы, все площадки HIP-3 и спот.
+   Включаем сами ключом агента (без подписи в кошельке). Если не вышло — кнопка с одной подписью. */
+async function ensureUnified(viaWallet = !1) {
+  if (!S.user || isUnified() || S.unifiedBusy) return;
+  if (!viaWallet && (!S.agentExchange || !S.agentOk || S.unifiedTried)) return;
+  S.unifiedBusy = !0;
+  try {
+    viaWallet
+      ? await S.userExchange.userSetAbstraction({ user: S.user, abstraction: "unifiedAccount" })
+      : ((S.unifiedTried = !0), await S.agentExchange.agentSetAbstraction({ abstraction: "u" }));
+    S.abstraction = "unifiedAccount";
+    document.body.classList.add("unified");
+    document.body.classList.remove("need-unified");
+    toast("Включён единый счёт: один баланс на фьючерсы, HIP-3 и спот", "ok");
+    await refreshAccount();
+  } catch (e) {
+    console.warn("[unified]", e?.message || e);
+    document.body.classList.add("need-unified");
+    viaWallet && toast(humanError(e), "err");
+  } finally {
+    S.unifiedBusy = !1;
   }
 }
 function updateSetupUI() {
@@ -1452,26 +1561,50 @@ function setPairLabel() {
   let i = $("pairIc");
   ((i.outerHTML = coinIcon(S.coin).replace('class="coin-ic"', 'class="coin-ic" id="pairIc"')), fixIcons($("pairBtn")));
 }
+/* Разделы рынков: Все · Фьючерсы · Спот · Крипто · Традфи (RWA) · HIP-3 · В тренде */
+const MK_TABS = ["all", "perp", "spot", "crypto", "tradfi", "hip3", "trend"];
+function marketsFor(mk) {
+  if (mk === "spot") return S.spot;
+  if (mk === "perp") return S.meta;
+  if (mk === "crypto") return S.meta.filter((m) => m.group === "crypto");
+  if (mk === "tradfi") return S.meta.filter((m) => m.group === "tradfi");
+  if (mk === "hip3") return S.meta.filter((m) => m.dex);
+  return [...S.meta, ...S.spot]; // all, trend
+}
 function pairRows(i = PP) {
   let t = i,
     e = t.q.trim().toUpperCase(),
-    n = (t.mk === "spot" ? S.spot : S.meta).map((r) => {
+    n = marketsFor(t.mk).map((r) => {
       let o = S.ctx[r.name] || {},
         a = Number(o.midPx || o.markPx || 0),
         c = o.prevDayPx && Number(o.prevDayPx) ? a / Number(o.prevDayPx) - 1 : 0;
       return {
         name: r.name,
-        label: pairLabel(r.name),
+        label: r.dex ? dexBase(r.name) : pairLabel(r.name),
         mid: a,
         ch: c,
         vol: Number(o.dayNtlVlm || 0),
-        lev: r.maxLeverage || null,
+        lev: r.spot ? null : r.maxLeverage || null,
+        dex: r.dex || "",
+        cat: r.cat && r.group === "tradfi" ? CAT_RU[r.cat] || "" : "",
       };
     });
-  (e && (n = n.filter((r) => r.label.toUpperCase().includes(e))),
+  // площадки HIP-3 без цены (пустые тестовые) не показываем
+  n = n.filter((r) => r.mid > 0 || !r.dex);
+  (e && (n = n.filter((r) => r.label.toUpperCase().includes(e) || r.name.toUpperCase().includes(e))),
     t.tab === "fav" && (n = n.filter((r) => FAVS.includes(r.name))),
     t.tab === "gain" && (n = n.filter((r) => r.ch > 0)),
     t.tab === "loss" && (n = n.filter((r) => r.ch < 0)));
+  if (t.mk === "trend") {
+    // «В тренде»: сильное движение за сутки при заметном объёме
+    const vols = n.map((r) => r.vol).filter((v) => v > 0).sort((a, b) => a - b);
+    const floor = vols.length ? vols[Math.floor(vols.length * 0.5)] : 0;
+    n = n.filter((r) => r.vol >= floor && r.vol > 0);
+    n.forEach((r) => (r.score = Math.abs(r.ch) * Math.log10(10 + r.vol)));
+    n.sort((a, b) => b.score - a.score);
+    n = n.slice(0, 40);
+    if (t.sort === "vol") return n;
+  }
   let s = {
     vol: (r) => -r.vol,
     px: (r) => -r.mid,
@@ -1479,6 +1612,10 @@ function pairRows(i = PP) {
   }[t.sort];
   return (t.tab === "loss" && t.sort === "ch" ? n.sort((r, o) => r.ch - o.ch) : n.sort((r, o) => s(r) - s(o)), n);
 }
+const rowTags = (e) => (e.lev ? `<span class="tag lev">${e.lev}x</span>` : '<span class="tag lev">Спот</span>');
+// вторая строка: объём, площадка HIP-3 и категория
+const rowSub = (e) =>
+  `${e.vol ? compact(e.vol) : "—"}${e.dex ? `<span class="tag dex" title="Площадка HIP-3">${esc(e.dex)}</span>` : ""}${e.cat ? `<span class="tag cat">${esc(e.cat)}</span>` : ""}`;
 function renderPairList() {
   let i = pairRows(),
     t = i.slice(0, PP.limit);
@@ -1490,7 +1627,7 @@ function renderPairList() {
     <div class="pp-row${e.name === S.coin ? " cur" : ""}" data-coin="${esc(e.name)}">
       <button class="star${FAVS.includes(e.name) ? " on" : ""}" data-fav="${esc(e.name)}" type="button" aria-label="В избранное">★</button>
       <div class="pp-name">${coinIcon(e.name)}
-        <div><div class="pp-l1"><b>${esc(e.label)}</b>${e.lev ? `<span class="tag lev">${e.lev}x</span>` : '<span class="tag lev">Спот</span>'}</div><small>${e.vol ? compact(e.vol) : "—"}</small></div></div>
+        <div><div class="pp-l1"><b>${esc(e.label)}</b>${rowTags(e)}</div><small class="pp-sub">${rowSub(e)}</small></div></div>
       <div class="pp-px">${e.mid ? fmtPx(e.mid) : "—"}</div>
       <div class="pp-ch ${e.ch >= 0 ? "pos" : "neg"}">${e.ch >= 0 ? "+" : ""}${(e.ch * 100).toFixed(2)}%</div>
     </div>`,
@@ -1525,7 +1662,7 @@ function setPairMarket(i) {
     renderPairList());
 }
 function openPairPop(i) {
-  ($("pairPop").hidden && setPairMarket(isSpot() ? "spot" : "perp"),
+  ($("pairPop").hidden && !PP.touched && setPairMarket(isSpot() ? "spot" : "perp"),
     ($("pairPop").hidden = !1),
     renderPairList(),
     i && setTimeout(() => $("pairSearch").focus(), 0));
@@ -1556,7 +1693,7 @@ function bindPairPicker() {
       let s = n.currentTarget;
       PP.more && s.scrollTop + s.clientHeight > s.scrollHeight - 200 && ((PP.limit += 60), renderPairList());
     }),
-    document.querySelectorAll("[data-mk]").forEach((n) => (n.onclick = () => setPairMarket(n.dataset.mk))),
+    document.querySelectorAll("[data-mk]").forEach((n) => (n.onclick = () => ((PP.touched = !0), setPairMarket(n.dataset.mk)))),
     ($("pairSearch").onblur = () => {
       t && !i.matches(":hover") && closePairPop();
     }),
@@ -2386,42 +2523,68 @@ function bindDrawing() {
 S.orders = [];
 S.fundingAcc = {};
 var fundingAt = 0;
+/* Площадки HIP-3, по которым нужно спрашивать состояние счёта:
+   где есть позиции или ордера, площадка открытой пары и то, что прислал WebSocket. */
+function userDexes() {
+  const d = new Set(S.wsDexes || []);
+  for (const p of S.positions || []) dexOf(p.coin) && d.add(dexOf(p.coin));
+  for (const o of S.orders || []) dexOf(o.coin) && d.add(dexOf(o.coin));
+  dexOf(S.coin) && d.add(dexOf(S.coin));
+  return [...d].slice(0, 12);
+}
+function watchAllDexes() {
+  if (!subs || !S.user || S.chSubUser === S.user) return;
+  S.chSubUser = S.user;
+  subscribeRetry("allDexsClearinghouseState", () =>
+    subs.allDexsClearinghouseState({ user: S.user }, (ev) => {
+      const had = (S.wsDexes || []).join();
+      S.wsDexes = (ev?.clearinghouseStates || [])
+        .filter(([d, st]) => d && (st?.assetPositions?.length || Number(st?.marginSummary?.accountValue || 0) > 0))
+        .map(([d]) => d);
+      S.wsDexes.join() !== had && refreshAccount();
+    }),
+  );
+}
 async function refreshAccount(i = {}) {
   if (S.user)
     try {
+      watchAllDexes();
       let t = !i.light || Date.now() - (S.ordersAt || 0) > 15e3,
-        [e, n, s] = await Promise.all([
-          info.clearinghouseState({
-            user: S.user,
-          }),
+        dexes = userDexes(),
+        [e, n, s, dexStates, dexOrders] = await Promise.all([
+          info.clearinghouseState({ user: S.user }),
           t
-            ? info
-                .frontendOpenOrders({
-                  user: S.user,
-                })
-                .catch(() =>
-                  info.openOrders({
-                    user: S.user,
-                  }),
-                )
+            ? info.frontendOpenOrders({ user: S.user }).catch(() => info.openOrders({ user: S.user }))
             : Promise.resolve(null),
-          info
-            .spotClearinghouseState({
-              user: S.user,
-            })
-            .catch(() => null),
+          info.spotClearinghouseState({ user: S.user }).catch(() => null),
+          Promise.all(dexes.map((d) => info.clearinghouseState({ user: S.user, dex: d }).catch(() => null))),
+          t
+            ? Promise.all(dexes.map((d) => info.frontendOpenOrders({ user: S.user, dex: d }).catch(() => [])))
+            : Promise.resolve(null),
         ]);
-      (n && (S.ordersAt = Date.now()),
-        s && ((S.spotBal = s.balances || []), renderSpotBalances()),
-        (S.withdrawable = Number(e.withdrawable) || 0),
-        n && ((S.orders = n), renderBook()),
-        (S.positions = e.assetPositions.map((r) => r.position).filter((r) => Number(r.szi) !== 0)),
-        ($("accValue").textContent = usd(e.marginSummary.accountValue)),
-        (S.accountValue = Number(e.marginSummary.accountValue) || 0),
-        (S.crossValue = Number(e.crossMarginSummary?.accountValue ?? S.accountValue) || 0),
-        (S.crossMaint = Number(e.crossMaintenanceMarginUsed || 0)),
-        (S.marginUsed = Number(e.marginSummary.totalMarginUsed || 0)),
-        ["home", "assets"].includes(document.body.dataset.app) && renderAppPage(),
+      s && ((S.spotBal = s.balances || []), renderSpotBalances());
+      n && ((S.ordersAt = Date.now()), (S.orders = [...n, ...(dexOrders || []).flat()]), renderBook());
+      // позиции со всех площадок
+      const states = [e, ...dexStates.filter(Boolean)];
+      S.dexWithdrawable = {};
+      dexes.forEach((d, k) => dexStates[k] && (S.dexWithdrawable[d] = Number(dexStates[k].withdrawable) || 0));
+      S.positions = states.flatMap((st) => (st.assetPositions || []).map((r) => r.position)).filter((r) => Number(r.szi) !== 0);
+      const sum = (f) => states.reduce((a, st) => a + (Number(f(st)) || 0), 0);
+      S.marginUsed = sum((st) => st.marginSummary?.totalMarginUsed);
+      S.crossMaint = sum((st) => st.crossMaintenanceMarginUsed);
+      if (isUnified()) {
+        // единый счёт: деньги лежат одним балансом (спот), к нему добавляется нереализованный PnL позиций
+        const upnl = S.positions.reduce((a, p) => a + Number(p.unrealizedPnl || 0), 0);
+        S.withdrawable = spotBal("USDC");
+        S.accountValue = spotTotal() + upnl;
+        S.crossValue = S.withdrawable + S.marginUsed + upnl;
+      } else {
+        S.withdrawable = Number(e.withdrawable) || 0;
+        S.accountValue = sum((st) => st.marginSummary?.accountValue);
+        S.crossValue = Number(e.crossMarginSummary?.accountValue ?? e.marginSummary.accountValue) || 0;
+      }
+      $("accValue").textContent = usd(S.accountValue);
+      (["home", "assets"].includes(document.body.dataset.app) && renderAppPage(),
         Date.now() - fundingAt > 6e4 && loadFundingAccrued(),
         renderPositions(),
         renderOrders(),
@@ -2524,6 +2687,28 @@ var sgnUsd = (i) => {
     return t === 0 ? usd(0) : `${t > 0 ? "+" : ""}${usd(t)}`;
   },
   clsOf = (i) => (i >= 0 ? "pos" : "neg");
+/* ADL (автоделеверидж). Когда чья-то позиция уходит в минус глубже залога, Hyperliquid
+   принудительно закрывает прибыльные позиции на противоположной стороне. Очередь строится по
+   (маркировка / цена входа) × (размер позиции / стоимость счёта) — у шорта отношение цен обратное.
+   Номер в очереди биржа не показывает, поэтому выводим свою оценку: уровень 1–5. */
+function adlRisk(p) {
+  const mark = Number(S.ctx[p.coin]?.markPx || 0), entry = Number(p.entryPx || 0), long = Number(p.szi) > 0;
+  if (!mark || !entry) return null;
+  const ratio = long ? mark / entry : entry / mark;
+  const notional = Math.abs(Number(p.szi)) * mark;
+  const equity = p.leverage?.type === "isolated" ? Number(p.marginUsed || 0) : S.crossValue || S.accountValue || 0;
+  if (!(equity > 0)) return null;
+  const score = ratio * (notional / equity);
+  const level = ratio <= 1 ? 1 : score < 2 ? 1 : score < 5 ? 2 : score < 10 ? 3 : score < 20 ? 4 : 5;
+  return { level, score, inProfit: ratio > 1 };
+}
+const ADL_TEXT = ["", "низкий", "умеренный", "заметный", "высокий", "очень высокий"];
+function adlBadge(p) {
+  const r = adlRisk(p);
+  if (!r) return "—";
+  const tip = `Риск ADL: ${ADL_TEXT[r.level]} (оценка Totum по формуле Hyperliquid, индекс ${r.score.toFixed(2)}). ${r.inProfit ? "Чем больше прибыль и плечо, тем раньше позицию могут принудительно закрыть при каскаде ликвидаций." : "Убыточные позиции стоят в конце очереди ADL."}`;
+  return `<span class="adl lv${r.level}" title="${esc(tip)}">${[1, 2, 3, 4, 5].map((k) => `<i class="${k <= r.level ? "on" : ""}"></i>`).join("")}</span>`;
+}
 function renderPositions() {
   (($("cntPos").textContent = S.positions.length ? `(${S.positions.length})` : ""),
     ($("btnCloseAll").disabled = !S.positions.length || !S.agentExchange));
@@ -2566,12 +2751,13 @@ function renderPositions() {
     ? i
         .map(
           (s) => `<tr>
-      <td><b>${esc(s.p.coin)}-USDC</b><span class="tag ${s.long ? "pos" : "neg"}">${s.long ? "Лонг" : "Шорт"} ${esc(s.lev)}</span>${e(s)}</td>
+      <td><b>${esc(pairLabel(s.p.coin))}</b><span class="tag ${s.long ? "pos" : "neg"}">${s.long ? "Лонг" : "Шорт"} ${esc(s.lev)}</span>${e(s)}</td>
       <td class="${s.long ? "pos" : "neg"}">${Math.abs(Number(s.p.szi))}</td>
       <td>${fmtPx(s.p.entryPx)}</td><td>${s.c ? fmtPx(s.c.markPx) : "—"}</td>
       <td class="${clsOf(s.pnl)}">${sgnUsd(s.pnl)} (${s.roe >= 0 ? "+" : ""}${s.roe.toFixed(2)}%)</td>
       <td class="${clsOf(s.real ?? 0)}">${s.real === void 0 ? "…" : sgnUsd(s.real)}</td>
       <td>${s.p.liquidationPx ? fmtPx(s.p.liquidationPx) : "—"}</td>
+      <td>${adlBadge(s.p)}</td>
       <td>${usd(s.p.marginUsed || 0)}</td>
       <td class="fund-cell"><b class="${clsOf(s.acc ?? 0)}">${s.acc === void 0 ? "…" : sgnUsd(s.acc)}</b> / <span class="${clsOf(s.next)}">${sgnUsd(s.next)}</span></td>
       <td><div class="tpsl-cell">${s.tpsl.tp ? fmtPx(s.tpsl.tp.triggerPx) : "—"} / ${s.tpsl.sl ? fmtPx(s.tpsl.sl.triggerPx) : "—"}
@@ -2582,14 +2768,14 @@ function renderPositions() {
         <button class="btn small ghost" data-reverse ${t(s)} title="Закрыть и открыть в обратную сторону">Разворот</button></div></td></tr>`,
         )
         .join("")
-    : `<tr><td colspan="11" class="muted">${S.user ? "Открытых позиций нет" : "Подключите кошелёк"}</td></tr>`;
+    : `<tr><td colspan="12" class="muted">${S.user ? "Открытых позиций нет" : "Подключите кошелёк"}</td></tr>`;
   let n = (s, r, o = "") => `<div><span>${s}</span><b class="${o}">${r}</b></div>`;
   $("posCards").innerHTML = i.length
     ? i
         .map((s) => {
           let r = marginRatio(s.p) * 100;
           return `<article class="pos-card">
-      <header><span class="side-ic ${s.long ? "b" : "s"}">${s.long ? "Л" : "Ш"}</span><b>${esc(s.p.coin)}-USDC</b><span class="muted small">Бессрочный</span>${e(s, "PnL")}</header>
+      <header><span class="side-ic ${s.long ? "b" : "s"}">${s.long ? "Л" : "Ш"}</span><b>${esc(pairLabel(s.p.coin))}</b><span class="muted small">Бессрочный</span>${e(s, "PnL")}</header>
       <div class="pc-tags"><span class="tag lev">${esc(s.lev)}</span></div>
       <div class="pc-pnl"><span>Нереализованный PnL (USDC)</span><b class="${clsOf(s.pnl)}">${sgnUsd(s.pnl)} (${s.roe >= 0 ? "+" : ""}${s.roe.toFixed(2)}%)</b></div>
       <div class="pc-grid">
@@ -2599,6 +2785,7 @@ function renderPositions() {
         ${n("Цена входа", fmtPx(s.p.entryPx))}
         ${n("Маркировка", s.c ? fmtPx(s.c.markPx) : "—")}
         ${n("Расч. цена ликв.", s.p.liquidationPx ? fmtPx(s.p.liquidationPx) : "—", "warn")}
+        ${n("Риск ADL", `${adlBadge(s.p)} <small>${ADL_TEXT[adlRisk(s.p)?.level || 0] || ""}</small>`)}
         ${n("Реализ. PnL (USDC)", s.real === void 0 ? "…" : sgnUsd(s.real), clsOf(s.real ?? 0))}
         ${n("Фандинг: начисл. / след.", `${s.acc === void 0 ? "…" : sgnUsd(s.acc)} / ${sgnUsd(s.next)}`)}
         ${n("TP / SL", `<span class="pos">${s.tpsl.tp ? fmtPx(s.tpsl.tp.triggerPx) : "--"}</span> / <span class="neg">${s.tpsl.sl ? fmtPx(s.tpsl.sl.triggerPx) : "--"}</span>`)}
@@ -2916,7 +3103,7 @@ async function loadOpTab() {
               .slice(0, 300)
               .map((f) => {
                 let b = fundingUsd(f);
-                return `<article class="op-card ${b >= 0 ? "win" : "loss"}"><header>${coinIcon(f.coin)}<b class="pair">${esc(f.coin)}-USDC</b><span class="tag ${Number(f.szi) > 0 ? "pos" : "neg"}">${Number(f.szi) > 0 ? "Лонг" : "Шорт"} ${Math.abs(Number(f.szi))}</span><span class="when">${fmtTime(f.time)}</span></header>
+                return `<article class="op-card ${b >= 0 ? "win" : "loss"}"><header>${coinIcon(f.coin)}<b class="pair">${esc(pairLabel(f.coin))}</b><span class="tag ${Number(f.szi) > 0 ? "pos" : "neg"}">${Number(f.szi) > 0 ? "Лонг" : "Шорт"} ${Math.abs(Number(f.szi))}</span><span class="when">${fmtTime(f.time)}</span></header>
             <div class="op-hero" style="margin-bottom:0"><div><div class="lbl">Начисление</div><div class="val ${clsOf(b)}">${sgnUsd(b)}</div></div><div class="pctv">${pct(f.fundingRate)}<div class="lbl">ставка за час</div></div></div></article>`;
               })
               .join("") || opEmpty("Начислений фандинга пока нет")),
@@ -2951,7 +3138,7 @@ async function loadOpTab() {
                 pctLabel: h ? "ROE" : "Изменение цены",
               }),
               `<article class="op-card ${l.net >= 0 ? "win" : "loss"}">
-          <header>${coinIcon(l.coin)}<b class="pair">${esc(l.coin)}-USDC</b><span class="tag ${l.long ? "pos" : "neg"}">${l.long ? "Лонг" : "Шорт"}</span>${h ? `<span class="tag lev">${h}x</span>` : ""}<span class="when">${fmtTime(l.closeTime)}</span></header>
+          <header>${coinIcon(l.coin)}<b class="pair">${esc(pairLabel(l.coin))}</b><span class="tag ${l.long ? "pos" : "neg"}">${l.long ? "Лонг" : "Шорт"}</span>${h ? `<span class="tag lev">${h}x</span>` : ""}<span class="when">${fmtTime(l.closeTime)}</span></header>
           <div class="op-hero"><div><div class="lbl">Реализованный PnL</div><div class="val ${clsOf(l.net)}">${sgnUsd(l.net)}</div></div>
             <div class="pctv ${clsOf(b)}">${sgnNum(b)}<div class="lbl">${h ? "ROE" : "изменение цены"}</div></div></div>
           <div class="op-grid">${kvOp("Цена входа", fmtPx(p))}${kvOp("Цена закрытия", fmtPx(f))}${kvOp("Объём", `${num(l.closeNtl, 2)} $`)}
@@ -3098,6 +3285,10 @@ function renderLevChips(i) {
       .forEach((e) => (e.onclick = () => setLeverage(Number(e.dataset.lv)))));
 }
 function setMargin(i) {
+  if (i === "cross" && mkt()?.onlyIsolated) {
+    toast("На этом рынке доступна только изолированная маржа", "info");
+    i = "isolated";
+  }
   ((S.margin = i),
     ($("marginVal").textContent = i === "isolated" ? (isMobile() ? "Изолир." : "Изолированная") : "Кросс"),
     document.querySelectorAll("[data-margin]").forEach((t) => t.classList.toggle("on", t.dataset.margin === i)));
@@ -3127,6 +3318,15 @@ function fillMidPrice() {
   (i && ($("px").value = Number(i.midPx).toFixed(pxDecimals(i.midPx))), updateOrderInfo());
 }
 var curPosition = () => S.positions.find((i) => i.coin === S.coin);
+/* Сколько залога доступно для фьючерсов на этом рынке.
+   Единый счёт: один баланс на всё — свободный остаток токена-залога (USDC, а для части рынков HIP-3 — USDH/USDT0/USDE).
+   Обычный счёт: свободные средства фьючерсного счёта нужной площадки. */
+const isUnified = () => ["unifiedAccount", "portfolioMargin"].includes(S.abstraction);
+function availFor(coin = S.coin) {
+  const m = mkt(coin);
+  if (isUnified()) return spotBal(m?.dex ? collName(m) : "USDC");
+  return m?.dex ? S.dexWithdrawable?.[m.dex] ?? 0 : S.withdrawable;
+}
 function applyPct(i) {
   if ((($("pct").value = i), paintRange($("pct")), isSpot())) {
     let t = Number(S.ctx[S.coin]?.midPx || 0),
@@ -3138,8 +3338,8 @@ function applyPct(i) {
       e = Number(S.ctx[S.coin]?.midPx || 0);
     $("size").value = t ? Math.floor(((Math.abs(Number(t.szi)) * e * i) / 100) * 100) / 100 : 0;
   } else
-    S.withdrawable > 0 &&
-      ($("size").value = Math.floor(((S.withdrawable * Number($("lev").value) * i) / 100) * 100) / 100);
+    availFor() > 0 &&
+      ($("size").value = Math.floor(((availFor() * Number($("lev").value) * i) / 100) * 100) / 100);
   updateOrderInfo();
 }
 function updateOrderInfo() {
@@ -3152,7 +3352,7 @@ function updateOrderInfo() {
           ? i
             ? `${Number(i.szi) > 0 ? "Лонг" : "Шорт"} ${Math.abs(Number(i.szi))} ${S.coin}`
             : "нет позиции"
-          : `${num(S.withdrawable, 2)} USDC`);
+          : `${num(availFor(), 2)} ${mkt()?.dex ? collName(mkt()) : "USDC"}`);
   let t = Number($("size").value) || 0,
     e = Number($("lev").value) || 1;
   if (!t) {
@@ -3718,7 +3918,7 @@ async function reversePosition(i, t) {
     SET.confirmOn &&
     !(await confirmBox({
       title: "Развернуть позицию?",
-      pair: `${i}-USDC Бессрочный`,
+      pair: `${pairLabel(i)} Бессрочный`,
       tag: `${n ? "Лонг → шорт" : "Шорт → лонг"} \xB7 ${e.leverage?.type === "isolated" ? "Изол." : "Кросс"} ${e.leverage?.value ?? ""}x`,
       tagCls: n ? "neg" : "pos",
       rows: [
@@ -4177,8 +4377,10 @@ function renderInfo() {
     n = t.prevDayPx ? (e / Number(t.prevDayPx) - 1) * 100 : 0,
     s = `знаков после запятой: до ${Math.max(0, 6 - i.szDecimals)}; значащих цифр: до 5`,
     r = [
-      ["Контракт", `${S.coin}-USDC · бессрочный (perpetual)`],
-      ["Расчёты и маржа", "USDC"],
+      ["Контракт", `${pairLabel(S.coin)} · бессрочный (perpetual)`],
+      ["Расчёты и маржа", i.dex ? collName(i) : "USDC"],
+      ...(i.dex ? [["Площадка HIP-3", `${i.dex} — рынок запущен сторонней командой на Hyperliquid`], ["Категория", CAT_RU[i.cat] || i.cat || "—"]] : []),
+      ...(i.onlyIsolated ? [["Маржа", "только изолированная"]] : []),
       ["Последняя цена", fmtPx(e)],
       ["Маркировочная цена", fmtPx(t.markPx)],
       ["Цена оракула (индекс)", t.oraclePx ? fmtPx(t.oraclePx) : "—"],
@@ -4187,7 +4389,7 @@ function renderInfo() {
       [
         "Открытый интерес",
         t.openInterest
-          ? `${num(t.openInterest, 2)} ${S.coin} ≈ ${compact(Number(t.openInterest) * Number(t.markPx))}`
+          ? `${num(t.openInterest, 2)} ${baseOf(S.coin)} ≈ ${compact(Number(t.openInterest) * Number(t.markPx))}`
           : "—",
       ],
       ["Ставка фандинга за час", pct(t.funding), clsOf(Number(t.funding))],
@@ -4323,7 +4525,7 @@ function renderMarketsPage() {
             (s) => `
     <div class="pp-row" data-coin="${esc(s.name)}">
       <button class="star${FAVS.includes(s.name) ? " on" : ""}" data-fav="${esc(s.name)}" type="button" aria-label="В избранное">★</button>
-      <div class="pp-name">${coinIcon(s.name)}<div><div class="pp-l1"><b>${esc(s.label)}</b>${s.lev ? `<span class="tag lev">${s.lev}x</span>` : ""}</div><small>${s.vol ? compact(s.vol) : "—"}</small></div></div>
+      <div class="pp-name">${coinIcon(s.name)}<div><div class="pp-l1"><b>${esc(s.label)}</b>${rowTags(s)}</div><small class="pp-sub">${rowSub(s)}</small></div></div>
       <div class="pp-px">${s.mid ? fmtPx(s.mid) : "—"}</div>
       <div class="pp-ch ${s.ch >= 0 ? "pos" : "neg"}">${s.ch >= 0 ? "+" : ""}${(s.ch * 100).toFixed(2)}%</div>
     </div>`,
@@ -4347,7 +4549,7 @@ function renderAssets() {
     </div>
     <div class="card-block">
       <div class="cb-head"><b>Фьючерсный счёт</b><button class="link-btn" type="button" data-act="futures">Торговать →</button></div>
-      <div class="kv">${kvRow("Стоимость счёта", usd(S.accountValue || 0))}${kvRow("Доступно", usd(S.withdrawable || 0))}${kvRow("Маржа в позициях", usd(S.marginUsed || 0))}${kvRow("Нереализованный PnL", sgnUsd(t), clsOf(t))}${kvRow("Открытых позиций", i.length)}</div>
+      <div class="kv">${kvRow("Стоимость счёта", usd(S.accountValue || 0))}${kvRow("Доступно", usd(availFor("BTC") || 0))}${kvRow("Маржа в позициях", usd(S.marginUsed || 0))}${kvRow("Нереализованный PnL", sgnUsd(t), clsOf(t))}${kvRow("Открытых позиций", i.length)}</div>
     </div>
     <div class="card-block">
       <div class="cb-head"><b>Спот</b><span class="muted small">${usd(spotTotal())}</span></div>
@@ -4944,6 +5146,9 @@ function switchCoin(i) {
     ($("mkHigh").textContent = $("mkLow").textContent = "—"),
     S.orderType === "limit" && fillMidPrice());
   let t = mkt(i);
+  // рынки HIP-3 часто только с изолированной маржой
+  document.querySelectorAll('[data-margin="cross"]').forEach((b) => (b.disabled = !!t?.onlyIsolated));
+  t?.onlyIsolated ? S.margin !== "isolated" && setMargin("isolated") : S.marginWanted && S.margin !== S.marginWanted && setMargin(S.marginWanted);
   (t && !t.spot && renderLevChips(t.maxLeverage),
     t?.spot
       ? (setMode("open"), setSpotSide(S.spotSide || "buy"), ["info"].includes(document.body.dataset.cp) && renderInfo())
@@ -5038,7 +5243,8 @@ function bindSettings() {
     ($("btnTheme").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark")),
     ($("btnConnect").onclick = () => (S.user ? disconnectWallet() : connectWallet())),
     ($("btnConnect2").onclick = connectWallet),
-    ($("btnEnable").onclick = enableTrading));
+    ($("btnEnable").onclick = enableTrading),
+    ($("btnUnified").onclick = () => ensureUnified(!0)));
   try {
     $("consent").checked = localStorage.getItem("totum.consent") === "1";
   } catch {}
@@ -5060,7 +5266,7 @@ function bindSettings() {
     document.querySelectorAll("[data-margin]").forEach(
       (i) =>
         (i.onclick = () => {
-          (setMargin(i.dataset.margin), (i.closest(".dd-menu").hidden = !0));
+          ((S.marginWanted = i.dataset.margin), setMargin(i.dataset.margin), (i.closest(".dd-menu").hidden = !0));
         }),
     ),
     ($("marginBtn").onclick = () => {
@@ -5239,6 +5445,7 @@ async function init() {
             title: s.line.options().title,
           })),
         openPnlCard: openPnlCard,
+        switchCoin: switchCoin,
       }));
 }
 init();
