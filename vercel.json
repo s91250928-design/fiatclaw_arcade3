@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "",
-  "buildCommand": "echo 'Totum: static site, no build step'",
+  "buildCommand": "node scripts/fetch-icons.mjs",
   "outputDirectory": ".",
   "headers": [
     {
@@ -28,6 +28,51 @@
         {
           "key": "Cache-Control",
           "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/icons/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/fonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/chunks/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/brand/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/icons.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=600, stale-while-revalidate=86400"
         }
       ]
     }
