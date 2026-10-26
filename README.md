@@ -1,21 +1,7 @@
-# FiatClaw Arcade
+# Totum — testnet
 
-The first on-chain cyberpunk claw machine on **Solana**.
+Торговый терминал на Hyperliquid (тестовая сеть). Статический сайт: сборка уже готова, Vercel ничего не собирает.
 
-Play with SOL or $FIATCLAW to win crypto, NFTs, mystery boxes, and progressive jackpots — every pull settled on-chain.
-
-## Stack
-
-- Next.js (App Router)
-- Solana wallet adapter
-- React Three Fiber (3D vault)
-
-## Local development
-
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-<!-- force sync deploy 2026-08-17 18:17:52 +03:00 -->
+- Настройки (сеть, адрес строителя, комиссия, WalletConnect) — в `config.js`, меняются без пересборки.
+- Заголовки безопасности (CSP) и настройки Vercel — в `vercel.json`.
+- Прежний сайт Reelix сохранён в ветке `reelix-backup`.
