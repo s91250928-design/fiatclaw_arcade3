@@ -13,7 +13,7 @@
 <!-- Шапка: логотип, выбор пары, ключевые цифры рынка, кошелёк -->
 <header class="top">
   <button id="btnBack" class="btn ghost icon back-btn" type="button" title="Назад" aria-label="Назад">←</button>
-  <div class="brand"><img class="logo" src="brand/mark-128.webp" alt="" width="30" height="30"><span class="wordmark">totum</span> <span id="netBadge" class="badge">ТЕСТОВАЯ СЕТЬ</span></div>
+  <div class="brand"><img class="logo" src="brand/mark-128.webp" alt="" width="30" height="30"><span class="wordmark">totum</span> <span id="netState" class="net-state" hidden title="Связь с биржей восстанавливается, данные обновятся сами">Переподключение…</span><span id="netBadge" class="badge">ТЕСТОВАЯ СЕТЬ</span></div>
   <div class="pair" id="pairBox">
     <button id="pairBtn" class="pair-btn" type="button" aria-haspopup="true"><span class="coin-ic" id="pairIc">B</span><b id="pairName">BTC-USDC</b><i class="chev"></i></button>
     <span class="pair-type" id="pairType">Бессрочный</span>
@@ -259,8 +259,8 @@
       <div id="posCards" class="pos-cards"><p class="muted small pad">Подключите кошелёк</p></div>
     </div>
     <div class="table-wrap" data-b-pane="ord" hidden><table>
-      <thead><tr><th>Пара</th><th>Тип</th><th>Сторона</th><th>Цена</th><th>Размер</th><th></th></tr></thead>
-      <tbody id="ordBody"><tr><td colspan="6" class="muted">—</td></tr></tbody>
+      <thead><tr><th>Пара</th><th>Тип</th><th>Сторона</th><th>Цена</th><th>Размер</th><th>Исполнено</th><th></th></tr></thead>
+      <tbody id="ordBody"><tr><td colspan="7" class="muted">—</td></tr></tbody>
     </table></div>
     <div class="table-wrap" data-b-pane="spot" hidden><table>
       <thead><tr><th>Монета</th><th>Всего</th><th>Доступно</th><th>В ордерах</th><th>Стоимость</th><th>Ср. цена покупки</th><th>PnL</th><th></th></tr></thead>
