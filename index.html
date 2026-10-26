@@ -273,6 +273,21 @@
   </section>
 </main>
 
+<!-- Телефон: разделы приложения -->
+<section class="app-page" id="pgHome"></section>
+<section class="app-page" id="pgMarkets">
+  <h1 class="pg-title">Рынки</h1>
+  <div class="pp-mkt" id="mMkt"><button data-mmk="perp" class="on" type="button">Фьючерсы</button><button data-mmk="spot" type="button">Спот</button></div>
+  <label class="pp-search"><span>⌕</span><input id="mSearch" type="text" placeholder="Поиск монеты" autocomplete="off"></label>
+  <div class="pp-tabs" id="mTabs"><button data-mt="fav" type="button">Избранное</button><button data-mt="all" class="on" type="button">Все</button><button data-mt="gain" type="button">Растут</button><button data-mt="loss" type="button">Падают</button></div>
+  <div class="pp-head" id="mHead"><button data-ms="vol" type="button">Пара / Объём</button><button data-ms="px" type="button">Цена</button><button data-ms="ch" type="button">Изм. 24ч</button></div>
+  <div id="mList" class="pp-list m-list"></div>
+</section>
+<section class="app-page" id="pgAssets"></section>
+
+<!-- Телефон: нижнее меню — плавающая «стеклянная» панель с бегущей капсулой -->
+<nav class="mnav" id="mnav" aria-label="Разделы"><i class="mnav-pill" id="mnavPill"></i><button type="button" data-app="home" aria-label="Главная"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.4 12 5l8 6.4V19a1.2 1.2 0 0 1-1.2 1.2H15v-5.2H9v5.2H5.2A1.2 1.2 0 0 1 4 19z"/></svg><span>Главная</span></button><button type="button" data-app="markets" aria-label="Рынки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5h16"/><path d="M7.5 16V11M12 16V6.5M16.5 16v-7"/></svg><span>Рынки</span></button><button type="button" data-app="trade" aria-label="Торговля"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8.5h12.5L14.5 5.5"/><path d="M19 15.5H6.5l3 3"/></svg><span>Торговля</span></button><button type="button" data-app="futures" aria-label="Фьючерсы"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9.5 12l3.5 3 7-7.5"/><path d="M15 7.5h5v5"/></svg><span>Фьючерсы</span></button><button type="button" data-app="assets" aria-label="Активы"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6.5" width="17" height="12.5" rx="3"/><path d="M3.5 10.5h17"/><circle cx="16.3" cy="14.6" r="1.25" fill="currentColor" stroke="none"/></svg><span>Активы</span></button></nav>
+
 <!-- Телефон, полный экран: кнопки внизу и шторка ордера -->
 <div class="full-bar" id="fullBar"><button id="fbOpen" class="btn buy" type="button">Открыть</button><button id="fbClose" class="btn sell" type="button">Закрыть</button></div>
 <div class="sheet-back" id="sheetBack"></div>
