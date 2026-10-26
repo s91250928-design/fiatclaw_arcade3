@@ -637,3 +637,13 @@ body.spot-mode #segSpot{display:grid!important}
 #segSpot button.on.s{background:var(--sell);color:#fff}
 body.spot-mode .sides{grid-template-columns:1fr!important}
 body.spot-mode:not(.spot-sell) #btnSell,body.spot-mode.spot-sell #btnBuy{display:none}
+
+/* Перевод USDC — в обоих режимах, когда кошелёк подключён */
+body:not(.connected) #trRow{display:none}
+/* Мои ордера в стакане: цветная точка сбоку и подсветка строки */
+.ob-row.mine{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ob-row.mine::before{content:"";position:absolute;left:2px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent);z-index:1}
+.ob-row.mine span:first-child{font-weight:700}
+
+/* Слои графика (у ценовой шкалы z-index 50) не должны перекрывать шторку, окна и меню */
+.chart-wrap{isolation:isolate;z-index:0}
