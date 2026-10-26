@@ -76,5 +76,11 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/trade",
+      "destination": "/index.html"
+    }
   ]
 }

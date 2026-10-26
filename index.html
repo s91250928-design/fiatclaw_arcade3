@@ -10,6 +10,56 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body data-mv="trade" data-cp="chart">
+<!-- Лендинг (только на компьютере). Терминал открывается по адресу /trade -->
+<div id="landing" class="landing" hidden>
+  <nav class="ln-nav">
+    <a class="ln-brand" href="/" aria-label="Totum"><img src="brand/mark-128.webp" alt="" width="34" height="34"><span>totum</span></a>
+    <div class="ln-links"><a href="#lnMarkets">Рынки</a><a href="#lnStart">Как начать</a><a href="#lnWhy">Почему Totum</a></div>
+    <a class="ln-btn" href="/trade" data-open-term>Открыть терминал</a>
+  </nav>
+  <header class="ln-hero">
+    <div class="ln-copy">
+      <h1>Фьючерсы и спот Hyperliquid в одном окне</h1>
+      <p class="ln-lead">Подключите кошелёк и торгуйте с плечом до <span id="lnMaxLev">40</span>x на ликвидности Hyperliquid. Вывести деньги со счёта может только ваш кошелёк.</p>
+      <div class="ln-cta"><a class="ln-btn big" href="/trade" data-open-term>Открыть терминал</a><a class="ln-ghost" href="#lnMarkets">Смотреть рынки</a></div>
+      <p class="ln-note" id="lnNet" hidden>Сейчас открыта тестовая сеть: торговля идёт на тестовые USDC, их бесплатно выдаёт кран.</p>
+    </div>
+    <div class="ln-mark" id="lnMark"><img src="brand/mark-512.webp" alt="" class="mob-fallback"></div>
+  </header>
+  <div class="ln-ribbon" aria-label="Цены в реальном времени"><div class="ln-track" id="lnTrack"></div></div>
+
+  <section class="ln-sec" id="lnMarkets">
+    <div class="ln-sec-head"><h2>Рынки сейчас</h2><p>Цены и фандинг приходят с Hyperliquid в реальном времени. Нажмите на пару, чтобы открыть её в терминале.</p></div>
+    <div class="ln-mkt-tabs" role="tablist"><button type="button" data-lnm="perp" class="on">Фьючерсы</button><button type="button" data-lnm="spot">Спот</button></div>
+    <table class="ln-table"><thead><tr><th>Пара</th><th>Цена</th><th>За 24 часа</th><th>Объём 24ч</th><th class="ln-fund-h">Фандинг в час</th><th></th></tr></thead><tbody id="lnRows"><tr><td colspan="6" class="ln-empty">Загружаем рынки…</td></tr></tbody></table>
+  </section>
+
+  <section class="ln-sec" id="lnWhy">
+    <div class="ln-sec-head"><h2>Почему Totum</h2></div>
+    <div class="ln-why">
+      <div><h3>Глубина Hyperliquid</h3><p>Ордера исполняются прямо в стакане Hyperliquid. Totum — удобное окно к бирже, а не отдельная биржа с тонким стаканом.</p></div>
+      <div><h3>Деньги под вашим ключом</h3><p>Totum не хранит средства. Для торговли создаётся отдельный ключ, который умеет только выставлять ордера — вывести им деньги нельзя.</p></div>
+      <div><h3>Комиссия видна заранее</h3><p>Комиссия биржи плюс <span id="lnFee">0,025%</span> Totum. Итоговую сумму видно в окне ордера до подтверждения.</p></div>
+      <div><h3>Фьючерсы и спот вместе</h3><p>Один кошелёк для обоих рынков. USDC между фьючерсным и спот-счётом переводятся одной кнопкой.</p></div>
+    </div>
+  </section>
+
+  <section class="ln-sec" id="lnStart">
+    <div class="ln-sec-head"><h2>Как начать</h2><p>Три шага, около минуты.</p></div>
+    <ol class="ln-steps">
+      <li><h3>Подключите кошелёк</h3><p>Через WalletConnect: OKX, MetaMask, Trust, Rabby и другие кошельки — с компьютера или по QR-коду с телефона.</p></li>
+      <li><h3>Включите торговлю</h3><p>Одна подпись в кошельке создаёт торговый ключ. Ордера дальше выставляются без подтверждений в кошельке.</p></li>
+      <li><h3>Пополните счёт и торгуйте</h3><p id="lnStep3">Переведите USDC на свой счёт Hyperliquid и откройте первую сделку.</p></li>
+    </ol>
+  </section>
+
+  <section class="ln-final">
+    <img src="brand/mark-128.webp" alt="" width="72" height="72">
+    <h2>Терминал уже открыт для торговли</h2>
+    <a class="ln-btn big" href="/trade" data-open-term>Открыть терминал</a>
+  </section>
+  <footer class="ln-foot"><span>© Totum</span><span>Работает на Hyperliquid. Торговля с плечом связана с высоким риском потери средств.</span></footer>
+</div>
 <!-- Шапка: логотип, выбор пары, ключевые цифры рынка, кошелёк -->
 <header class="top">
   <button id="btnBack" class="btn ghost icon back-btn" type="button" title="Назад" aria-label="Назад">←</button>

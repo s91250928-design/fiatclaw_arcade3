@@ -762,3 +762,104 @@ body:not(.connected) #trRow{display:none}
 @keyframes hero-shine{0%,55%{background-position:-150% 0}85%,100%{background-position:250% 0}}
 @media (prefers-reduced-motion:reduce){.hero-card,.hero-card::before,.hero-card::after{animation:none}}
 @media (max-width:900px){.hero-card .wide-btn{background:#fff;color:#0f172a;border:0;box-shadow:0 6px 18px rgba(2,6,23,.25)}}
+
+/* ============================================================
+   Лендинг Totum (компьютер). Свой тёмно-синий мир хромового знака:
+   глубокий индиго, холодный хром, синий и бирюзовый из логотипа.
+   Главный элемент — живая лента Мёбиуса; остальное спокойное.
+   ============================================================ */
+.landing{display:none}
+@media (min-width:901px){
+  body[data-view="landing"]{padding:0;background:#070c1d}
+  body[data-view="landing"] > :not(#landing):not(dialog):not(#toasts){display:none!important}
+  body[data-view="landing"] #landing{display:block}
+  .top .brand{cursor:pointer}
+}
+.landing{
+  --ln-bg:#070c1d; --ln-deep:#0b1430; --ln-line:rgba(148,190,255,.14); --ln-text:#e9f1ff; --ln-muted:#8fa3c7;
+  --ln-blue:#2f6bff; --ln-cyan:#2fd6f0; --ln-up:#34d399; --ln-dn:#fb7185;
+  color:var(--ln-text);background:
+    radial-gradient(900px 600px at 78% 8%,rgba(47,107,255,.22),transparent 60%),
+    radial-gradient(700px 500px at 92% 40%,rgba(47,214,240,.10),transparent 60%),var(--ln-bg);
+  font-family:"Manrope",var(--font);font-size:17px;line-height:1.6;min-height:100vh;overflow-x:hidden}
+.landing a{color:inherit;text-decoration:none}
+.landing :focus-visible{outline:2px solid var(--ln-cyan);outline-offset:3px;border-radius:8px}
+.ln-nav{max-width:1240px;margin:0 auto;padding:22px 40px;display:flex;align-items:center;gap:40px}
+.ln-brand{display:flex;align-items:center;gap:10px;font:700 22px/1 "Unbounded",var(--font);letter-spacing:-.02em}
+.ln-brand img{filter:drop-shadow(0 4px 14px rgba(56,189,248,.35))}
+.ln-links{display:flex;gap:28px;font-size:15px;color:var(--ln-muted)}
+.ln-links a:hover{color:var(--ln-text)}
+.ln-nav .ln-btn{margin-left:auto}
+.ln-btn{display:inline-flex;align-items:center;justify-content:center;padding:11px 20px;border-radius:999px;font-weight:700;font-size:15px;color:#fff;
+  background:linear-gradient(135deg,var(--ln-blue),#1d4ed8 45%,#0891b2);box-shadow:0 8px 26px rgba(47,107,255,.35),inset 0 1px 0 rgba(255,255,255,.25);
+  transition:transform .2s ease,box-shadow .2s ease}
+.ln-btn:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(47,107,255,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+.ln-btn.big{padding:16px 30px;font-size:17px}
+.ln-ghost{display:inline-flex;align-items:center;padding:16px 8px;font-weight:600;color:var(--ln-muted);border-bottom:1px solid transparent}
+.ln-ghost:hover{color:var(--ln-text)}
+
+.ln-hero{max-width:1240px;margin:0 auto;padding:40px 40px 56px;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);align-items:center;gap:24px;min-height:min(640px,calc(100vh - 180px))}
+.ln-hero h1{font:700 clamp(42px,4.6vw,72px)/1.04 "Unbounded",var(--font);letter-spacing:-.035em;margin:0 0 26px;
+  background:linear-gradient(180deg,#ffffff 0%,#dbe8ff 55%,#9fb8e6 100%);-webkit-background-clip:text;background-clip:text;color:transparent;max-width:12ch}
+.ln-lead{font-size:19px;color:#c3d2ee;max-width:34em;margin:0 0 32px}
+.ln-cta{display:flex;align-items:center;gap:22px}
+.ln-note{margin:22px 0 0;font-size:14px;color:var(--ln-muted);max-width:36em}
+.ln-mark{position:relative;aspect-ratio:1;width:100%;max-width:600px;justify-self:end}
+.ln-mark::before{content:"";position:absolute;inset:14%;border-radius:50%;background:radial-gradient(closest-side,rgba(47,140,255,.35),transparent);filter:blur(30px)}
+.ln-mark .mob-fallback{position:absolute;inset:6%;width:88%;height:88%;object-fit:contain;transition:opacity .6s ease}
+.ln-mark.live .mob-fallback{opacity:0}
+.ln-mark .mob-canvas{position:absolute;inset:0;width:100%!important;height:100%!important;animation:ln-in .9s ease both}
+@keyframes ln-in{from{opacity:0}to{opacity:1}}
+
+/* бегущая лента цен */
+.ln-ribbon{border-block:1px solid var(--ln-line);background:rgba(11,20,48,.6);overflow:hidden;
+  -webkit-mask:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.ln-track{display:flex;width:max-content;animation:ln-run 70s linear infinite}
+.ln-ribbon:hover .ln-track{animation-play-state:paused}
+.ln-run{display:flex}
+.ln-tk{display:flex;align-items:center;gap:8px;padding:14px 26px;background:none;border:0;border-right:1px solid var(--ln-line);color:var(--ln-text);font:500 15px "Manrope",var(--font);cursor:pointer;white-space:nowrap}
+.ln-tk:hover{background:rgba(47,107,255,.10)}
+.ln-tk .coin-ic,.ln-pair .coin-ic{width:22px;height:22px;font-size:11px}
+.ln-tk .px{font-variant-numeric:tabular-nums;color:#c3d2ee}
+.landing .up{color:var(--ln-up)} .landing .dn{color:var(--ln-dn)}
+@keyframes ln-run{to{transform:translateX(-50%)}}
+
+.ln-sec{max-width:1240px;margin:0 auto;padding:96px 40px 0}
+.ln-sec-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:end;margin-bottom:32px}
+.ln-sec h2,.ln-final h2{font:700 clamp(30px,3vw,44px)/1.1 "Unbounded",var(--font);letter-spacing:-.03em;margin:0}
+.ln-sec-head p{margin:0;color:var(--ln-muted);max-width:34em}
+.ln-mkt-tabs{display:inline-flex;gap:4px;padding:4px;border-radius:999px;background:rgba(148,190,255,.08);margin-bottom:12px}
+.ln-mkt-tabs button{border:0;background:none;color:var(--ln-muted);font:600 14px "Manrope",var(--font);padding:8px 18px;border-radius:999px;cursor:pointer}
+.ln-mkt-tabs button.on{background:var(--ln-text);color:#0b1430}
+.ln-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.ln-table th{text-align:right;font-weight:500;font-size:13px;color:var(--ln-muted);padding:12px 16px;border-bottom:1px solid var(--ln-line)}
+.ln-table th:first-child,.ln-table td:first-child{text-align:left}
+.ln-table td{text-align:right;padding:15px 16px;border-bottom:1px solid var(--ln-line);font-size:16px}
+.ln-table tbody tr{cursor:pointer;transition:background .15s ease}
+.ln-table tbody tr:hover,.ln-table tbody tr:focus-visible{background:rgba(47,107,255,.08)}
+.ln-table.spot .fund,.ln-table.spot .ln-fund-h{color:transparent}
+.ln-pair{display:inline-flex;align-items:center;gap:10px}
+.ln-trade{font-size:14px;font-weight:700;color:var(--ln-cyan);opacity:0;transition:opacity .15s ease}
+.ln-table tr:hover .ln-trade,.ln-table tr:focus-visible .ln-trade{opacity:1}
+.ln-empty{text-align:center!important;color:var(--ln-muted)}
+
+.ln-why{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--ln-line)}
+.ln-why>div{padding:28px 28px 8px 0;margin-right:28px;border-right:1px solid var(--ln-line)}
+.ln-why>div:last-child{border-right:0;margin-right:0}
+.ln-why h3,.ln-steps h3{font:700 19px/1.3 "Manrope",var(--font);margin:0 0 10px}
+.ln-why p,.ln-steps p{margin:0;color:var(--ln-muted);font-size:16px}
+
+.ln-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;counter-reset:st}
+.ln-steps li{counter-increment:st;position:relative;padding:76px 26px 28px;border-radius:22px;background:linear-gradient(160deg,rgba(47,107,255,.14),rgba(11,20,48,.4) 60%);border:1px solid var(--ln-line)}
+.ln-steps li::before{content:counter(st);position:absolute;top:22px;left:26px;font:700 34px/1 "Unbounded",var(--font);
+  background:linear-gradient(180deg,#fff,#7dd3fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+.ln-final{max-width:1240px;margin:110px auto 0;padding:64px 40px;display:flex;flex-direction:column;align-items:center;gap:24px;text-align:center;
+  border-top:1px solid var(--ln-line)}
+.ln-final img{filter:drop-shadow(0 8px 24px rgba(56,189,248,.4))}
+.ln-foot{max-width:1240px;margin:0 auto;padding:24px 40px 40px;display:flex;gap:24px;justify-content:space-between;font-size:13px;color:var(--ln-muted);border-top:1px solid var(--ln-line)}
+@media (max-width:1100px){.ln-why{grid-template-columns:repeat(2,minmax(0,1fr))}.ln-why>div:nth-child(2){border-right:0;margin-right:0}}
+@media (prefers-reduced-motion:reduce){.ln-track{animation:none}.ln-btn{transition:none}}
+.ln-hero h1{max-width:14ch}
+.ln-table td{font-family:"Manrope",var(--font);font-weight:500}
+.ln-table td b{font-weight:700}
