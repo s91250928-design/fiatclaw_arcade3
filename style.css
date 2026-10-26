@@ -736,3 +736,12 @@ body:not(.connected) #trRow{display:none}
   .mini-seg{display:grid;grid-template-columns:repeat(3,1fr)}
   .mv-ch{overflow:hidden;white-space:nowrap;text-overflow:clip;font-size:11.5px}
 }
+/* Кнопка «Картинка PnL» у позиции */
+.pos-share{margin-left:8px;padding:4px 7px;vertical-align:middle;cursor:pointer}
+.pos-share svg{width:13px;height:13px}
+.pos-card header .pos-share{margin-left:auto;padding:5px 10px}
+/* Своя иконка настроек */
+.set-btn{display:inline-grid;place-items:center}
+.set-btn svg{width:18px;height:18px;transition:transform .5s cubic-bezier(.3,1.4,.5,1)}
+.set-btn:hover svg,.set-btn[aria-expanded="true"] svg{transform:rotate(60deg)}
+@media (max-width:900px){.set-btn svg{width:17px;height:17px}}
