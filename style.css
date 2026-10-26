@@ -863,3 +863,28 @@ body:not(.connected) #trRow{display:none}
 .ln-hero h1{max-width:14ch}
 .ln-table td{font-family:"Manrope",var(--font);font-weight:500}
 .ln-table td b{font-weight:700}
+
+/* Разделы рынков: прокручиваемый ряд вкладок, метки площадки HIP-3 и категории */
+.mk-tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+.mk-tabs::-webkit-scrollbar{display:none}
+.mk-tabs button{flex:none;white-space:nowrap;padding:6px 12px}
+.tag.dex{background:color-mix(in srgb,#8b5cf6 16%,transparent);color:#8b5cf6;margin-left:4px}
+.tag.cat{background:color-mix(in srgb,#0891b2 14%,transparent);color:#0891b2;margin-left:4px}
+.pp-l1{display:flex;align-items:center;gap:4px;min-width:0;flex-wrap:nowrap;overflow:hidden}
+.pp-l1 b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Единый счёт: перевод между фьючерсами и спотом не нужен */
+.unified-row{display:none;gap:8px;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--accent) 10%,transparent)}
+body.connected.ready.need-unified:not(.unified) .unified-row{display:flex}
+body.unified #trRow,body.unified [data-act="transfer"]{display:none!important}
+/* Индикатор риска ADL: пять делений, как на биржах */
+.adl{display:inline-flex;gap:2px;vertical-align:middle;cursor:help}
+.adl i{width:5px;height:12px;border-radius:2px;background:color-mix(in srgb,var(--muted) 30%,transparent)}
+.adl.lv1 i.on{background:#16a34a}.adl.lv2 i.on{background:#84cc16}.adl.lv3 i.on{background:#eab308}.adl.lv4 i.on{background:#f97316}.adl.lv5 i.on{background:#e11d48}
+.pc-grid .adl+small{margin-left:4px;font-weight:500;color:var(--muted)}
+.mk-tabs{flex:none;min-height:36px}
+.pp-l1 b{flex:0 1 auto;min-width:0}
+.pp-l1 .tag{flex:none}
+.pp-sub{display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden}
+.pp-sub .tag{margin-left:0;padding:0 5px;font-size:10px;line-height:15px}
+.pp-head,.pp-row{grid-template-columns:24px minmax(0,2fr) minmax(0,1fr) 64px}
+.pp-head{grid-template-columns:minmax(0,2.2fr) minmax(0,1fr) 64px}

@@ -82,5 +82,10 @@
       "source": "/trade",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "source": false
+    }
+  }
 }
