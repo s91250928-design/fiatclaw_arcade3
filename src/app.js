@@ -6,6 +6,7 @@ import { HttpTransport, InfoClient, SubscriptionClient, WebSocketTransport, Exch
 import { formatPrice, formatSize } from "@nktkas/hyperliquid/utils";
 import {
   createChart,
+  createSeriesMarkers,
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
@@ -2095,8 +2096,84 @@ function seriesData() {
             value: t.close,
           }));
 }
+/* Отметки сделок на графике, как на биржах: где открыли и где закрыли позицию.
+   Покупка — зелёная стрелка вверх под ценой (лонг или закрытие шорта).
+   Продажа — красная стрелка вниз над ценой (шорт или закрытие лонга).
+   Несколько сделок одной стороны в одной свече объединяются в одну отметку. */
+let tradeMarks = null,
+  tradeMarksSeries = null,
+  fillsAt = 0;
+S.fills = [];
+const MARK_TEXT = {
+  "Open Long": "Лонг",
+  "Close Long": "Закрыл лонг",
+  "Open Short": "Шорт",
+  "Close Short": "Закрыл шорт",
+  "Long > Short": "Разворот в шорт",
+  "Short > Long": "Разворот в лонг",
+  Buy: "Покупка",
+  Sell: "Продажа",
+};
+async function loadFills(force = !1) {
+  if (!S.user || (!force && Date.now() - fillsAt < 1e4)) return;
+  fillsAt = Date.now();
+  try {
+    S.fills = (await info.userFills({ user: S.user })) || [];
+    drawTradeMarks();
+  } catch (e) {
+    console.warn("[fills]", e?.message || e);
+  }
+}
+function drawTradeMarks() {
+  if (!candleSeries) return;
+  if (tradeMarksSeries !== candleSeries) {
+    try {
+      tradeMarks?.detach();
+    } catch {
+      /* серия уже удалена */
+    }
+    tradeMarks = createSeriesMarkers(candleSeries, []);
+    tradeMarksSeries = candleSeries;
+  }
+  const bars = S.bars || [];
+  if (!bars.length || !S.fills?.length || SET.showTrades === !1) return tradeMarks.setMarkers([]);
+  const step = barSec(),
+    first = bars[0].time,
+    last = bars[bars.length - 1].time;
+  const groups = new Map();
+  for (const f of S.fills) {
+    if (f.coin !== S.coin) continue;
+    const t = Math.floor(f.time / 1e3 / step) * step;
+    if (t < first || t > last + step) continue;
+    const k = `${t}|${f.side}`,
+      sz = Number(f.sz),
+      px = Number(f.px);
+    const g = groups.get(k) || { time: Math.min(t, last), side: f.side, sz: 0, ntl: 0, dirs: new Set() };
+    g.sz += sz;
+    g.ntl += sz * px;
+    g.dirs.add(f.dir);
+    groups.set(k, g);
+  }
+  const marks = [...groups.values()]
+    .sort((a, b) => a.time - b.time)
+    .map((g) => {
+      const buy = g.side === "B",
+        d = [...g.dirs],
+        word = d.length === 1 ? MARK_TEXT[d[0]] || (buy ? "Покупка" : "Продажа") : buy ? "Покупка" : "Продажа";
+      return {
+        time: g.time,
+        position: buy ? "atPriceBottom" : "atPriceTop",
+        price: g.ntl / g.sz,
+        shape: buy ? "arrowUp" : "arrowDown",
+        color: buy ? UP_COLOR : DOWN_COLOR,
+        text: `${buy ? "Buy" : "Sell"} · ${word}`,
+      };
+    });
+  tradeMarks.setMarkers(marks);
+}
 function setSeriesData() {
   (candleSeries.setData(seriesData()),
+    drawTradeMarks(),
     chartType === "baseline" &&
       S.bars?.length &&
       candleSeries.applyOptions({
@@ -2591,6 +2668,7 @@ async function refreshAccount(i = {}) {
       (["home", "assets"].includes(document.body.dataset.app) && renderAppPage(),
         Date.now() - fundingAt > 6e4 && loadFundingAccrued(),
         updateAdlMoves(),
+        loadFills(!i.light),
         renderPositions(),
         renderOrders(),
         drawChartLines(),
@@ -4528,20 +4606,28 @@ function moverRows(i) {
         vol: Number(n.dayNtlVlm || 0),
       };
     })
-    .filter((e) => e.mid > 0);
+    .filter((e) => e.mid > 0 && e.vol >= (CFG.isTestnet ? 1e3 : 1e4));
   return (
     t.sort(i === "gain" ? (e, n) => n.ch - e.ch : i === "loss" ? (e, n) => e.ch - n.ch : (e, n) => n.vol - e.vol),
     t.slice(0, 6)
   );
 }
 S.homeTab = "gain";
+/* Сколько всего денег. Единый счёт: баланс общий (спот = залог фьючерсов),
+   поэтому складывать «фьючерсы + спот» нельзя — получится вдвое больше. */
+const upnlTotal = () => (S.positions || []).reduce((a, p) => a + Number(p.unrealizedPnl || 0), 0);
+const totalEquity = () => (isUnified() ? S.accountValue || 0 : (S.accountValue || 0) + spotTotal());
+const equitySub = () =>
+  isUnified()
+    ? `Баланс ${usd(spotTotal())} · PnL позиций ${sgnUsd(upnlTotal())}`
+    : `Фьючерсы ${usd(S.accountValue || 0)} · Спот ${usd(spotTotal())}`;
 function renderHome() {
-  let i = (S.accountValue || 0) + spotTotal(),
+  let i = totalEquity(),
     t = moverRows(S.homeTab);
   (($("pgHome").innerHTML = `
     <div class="hero-card">
       <div class="hc-top"><img src="brand/mark-128.webp" alt="" class="hc-mark"><span>${S.user ? "Ваши активы" : "Добро пожаловать в Totum"}</span>${CFG.isTestnet ? '<span class="badge">ТЕСТ</span>' : ""}</div>
-      ${S.user ? `<div class="hc-sum">${usd(i)}</div><div class="hc-sub">Фьючерсы ${usd(S.accountValue || 0)} · Спот ${usd(spotTotal())}</div>` : '<div class="hc-lead">Фьючерсы, спот и акции в одном приложении. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
+      ${S.user ? `<div class="hc-sum">${usd(i)}</div><div class="hc-sub">${equitySub()}</div>` : '<div class="hc-lead">Фьючерсы, спот и акции в одном приложении. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
     </div>
     <div class="quick">
       <button type="button" data-act="futures"><i>${NAV_IC.futures}</i>Фьючерсы</button>
@@ -4551,7 +4637,7 @@ function renderHome() {
     </div>
     <div class="card-block">
       <div class="seg mini-seg" id="homeSeg"><button data-ht="gain" class="${S.homeTab === "gain" ? "on" : ""}" type="button">Растут</button><button data-ht="loss" class="${S.homeTab === "loss" ? "on" : ""}" type="button">Падают</button><button data-ht="vol" class="${S.homeTab === "vol" ? "on" : ""}" type="button">По объёму</button></div>
-      <div class="movers">${t.map((e) => `<div class="mv-row" data-go="${esc(e.name)}">${coinIcon(e.name)}<b>${esc(e.name)}</b><span class="muted small">${compact(e.vol)}</span><span class="mv-px">${fmtPx(e.mid)}</span><span class="mv-ch ${e.ch >= 0 ? "pos" : "neg"}">${e.ch >= 0 ? "+" : ""}${(e.ch * 100).toFixed(2)}%</span></div>`).join("") || '<p class="muted small pad">Загружаем рынки…</p>'}</div>
+      <div class="movers">${t.map((e) => `<div class="mv-row" data-go="${esc(e.name)}">${coinIcon(e.name)}<b>${esc(dexBase(e.name))}</b><span class="muted small">${compact(e.vol)}</span><span class="mv-px">${fmtPx(e.mid)}</span><span class="mv-ch ${e.ch >= 0 ? "pos" : "neg"}">${e.ch >= 0 ? "+" : ""}${(e.ch * 100).toFixed(2)}%</span></div>`).join("") || '<p class="muted small pad">Загружаем рынки…</p>'}</div>
     </div>
     ${CFG.isTestnet ? '<a class="faucet" href="https://app.hyperliquid-testnet.xyz/drip" target="_blank" rel="noopener">Нужны тестовые USDC? Кран тестовой сети →</a>' : ""}`),
     fixIcons($("pgHome")));
@@ -4605,7 +4691,7 @@ function renderAssets() {
       ? `
     <div class="hero-card">
       <div class="hc-top"><span>Всего</span></div>
-      <div class="hc-sum">${usd((S.accountValue || 0) + spotTotal())}</div>
+      <div class="hc-sum">${usd(totalEquity())}</div><div class="hc-sub">${equitySub()}</div>
       <div class="hc-actions"><button class="btn" type="button" data-act="transfer">Перевести</button><button class="btn ghost" type="button" data-act="orders">История</button></div>
     </div>
     <div class="card-block">
@@ -5516,6 +5602,7 @@ async function init() {
           })),
         openPnlCard: openPnlCard,
         switchCoin: switchCoin,
+        marks: () => tradeMarks?.markers?.() || null,
       }));
 }
 init();
