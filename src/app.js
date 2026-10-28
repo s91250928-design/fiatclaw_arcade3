@@ -3023,7 +3023,7 @@ function renderPositions() {
         lev: s.p.leverage?.value,
         entry: Number(s.p.entryPx),
         exit: Number(s.c?.markPx || s.p.entryPx),
-        exitLabel: "Маркировка",
+        exitLabel: "Справедливая цена",
         time: Date.now(),
         pnl: s.pnl,
         pnlLabel: "Нереализованный PnL",
@@ -3069,7 +3069,7 @@ function renderPositions() {
         ${n("Маржа (USDC)", num(s.p.marginUsed || 0, 2))}
         ${n("Коэфф. маржи", `${r.toFixed(2)}%`)}
         ${n("Цена входа", fmtPx(s.p.entryPx))}
-        ${n("Маркировка", s.c ? fmtPx(s.c.markPx) : "—")}
+        ${n("Справедливая цена", s.c ? fmtPx(s.c.markPx) : "—")}
         ${n("Расч. цена ликв.", s.p.liquidationPx ? fmtPx(s.p.liquidationPx) : "—", "warn")}
         ${n("Риск ADL", `${adlBadge(s.p)} <small>${ADL_TEXT[adlRisk(s.p)?.level || 0] || ""}</small>`)}
         ${n("Реализ. PnL (USDC)", s.real === void 0 ? "…" : sgnUsd(s.real), clsOf(s.real ?? 0))}
@@ -4859,7 +4859,7 @@ const INF_TABS = [
   ["contract", "Детали контракта"],
   ["margin", "Плечо и маржа"],
   ["funding", "История фандинга"],
-  ["index", "Индекс и премия"],
+  ["index", "Индекс и справедливая цена"],
 ];
 const INF = { chart: null, key: "", hist: {}, cdT: null };
 try {
@@ -4941,7 +4941,7 @@ function renderInfo() {
                 ["Котировка", esc(m.quote)],
               ]
             : [
-                ["Маркировочная", fmtPx(c.markPx)],
+                ["Справедливая цена", fmtPx(c.markPx)],
                 ["Оракул (индекс)", c.oraclePx ? fmtPx(c.oraclePx) : "—"],
                 ["Макс. за 24ч", hi],
                 ["Мин. за 24ч", lo],
@@ -4993,7 +4993,7 @@ function renderInfo() {
           ["Следующий фандинг", `<span data-cd>${mmss(nextFundingMs())}</span>`],
           ["Интервал фандинга", "1 час"],
           ["Предел ставки фандинга", "4% за час"],
-          ["Цена для TP/SL и ликвидаций", "маркировочная"],
+          ["Цена для TP/SL и ликвидаций", "справедливая цена"],
           ["Комиссия маркет / лимит", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
           ["Биржа исполнения", `Hyperliquid${CFG.isTestnet ? " · тестовая сеть" : ""}${m.dex ? ` · площадка ${esc(m.dex)}` : ""}`],
         ])}
@@ -5093,7 +5093,7 @@ async function infHistory(m, c) {
   const head =
     kind === "funding"
       ? `<div class="inf-hh"><div><span>Ставка сейчас</span><b class="${clsOf(fr)}">${fPct(fr)} <small>за час</small></b></div><div><span>До выплаты</span><b data-cd>${mmss(nextFundingMs())}</b></div><div data-stat="avg"><span>Средняя за период</span><b>—</b></div><div data-stat="sum"><span>Сумма за период</span><b>—</b></div></div>`
-      : `<div class="inf-hh"><div><span>Цена оракула (индекс)</span><b>${c.oraclePx ? fmtPx(c.oraclePx) : "—"}</b></div><div><span>Маркировочная</span><b>${fmtPx(c.markPx)}</b></div><div><span>Премия сейчас</span><b class="${clsOf(prem)}">${fPct(prem, 3)}</b></div><div data-stat="avg"><span>Средняя премия</span><b>—</b></div></div>`;
+      : `<div class="inf-hh"><div><span>Цена оракула (индекс)</span><b>${c.oraclePx ? fmtPx(c.oraclePx) : "—"}</b></div><div><span>Справедливая цена</span><b>${fmtPx(c.markPx)}</b></div><div><span>Разница с индексом</span><b class="${clsOf(prem)}">${fPct(prem, 3)}</b></div><div data-stat="avg"><span>Средняя разница</span><b>—</b></div></div>`;
   if (INF.key === key && INF.chart) {
     const h = body.querySelector(".inf-hh");
     if (h) {
@@ -5113,7 +5113,7 @@ async function infHistory(m, c) {
   infDropChart();
   INF.key = key;
   body.innerHTML = `<section class="inf-card">
-    <div class="inf-ct">${kind === "funding" ? "История ставки фандинга" : "Премия фьючерса к индексу"} · ${esc(pairLabel(S.coin))}
+    <div class="inf-ct">${kind === "funding" ? "История ставки фандинга" : "Разница цены фьючерса с индексом"} · ${esc(pairLabel(S.coin))}
       <span class="inf-range">${(kind === "funding" ? [["40", "Последние 40"], ["7", "7 дн."], ["30", "30 дн."]] : [["7", "7 дн."], ["30", "30 дн."]])
         .map(([v, l]) => `<button type="button" data-rng="${v}" class="${v === rng ? "on" : ""}">${l}</button>`)
         .join("")}</span></div>
@@ -5122,20 +5122,20 @@ async function infHistory(m, c) {
     <p class="inf-note">${
       kind === "funding"
         ? "Фандинг платится каждый час. Плюс — лонги платят шортам, минус — шорты лонгам. Точка — ставка за конкретный час."
-        : "График — средняя премия за каждый час."
+        : "График — насколько фьючерс был дороже (+) или дешевле (−) индекса, в среднем за каждый час."
     }</p>
   </section>
   ${
     kind === "index"
       ? `<section class="inf-card inf-explain">
-    <div class="inf-ct">Что такое премия</div>
-    <p><b>Премия</b> — насколько фьючерс на Hyperliquid сейчас дороже (+) или дешевле (−) <b>оракула</b>, то есть средней цены этой монеты на крупных спотовых биржах.</p>
+    <div class="inf-ct">Что такое индекс и справедливая цена</div>
     <div class="inf-steps">
-      <div><i>1</i><span>Берётся цена, по которой в стакане можно купить или продать крупный объём, и сравнивается с ценой оракула.</span></div>
-      <div><i>2</i><span>Премия замеряется каждые 5 секунд и усредняется за час.</span></div>
-      <div><i>3</i><span>Из неё получается ставка фандинга: <b>средняя премия за час + поправка к базовой ставке 0,01% за 8 часов</b> (поправка не больше ±0,05%).</span></div>
+      <div><i>1</i><span><b>Индекс (оракул)</b> — средняя цена монеты на крупных спотовых биржах. Обновляется примерно каждые 3 секунды.</span></div>
+      <div><i>2</i><span><b>Справедливая цена</b> — сглаженная цена фьючерса. Hyperliquid берёт среднее из трёх: индекс с поправкой на стакан, цену в стакане Hyperliquid и цены фьючерсов на пяти крупных биржах. Так один резкий прокол в стакане её не двигает.</span></div>
+      <div><i>3</i><span>По справедливой цене считаются <b>PnL, ликвидации и срабатывание TP/SL</b>. Поэтому стоп не сработает от случайной «свечи-иглы» на одной бирже.</span></div>
     </div>
-    <p>Премия <b class="pos">плюс</b> — фьючерс дороже спота, лонги платят шортам. Премия <b class="neg">минус</b> — фьючерс дешевле, шорты платят лонгам. Так фандинг притягивает цену фьючерса к споту.</p>
+    <div class="inf-ct">Разница с индексом (премия)</div>
+    <p>Показывает, насколько фьючерс сейчас дороже (+) или дешевле (−) индекса. Из неё за час складывается ставка фандинга: <b class="pos">плюс</b> — лонги платят шортам, <b class="neg">минус</b> — шорты лонгам. Так фандинг притягивает цену фьючерса к споту.</p>
   </section>`
       : ""
   }`;
@@ -5184,7 +5184,7 @@ async function infHistory(m, c) {
       return `${t > 0 ? "+" : ""}${t.toFixed(d)}%`;
     } };
   if (kind === "funding") {
-    const gold = "#f0b90b";
+    const gold = css.getPropertyValue("--accent").trim() || "#2563eb";
     ch.addSeries(LineSeries, {
       priceFormat: fmt,
       color: gold,

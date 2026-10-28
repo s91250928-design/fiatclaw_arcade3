@@ -27,7 +27,7 @@ for (const vp of [{ width: 1440, height: 1000, name: "desktop", theme: "light" }
   await page.click('[data-rng="30"]'); await page.waitForTimeout(3500);
   R.ok(`[${vp.name}] 30 дней загружается`, (await page.locator("#infChart canvas").count()) > 0);
   await page.click('[data-inf="index"]'); await page.waitForTimeout(3000);
-  R.ok(`[${vp.name}] индекс и премия: график и объяснение премии`, (await page.locator("#infChart canvas").count()) > 0 && /Что такое премия/.test(await page.textContent("#infoBody")));
+  R.ok(`[${vp.name}] индекс и справедливая цена: график и объяснение`, (await page.locator("#infChart canvas").count()) > 0 && /Что такое индекс и справедливая цена/.test(await page.textContent("#infoBody")));
   await page.locator("#paneInfo").screenshot({ path: `tests/out-info-index-${vp.name}.png` });
   await page.waitForTimeout(3000);
   R.ok(`[${vp.name}] график не пересоздаётся при обновлении цен`, (await page.locator("#infChart canvas").count()) > 0 && (await page.locator("#infChart > div").count()) === 1);
