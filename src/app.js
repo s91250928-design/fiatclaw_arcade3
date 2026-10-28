@@ -52,6 +52,9 @@ try {
   subs = new SubscriptionClient({
     transport: new WebSocketTransport({
       isTestnet: CFG.isTestnet,
+      /* подписка на весь спот тестнета подтверждается дольше 10 с: при коротком
+         ожидании библиотека бросала её, а сервер считал «уже подписан» */
+      timeout: 45e3,
     }),
   });
 } catch {
@@ -426,6 +429,7 @@ async function subscribeRetry(i, t, e = 0) {
   try {
     return await t();
   } catch (n) {
+    if (/Already subscribed/i.test(String(n?.message || n))) return null; /* подписка уже действует на сервере */
     console.warn(`[ws ${i}]`, n?.message || n);
     let s = Math.min(6e4, 5e3 * 2 ** e);
     return (await new Promise((r) => setTimeout(r, s)), subscribeRetry(i, t, e + 1));
@@ -757,6 +761,31 @@ var DRAG = {
   active: null,
   preview: null,
 };
+function bindChartPick() {
+  chart.subscribeClick((p) => {
+    if (!S.pick || !p?.point) return;
+    const px = candleSeries.coordinateToPrice(p.point.y);
+    if (!(px > 0)) return;
+    const k = S.pick;
+    S.pick = null;
+    document.querySelectorAll("[data-pick]").forEach((x) => x.classList.remove("on"));
+    $("chart").classList.remove("picking");
+    if (k === "px") {
+      setOrderType("limit");
+      $("px").value = Number(px.toFixed(pxDecimals(px)));
+    } else {
+      const en = planEntry();
+      if (riskActive()) {
+        const lg = k === "sl" ? px < en : px > en;
+        lg !== (S.riskSide !== false) && ((S.riskSide = lg), (SET.riskSide = lg ? "long" : "short"), saveSettings());
+      }
+      setTrigField(k, px, en, planSide(en));
+      S.riskAnchor = k;
+    }
+    updateOrderInfo();
+    drawChartLines();
+  });
+}
 function bindTpslDrag() {
   let i = $("chart"),
     t = (n) => {
@@ -806,6 +835,11 @@ function bindTpslDrag() {
           en = planEntry(),
           v = UNITS.ord === "pct" ? +pctFromPx(k, r, { entry: en, long: planSide(en) }).toFixed(2) : Number(r.toFixed(pxDecimals(r)));
         $(k).value = v;
+        S.riskAnchor = k;
+        if (riskActive()) {
+          const lg = k === "sl" ? r < en : r > en;
+          lg !== (S.riskSide !== false) && ((S.riskSide = lg), (SET.riskSide = lg ? "long" : "short"), saveSettings());
+        }
         DRAG.kind = "plan";
         updateOrderInfo();
         drawChartLines();
@@ -3703,6 +3737,11 @@ function orderPreview(i = DEFAULT_LONG) {
   };
 }
 function updateTpslHints() {
+  if (riskActive()) {
+    /* в режиме риска направление уже выбрано — подсказки «если лонг / если шорт» не нужны */
+    $("tpHint").innerHTML = $("slHint").innerHTML = "";
+    return;
+  }
   let i = orderPreview(!0),
     t = orderPreview(!1);
   if (!i) return;
@@ -3734,6 +3773,7 @@ function planEntry() {
 }
 /* Сторона плана: из стопа, иначе из тейка, иначе лонг */
 function planSide(entry) {
+  if (riskActive()) return S.riskSide !== false;
   const sl = UNITS.ord === "px" ? Number($("sl").value) : 0,
     tp = UNITS.ord === "px" ? Number($("tp").value) : 0;
   if (sl > 0 && entry > 0 && sl !== entry) return sl < entry;
@@ -3744,14 +3784,16 @@ function riskPlan() {
   const entry = planEntry();
   if (!(entry > 0)) return { err: "Нет цены рынка" };
   const risk = Number($("riskUsd").value) || 0;
-  const sl = Number($("sl").value) || 0;
-  if (!(sl > 0) || sl === entry) return { err: "Поставьте стоп-лосс — от него считается размер" };
+  const long = S.riskSide !== false,
+    pv0 = { entry, long };
+  const sl = readTrig("sl", "ord", "sl", pv0);
+  if (!(sl > 0) || sl === entry || (long ? sl >= entry : sl <= entry))
+    return { err: "Поставьте стоп-лосс — от него считается размер" };
   if (!(risk > 0)) return { err: "Укажите, сколько готовы потерять" };
-  const long = sl < entry;
   const perUnit = Math.abs(entry - sl);
   const sz = risk / perUnit;
   const notional = sz * entry;
-  const tp = Number($("tp").value) || 0;
+  const tp = readTrig("tp", "ord", "tp", pv0);
   const tpOk = tp > 0 && (long ? tp > entry : tp < entry);
   const reward = tpOk ? pxPnl(entry, tp, sz, long) : 0;
   const avail = availFor();
@@ -3764,8 +3806,70 @@ function riskPlan() {
     feeTp = tpOk ? roundFee(entry, tp, sz) : 0;
   return { entry, sl, tp: tpOk ? tp : 0, long, sz, notional, risk, reward, avail, lev, maxLev, needLev, liq, liqFirst, feeSl, feeTp };
 }
+/* Средний размах свечи (ATR 14) на открытом графике — для стопа по умолчанию */
+function atr14() {
+  const b = S.bars || [];
+  if (b.length < 15) return 0;
+  let sum = 0;
+  for (let k = b.length - 14; k < b.length; k++) {
+    const pc = b[k - 1].close;
+    sum += Math.max(b[k].high - b[k].low, Math.abs(b[k].high - pc), Math.abs(b[k].low - pc));
+  }
+  return sum / 14;
+}
+function setTrigField(k, px, entry, long) {
+  if (!(px > 0)) return;
+  $(k).value =
+    UNITS.ord === "pct" ? +pctFromPx(k, px, { entry, long }).toFixed(2) : Number(px.toFixed(pxDecimals(px)));
+}
+/* Стоп и тейк сами: человек задаёт одно из двух (или ничего) — второе
+   считается по выбранному соотношению прибыль/риск. Ничего не задано —
+   стоп по волатильности графика (1,5 × ATR, не ближе 0,3% от цены). */
+function riskAuto() {
+  const entry = planEntry();
+  if (!(entry > 0)) return;
+  const long = S.riskSide !== false,
+    pv = { entry, long },
+    rr = Number(SET.riskRR) || 2,
+    dir = long ? 1 : -1;
+  let sl = readTrig("sl", "ord", "sl", pv),
+    tp = readTrig("tp", "ord", "tp", pv);
+  const slOk = sl > 0 && (long ? sl < entry : sl > entry),
+    tpOk = tp > 0 && (long ? tp > entry : tp < entry);
+  if (S.riskAnchor === "tp" && tpOk) {
+    setTrigField("sl", entry - (dir * Math.abs(tp - entry)) / rr, entry, long);
+  } else if (S.riskAnchor === "sl" && slOk) {
+    setTrigField("tp", entry + dir * Math.abs(entry - sl) * rr, entry, long);
+  } else if (!slOk) {
+    const d = Math.max(1.5 * atr14(), entry * 0.003);
+    setTrigField("sl", entry - dir * d, entry, long);
+    setTrigField("tp", entry + dir * d * rr, entry, long);
+  } else if (!tpOk) {
+    setTrigField("tp", entry + dir * Math.abs(entry - sl) * rr, entry, long);
+  }
+}
+function setRiskSide(long) {
+  if ((S.riskSide !== false) === long) return;
+  S.riskSide = long;
+  SET.riskSide = long ? "long" : "short";
+  saveSettings();
+  /* направление сменилось — стоп и тейк перестраиваем по той же логике */
+  /* в процентах это расстояния — переносятся как есть; в ценах — строим заново */
+  if (UNITS.ord === "px") {
+    $("sl").value = "";
+    $("tp").value = "";
+    S.riskAnchor = null;
+  }
+  updateOrderInfo();
+  drawChartLines();
+}
 function riskSync() {
   const on = riskActive();
+  if (on) {
+    document.querySelectorAll("[data-rside]").forEach((b) => b.classList.toggle("on", (b.dataset.rside === "long") === (S.riskSide !== false)));
+    document.querySelectorAll("[data-rr]").forEach((b) => b.classList.toggle("on", Number(b.dataset.rr) === (Number(SET.riskRR) || 2)));
+    riskAuto();
+  }
   $("riskRow") && ($("riskRow").hidden = !on);
   $("size").readOnly = !!on;
   $("pctSteps")?.classList.toggle("off", !!on);
@@ -3808,12 +3912,7 @@ function toggleRisk(on) {
   if (on) {
     $("tpslOn").checked = true;
     $("tpslRow").hidden = false;
-    UNITS.ord !== "px" && setUnit("ord", "px");
-    /* Стопа ещё нет — ставим в 1% ниже цены, чтобы линия появилась на графике и её можно было тянуть */
-    if (!(Number($("sl").value) > 0)) {
-      const e = planEntry();
-      e > 0 && ($("sl").value = Number((e * 0.99).toFixed(pxDecimals(e))));
-    }
+    S.riskAnchor = null;
   }
   updateOrderInfo();
   drawChartLines();
@@ -5712,10 +5811,47 @@ function bindSettings() {
     ($("closeGo").onclick = submitClose),
     ($("tpslCancel").onclick = () => $("tpslDialog").close()),
     ($("ptp").oninput = $("psl").oninput = updateTpslDlg),
-    ($("tp").oninput = $("sl").oninput = () => {
+    ($("tp").oninput = $("sl").oninput = (ev) => {
+      const k = ev.target.id;
+      S.riskAnchor = k;
+      if (riskActive() && UNITS.ord === "px") {
+        const v = Number(ev.target.value),
+          en = planEntry();
+        if (v > 0 && en > 0 && v !== en) {
+          const lg = k === "sl" ? v < en : v > en;
+          if (lg !== (S.riskSide !== false)) {
+            S.riskSide = lg;
+            SET.riskSide = lg ? "long" : "short";
+            saveSettings();
+          }
+        }
+      }
       updateOrderInfo();
       drawChartLines();
     }),
+    document.querySelectorAll("[data-rside]").forEach((b) => (b.onclick = () => setRiskSide(b.dataset.rside === "long"))),
+    document.querySelectorAll("[data-rr]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          SET.riskRR = Number(b.dataset.rr);
+          saveSettings();
+          S.riskAnchor === "tp" || ($("tp").value = "");
+          S.riskAnchor === "tp" && ($("sl").value = "");
+          updateOrderInfo();
+          drawChartLines();
+        }),
+    ),
+    document.querySelectorAll("[data-pick]").forEach(
+      (b) =>
+        (b.onclick = (ev) => {
+          ev.preventDefault();
+          S.pick = S.pick === b.dataset.pick ? null : b.dataset.pick;
+          document.querySelectorAll("[data-pick]").forEach((x) => x.classList.toggle("on", x.dataset.pick === S.pick));
+          $("chart").classList.toggle("picking", !!S.pick);
+          S.pick && toast("Нажмите на графике нужную цену", "info");
+        }),
+    ),
+    (S.riskSide = SET.riskSide !== "short"),
     ($("riskOn").checked = !!SET.riskOn),
     SET.riskUsd && ($("riskUsd").value = SET.riskUsd),
     SET.riskOn && (($("tpslOn").checked = !0), ($("tpslRow").hidden = !1)),
@@ -5794,7 +5930,7 @@ function bindSettings() {
     paintRange($("lev")));
 }
 async function init() {
-  (bindSettings(), initChart(), bindIndicators(), bindDrawing(), bindTpslDrag());
+  (bindSettings(), initChart(), bindIndicators(), bindDrawing(), bindTpslDrag(), bindChartPick());
   let i = "light";
   try {
     i = localStorage.getItem("totum.theme") || "light";

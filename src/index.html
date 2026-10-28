@@ -242,7 +242,7 @@
 
     <label class="inp" id="pxRow" hidden><span>Цена</span>
       <input id="px" type="number" inputmode="decimal" step="any" placeholder="0">
-      <button id="pxMid" class="inp-btn" type="button">Mid</button><em>USDC</em>
+      <button id="pxMid" class="inp-btn" type="button">Mid</button><button class="inp-btn pick" data-pick="px" type="button" title="Взять цену с графика">⌖</button><em>USDC</em>
     </label>
     <label class="inp"><span>Сумма</span>
       <input id="size" type="number" inputmode="decimal" min="0" step="any" value="100">
@@ -261,13 +261,17 @@
     <div id="tpslRow" class="tpsl perp-only" hidden>
       <div class="risk-box">
         <label class="chk" title="Укажите, сколько готовы потерять, и поставьте стоп — размер позиции посчитается сам"><input type="checkbox" id="riskOn"><span class="box"></span> Размер от риска</label>
-        <label class="inp" id="riskRow" hidden><span>Готов потерять</span><input id="riskUsd" type="number" inputmode="decimal" min="0" step="any" placeholder="напр. 20"><em>USDC</em></label>
+        <div id="riskRow" class="risk-row" hidden>
+          <div class="seg risk-side"><button data-rside="long" type="button" class="on">Лонг</button><button data-rside="short" type="button">Шорт</button></div>
+          <label class="inp"><span>Готов потерять</span><input id="riskUsd" type="number" inputmode="decimal" min="0" step="any" placeholder="напр. 20"><em>USDC</em></label>
+          <div class="rr-chips"><span>Прибыль / риск</span><button data-rr="1" type="button">1 : 1</button><button data-rr="2" type="button" class="on">1 : 2</button><button data-rr="3" type="button">1 : 3</button></div>
+        </div>
         <p class="risk-hint" id="riskHint"></p>
       </div>
       <div class="unit-seg" data-unit-for="ord"><button data-unit="px" class="on" type="button">Цена</button><button data-unit="pct" type="button">%</button></div>
-      <label class="inp"><span>Тейк-профит</span><input id="tp" type="number" inputmode="decimal" step="any" placeholder="цена"><em class="u">USDC</em></label>
+      <label class="inp"><span>Тейк-профит</span><input id="tp" type="number" inputmode="decimal" step="any" placeholder="цена"><button class="inp-btn pick" data-pick="tp" type="button" title="Взять цену с графика">⌖</button><em class="u">USDC</em></label>
       <p class="tpsl-hint" id="tpHint"></p>
-      <label class="inp"><span>Стоп-лосс</span><input id="sl" type="number" inputmode="decimal" step="any" placeholder="цена"><em class="u">USDC</em></label>
+      <label class="inp"><span>Стоп-лосс</span><input id="sl" type="number" inputmode="decimal" step="any" placeholder="цена"><button class="inp-btn pick" data-pick="sl" type="button" title="Взять цену с графика">⌖</button><em class="u">USDC</em></label>
       <p class="tpsl-hint" id="slHint"></p>
     </div>
 
@@ -288,7 +292,7 @@
       <div><span>Стоимость ордера</span><b id="infoValue">—</b></div>
       <div class="perp-only"><span>Маржа</span><b id="infoMargin">—</b></div>
       <div class="perp-only"><span>Ликвидация ≈ лонг / шорт</span><b id="infoLiq">—</b></div>
-      <div><span>Комиссия Totum</span><b id="infoFee">—</b></div>
+      <div><span>Комиссия за вход</span><b id="infoFee">—</b></div>
     </div>
     <details class="help small">
       <summary>Где взять тестовые USDC?</summary>
