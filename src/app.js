@@ -296,6 +296,8 @@ async function loadPerpMarkets() {
     S.cats ? Promise.resolve(null) : info.perpCategories().catch(() => null),
   ]);
   if (cats) S.cats = Object.fromEntries(cats);
+  S.mtables = S.mtables || {};
+  (i.marginTables || []).forEach(([id, t]) => (S.mtables[`|${id}`] = t?.marginTiers || []));
   S.perpUniverse = i.universe.map((e) => e.name);
   const main = i.universe
     .map((e, n) => ({
@@ -308,6 +310,7 @@ async function loadPerpMarkets() {
       group: catOf(e.name, "").group,
       delisted: e.isDelisted,
       onlyIsolated: !!e.onlyIsolated,
+      mt: e.marginTableId != null ? `|${e.marginTableId}` : null,
     }))
     .filter((e) => !e.delisted);
   if (all) {
@@ -317,6 +320,7 @@ async function loadPerpMarkets() {
       if (di === 0 || !m?.universe?.length) return;
       const dex = dexOf(m.universe[0].name);
       S.dexUniverse[dex] = m.universe.map((u) => u.name);
+      (m.marginTables || []).forEach(([id, t]) => (S.mtables[`${dex}|${id}`] = t?.marginTiers || []));
       m.universe.forEach((u, k) => {
         if (u.isDelisted) return;
         const c = catOf(u.name, dex);
@@ -331,6 +335,7 @@ async function loadPerpMarkets() {
           group: c.group,
           onlyIsolated: !!u.onlyIsolated,
           marginMode: u.marginMode || null,
+          mt: u.marginTableId != null ? `${dex}|${u.marginTableId}` : null,
         });
       });
     });
@@ -4846,67 +4851,321 @@ function openSheet(i) {
 function closeSheet() {
   document.body.classList.remove("sheet");
 }
+/* ═══════════ Информация о рынке ═══════════
+   Подразделы как на крупных биржах: обзор, детали контракта, плечо и маржа,
+   история фандинга, индекс и премия. Всё — из данных Hyperliquid. */
+const INF_TABS = [
+  ["overview", "Обзор"],
+  ["contract", "Детали контракта"],
+  ["margin", "Плечо и маржа"],
+  ["funding", "История фандинга"],
+  ["index", "Индекс и премия"],
+];
+const INF = { chart: null, key: "", hist: {}, cdT: null };
+try {
+  S.infTab = localStorage.getItem("totum.inftab") || "overview";
+} catch {
+  S.infTab = "overview";
+}
+const nextFundingMs = () => 36e5 - (Date.now() % 36e5);
+const mmss = (ms) => {
+  const t = Math.max(0, Math.floor(ms / 1e3));
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+};
+const fPct = (x, d = 4) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(d)}%`;
+function infKV(rows) {
+  return `<div class="inf-kv">${rows
+    .map(([k, v, c, hint]) => `<div><span${hint ? ` title="${esc(hint)}" class="dot"` : ""}>${k}</span><b class="${c || ""}">${v}</b></div>`)
+    .join("")}</div>`;
+}
+function infTiers(m) {
+  const t = (m?.mt && S.mtables?.[m.mt]) || [];
+  return t.length ? t.map((x) => ({ from: Number(x.lowerBound) || 0, lev: Number(x.maxLeverage) || 1 })) : [{ from: 0, lev: Number(m?.maxLeverage) || 1 }];
+}
+function infHead(m, spot) {
+  const tags = spot
+    ? `<i>Спот</i>`
+    : `<i>Бессрочный</i>${m.dex ? `<i>HIP-3 · ${esc(m.dex)}</i>` : ""}${CAT_RU[m.cat] ? `<i>${esc(CAT_RU[m.cat])}</i>` : ""}`;
+  return `<div class="inf-title">${coinIcon(S.coin)}<b>${esc(pairLabel(S.coin))}</b><span class="inf-tags">${tags}</span></div>`;
+}
 function renderInfo() {
-  let i = mkt(S.coin),
-    t = S.ctx[S.coin];
-  if (!i || !t) {
-    $("infoBody").innerHTML = '<p class="muted">Загружаем…</p>';
+  const m = mkt(S.coin),
+    c = S.ctx[S.coin],
+    body = $("infoBody");
+  if (!m || !c) {
+    body.innerHTML = '<p class="muted">Загружаем…</p>';
     return;
   }
-  if (i.spot) {
-    let o = Number(t.midPx),
-      a = Number(t.prevDayPx) ? (o / Number(t.prevDayPx) - 1) * 100 : 0,
-      c = Number(t.circulatingSupply || 0),
-      l = [
-        ["Пара", `${i.label} · спот`],
-        ["Токен", i.base],
-        ["Котировка", i.quote],
-        ["Последняя цена", fmtPx(o)],
-        ["Изменение за 24ч", `${a >= 0 ? "+" : ""}${a.toFixed(2)}%`, clsOf(a)],
-        ["Объём за 24ч", t.dayNtlVlm ? compact(t.dayNtlVlm) : "—"],
-        ["В обращении", c ? `${num(c, 0)} ${i.base}` : "—"],
-        ["Капитализация", c ? compact(c * o) : "—"],
-        ["Плечо", "нет (спот)"],
-        ["Шаг размера", `${(1 / 10 ** i.szDecimals).toFixed(i.szDecimals)} ${i.base}`],
-        ["Комиссия (маркет / лимит)", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
-        ["Идентификатор на Hyperliquid", `${i.name} · актив ${i.index}`],
-      ];
-    $("infoBody").innerHTML = l
-      .map(([h, p, f]) => `<div><span>${h}</span><b class="${f || ""}">${p}</b></div>`)
-      .join("");
+  const spot = !!m.spot,
+    tabs = spot ? INF_TABS.slice(0, 1) : INF_TABS;
+  tabs.some((t) => t[0] === S.infTab) || (S.infTab = "overview");
+  const tb = $("infTabs"),
+    tsig = tabs.map((t) => t[0]).join() + S.infTab;
+  if (tb.dataset.sig !== tsig) {
+    tb.dataset.sig = tsig;
+    tb.innerHTML = tabs.map(([k, l]) => `<button type="button" data-inf="${k}" class="${k === S.infTab ? "on" : ""}">${l}</button>`).join("");
+    tb.querySelectorAll("[data-inf]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          S.infTab = b.dataset.inf;
+          try {
+            localStorage.setItem("totum.inftab", S.infTab);
+          } catch {}
+          renderInfo();
+        }),
+    );
+  }
+  infCountdown();
+  const px = Number(c.midPx || c.markPx || 0),
+    ch = Number(c.prevDayPx) ? px / Number(c.prevDayPx) - 1 : 0,
+    fr = Number(c.funding || 0),
+    hi = $("mkHigh")?.textContent || "—",
+    lo = $("mkLow")?.textContent || "—";
+  /* графики строим один раз на рынок и раздел — дальше обновляем только цифры */
+  if (S.infTab === "funding" || S.infTab === "index") return infHistory(m, c);
+  infDropChart();
+  if (S.infTab === "overview") {
+    const oi = Number(c.openInterest || 0) * Number(c.markPx || 0);
+    body.innerHTML = `<div class="inf-grid2">
+      <section class="inf-card">
+        ${infHead(m, spot)}
+        <div class="inf-price"><b>${fmtPx(px)}</b><span class="inf-ch ${clsOf(ch)}">${ch >= 0 ? "+" : ""}${(ch * 100).toFixed(2)}%</span></div>
+        <div class="inf-stats">
+          ${(spot
+            ? [
+                ["Объём за 24ч", c.dayNtlVlm ? compact(c.dayNtlVlm) : "—"],
+                ["Капитализация", Number(c.circulatingSupply) ? compact(Number(c.circulatingSupply) * px) : "—"],
+                ["Макс. за 24ч", hi],
+                ["Мин. за 24ч", lo],
+                ["В обращении", Number(c.circulatingSupply) ? `${num(Number(c.circulatingSupply), 0)} ${esc(m.base)}` : "—"],
+                ["Котировка", esc(m.quote)],
+              ]
+            : [
+                ["Маркировочная", fmtPx(c.markPx)],
+                ["Оракул (индекс)", c.oraclePx ? fmtPx(c.oraclePx) : "—"],
+                ["Макс. за 24ч", hi],
+                ["Мин. за 24ч", lo],
+                ["Объём за 24ч", c.dayNtlVlm ? compact(c.dayNtlVlm) : "—"],
+                ["Открытый интерес", oi ? compact(oi) : "—"],
+              ]
+          )
+            .map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`)
+            .join("")}
+        </div>
+      </section>
+      <div class="inf-col">
+        ${
+          spot
+            ? ""
+            : `<section class="inf-card inf-fund ${clsOf(fr)}">
+          <div class="inf-ct">Фандинг сейчас<span class="inf-cd" data-cd>${mmss(nextFundingMs())}</span></div>
+          <div class="inf-big">${fPct(fr)}<small>за час</small></div>
+          <p>${fr >= 0 ? "Лонги платят шортам" : "Шорты платят лонгам"} · позиция $1 000 за час: <b>${fr >= 0 ? "−" : "+"}${usd(Math.abs(fr) * 1000)}</b> для лонга</p>
+          <button type="button" class="inf-link" data-inf-go="funding">История фандинга →</button>
+        </section>`
+        }
+        <section class="inf-card">
+          <div class="inf-ct">Торговые условия</div>
+          ${infKV([
+            ...(spot ? [["Плечо", "нет (спот)"]] : [["Макс. плечо", `${m.maxLeverage}x`], ["Маржа", m.onlyIsolated ? "только изолированная" : "кросс и изолированная"]]),
+            ["Комиссия маркет / лимит", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
+            ["Шаг размера", `${(1 / 10 ** m.szDecimals).toFixed(m.szDecimals)} ${esc(baseOf(S.coin))}`],
+          ])}
+        </section>
+      </div>
+    </div>`;
+  } else if (S.infTab === "contract") {
+    const tiers = infTiers(m);
+    body.innerHTML = `<section class="inf-card">
+      ${infHead(m, !1)}
+      <div class="inf-2col">
+        ${infKV([
+          ["Тип контракта", "Бессрочный, без даты экспирации"],
+          ["Расчёты и маржа", m.dex ? esc(collName(m)) : "USDC"],
+          ["Шаг размера", `${(1 / 10 ** m.szDecimals).toFixed(m.szDecimals)} ${esc(baseOf(S.coin))}`],
+          ["Точность цены", `до 5 значащих цифр, до ${Math.max(0, 6 - m.szDecimals)} знаков после запятой`],
+          ["Макс. плечо", `${m.maxLeverage}x`],
+          ["Поддерживающая маржа", `${(50 / tiers[0].lev).toFixed(2)}% (1-й уровень)`, "", "Половина начальной маржи при максимальном плече уровня"],
+          ["Режим маржи", m.onlyIsolated ? "только изолированная" : "кросс и изолированная"],
+        ])}
+        ${infKV([
+          ["Ставка фандинга", `${fPct(fr)} за час`, clsOf(fr)],
+          ["Следующий фандинг", `<span data-cd>${mmss(nextFundingMs())}</span>`],
+          ["Интервал фандинга", "1 час"],
+          ["Предел ставки фандинга", "4% за час"],
+          ["Цена для TP/SL и ликвидаций", "маркировочная"],
+          ["Комиссия маркет / лимит", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
+          ["Биржа исполнения", `Hyperliquid${CFG.isTestnet ? " · тестовая сеть" : ""}${m.dex ? ` · площадка ${esc(m.dex)}` : ""}`],
+        ])}
+      </div>
+    </section>`;
+  } else if (S.infTab === "margin") {
+    const tiers = infTiers(m),
+      pos = S.positions.find((p) => p.coin === S.coin),
+      pv = pos ? Math.abs(Number(pos.positionValue || 0)) : 0;
+    let cur = 0;
+    tiers.forEach((t, k) => pv >= t.from && (cur = k));
+    body.innerHTML = `<section class="inf-card">
+      <div class="inf-ct">Уровни плеча и маржи · ${esc(pairLabel(S.coin))}</div>
+      <p class="inf-note">Чем больше позиция, тем меньше доступное плечо. Поддерживающая маржа — половина начальной: если залог опустится ниже неё, позицию ликвидируют.</p>
+      <div class="inf-table" role="table">
+        <div class="th"><span>Уровень</span><span>Размер позиции</span><span>Макс. плечо</span><span>Начальная маржа</span><span>Поддерживающая</span></div>
+        ${tiers
+          .map((t, k) => {
+            const to = tiers[k + 1]?.from;
+            return `<div class="${pos && k === cur ? "on" : ""}"><span>${k + 1}${pos && k === cur ? '<em>ваша позиция</em>' : ""}</span><span>${to ? `${compact(t.from)} – ${compact(to)}` : `от ${compact(t.from)}`}</span><span><b>${t.lev}x</b></span><span>${(100 / t.lev).toFixed(2)}%</span><span>${(50 / t.lev).toFixed(2)}%</span></div>`;
+          })
+          .join("")}
+      </div>
+    </section>`;
+  }
+  body.querySelectorAll("[data-inf-go]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        S.infTab = b.dataset.infGo;
+        renderInfo();
+      }),
+  );
+  fixIcons(body);
+}
+function infCountdown() {
+  clearInterval(INF.cdT);
+  INF.cdT = setInterval(() => {
+    if (document.body.dataset.cp !== "info") return clearInterval(INF.cdT);
+    document.querySelectorAll("#infoBody [data-cd]").forEach((e) => (e.textContent = mmss(nextFundingMs())));
+  }, 1e3);
+}
+function infDropChart() {
+  if (INF.chart) {
+    try {
+      INF.chart.remove();
+    } catch {}
+    INF.chart = null;
+  }
+  INF.key = "";
+}
+/* История фандинга и премии: Hyperliquid отдаёт до 500 часов за запрос — берём частями */
+async function loadFundingHist(coin, days) {
+  const k = `${coin}|${days}`;
+  if (INF.hist[k] && Date.now() - INF.hist[k].at < 10 * 6e4) return INF.hist[k].rows;
+  let start = Date.now() - days * 864e5,
+    rows = [];
+  for (let n = 0; n < 4; n++) {
+    const part = (await info.fundingHistory({ coin, startTime: start })) || [];
+    rows = rows.concat(part);
+    if (part.length < 500) break;
+    start = part.at(-1).time + 1;
+  }
+  INF.hist[k] = { at: Date.now(), rows };
+  return rows;
+}
+async function infHistory(m, c) {
+  const body = $("infoBody"),
+    kind = S.infTab,
+    days = INF.days || 7,
+    theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+    key = `${S.coin}|${kind}|${days}|${theme}`,
+    fr = Number(c.funding || 0),
+    prem = Number(c.premium || 0);
+  const head =
+    kind === "funding"
+      ? `<div class="inf-hh"><div><span>Ставка сейчас</span><b class="${clsOf(fr)}">${fPct(fr)} <small>за час</small></b></div><div><span>До выплаты</span><b data-cd>${mmss(nextFundingMs())}</b></div><div data-stat="avg"><span>Средняя за период</span><b>—</b></div><div data-stat="sum"><span>Сумма за период</span><b>—</b></div></div>`
+      : `<div class="inf-hh"><div><span>Цена оракула (индекс)</span><b>${c.oraclePx ? fmtPx(c.oraclePx) : "—"}</b></div><div><span>Маркировочная</span><b>${fmtPx(c.markPx)}</b></div><div><span>Премия сейчас</span><b class="${clsOf(prem)}">${fPct(prem, 3)}</b></div><div data-stat="avg"><span>Средняя премия</span><b>—</b></div></div>`;
+  if (INF.key === key && INF.chart) {
+    const h = body.querySelector(".inf-hh");
+    if (h) {
+      const keep = [...h.querySelectorAll("[data-stat]")].map((e) => e.outerHTML);
+      h.outerHTML = head;
+      const h2 = body.querySelector(".inf-hh");
+      keep.forEach((html) => {
+        const t = document.createElement("div");
+        t.innerHTML = html;
+        const n = t.firstChild,
+          old = h2.querySelector(`[data-stat="${n.dataset.stat}"]`);
+        old && old.replaceWith(n);
+      });
+    }
     return;
   }
-  let e = Number(t.midPx),
-    n = t.prevDayPx ? (e / Number(t.prevDayPx) - 1) * 100 : 0,
-    s = `знаков после запятой: до ${Math.max(0, 6 - i.szDecimals)}; значащих цифр: до 5`,
-    r = [
-      ["Контракт", `${pairLabel(S.coin)} · бессрочный (perpetual)`],
-      ["Расчёты и маржа", i.dex ? collName(i) : "USDC"],
-      ...(i.dex ? [["Площадка HIP-3", `${i.dex} — рынок запущен сторонней командой на Hyperliquid`], ["Категория", CAT_RU[i.cat] || i.cat || "—"]] : []),
-      ...(i.onlyIsolated ? [["Маржа", "только изолированная"]] : []),
-      ["Последняя цена", fmtPx(e)],
-      ["Маркировочная цена", fmtPx(t.markPx)],
-      ["Цена оракула (индекс)", t.oraclePx ? fmtPx(t.oraclePx) : "—"],
-      ["Изменение за 24ч", `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`, clsOf(n)],
-      ["Объём за 24ч", t.dayNtlVlm ? compact(t.dayNtlVlm) : "—"],
-      [
-        "Открытый интерес",
-        t.openInterest
-          ? `${num(t.openInterest, 2)} ${baseOf(S.coin)} ≈ ${compact(Number(t.openInterest) * Number(t.markPx))}`
-          : "—",
-      ],
-      ["Ставка фандинга за час", pct(t.funding), clsOf(Number(t.funding))],
-      ["Выплата фандинга", "каждый час"],
-      ["Премия к индексу", t.premium != null ? pct(t.premium) : "—"],
-      ["Максимальное плечо", `${i.maxLeverage}x`],
-      ["Поддерживающая маржа", `${(maintRate(S.coin) * 100).toFixed(2)}% от позиции`],
-      ["Режим маржи", i.onlyIsolated ? "только изолированная" : "кросс и изолированная"],
-      ["Шаг размера", `${(1 / 10 ** i.szDecimals).toFixed(i.szDecimals)} ${S.coin}`],
-      ["Точность цены", s],
-      ["Комиссия (маркет / лимит)", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
-      ["Биржа исполнения", `Hyperliquid ${CFG.isTestnet ? "(тестовая сеть)" : ""}`],
-    ];
-  $("infoBody").innerHTML = r.map(([o, a, c]) => `<div><span>${o}</span><b class="${c || ""}">${a}</b></div>`).join("");
+  infDropChart();
+  INF.key = key;
+  body.innerHTML = `<section class="inf-card">
+    <div class="inf-ct">${kind === "funding" ? "История ставки фандинга" : "Премия фьючерса к индексу"} · ${esc(pairLabel(S.coin))}
+      <span class="inf-range">${[7, 30].map((d) => `<button type="button" data-days="${d}" class="${d === days ? "on" : ""}">${d} дн.</button>`).join("")}</span></div>
+    ${head}
+    <div class="inf-chart" id="infChart"><p class="muted">Загружаем историю…</p></div>
+    <p class="inf-note">${
+      kind === "funding"
+        ? "Фандинг платится каждый час. Плюс — лонги платят шортам, минус — шорты лонгам. Столбик — ставка за конкретный час."
+        : "Премия показывает, насколько цена фьючерса выше (+) или ниже (−) индекса спотовых бирж. Из неё складывается ставка фандинга."
+    }</p>
+  </section>`;
+  body.querySelectorAll("[data-days]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        INF.days = Number(b.dataset.days);
+        INF.key = "";
+        renderInfo();
+      }),
+  );
+  let rows;
+  try {
+    rows = await loadFundingHist(S.coin, days);
+  } catch (e) {
+    $("infChart") && ($("infChart").innerHTML = `<p class="muted">Не удалось загрузить историю. Попробуйте позже.</p>`);
+    return;
+  }
+  if (INF.key !== key || !$("infChart")) return;
+  const vals = rows.map((r) => ({ time: Math.floor(r.time / 1e3), v: Number(kind === "funding" ? r.fundingRate : r.premium) })).filter((r) => Number.isFinite(r.v));
+  const box = $("infChart");
+  if (!vals.length) {
+    box.innerHTML = `<p class="muted">История пока пустая.</p>`;
+    return;
+  }
+  box.innerHTML = "";
+  const th = CHART_THEMES[theme],
+    css = getComputedStyle(document.documentElement),
+    up = css.getPropertyValue("--buy").trim() || "#16a34a",
+    dn = css.getPropertyValue("--sell").trim() || "#e11d48";
+  const ch = createChart(box, {
+    height: 260,
+    autoSize: !0,
+    layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: th.text, fontSize: 11 },
+    grid: { vertLines: { visible: !1 }, horzLines: { color: th.grid } },
+    rightPriceScale: { borderVisible: !1 },
+    timeScale: { borderVisible: !1, timeVisible: !0 },
+    crosshair: { mode: CrosshairMode.Normal },
+    handleScroll: !1,
+    handleScale: !1,
+  });
+  const fmt = { type: "custom", minMove: 1e-6, formatter: (x) => `${x >= 0 ? "+" : ""}${x.toFixed(kind === "funding" ? 4 : 3)}%` };
+  if (kind === "funding") {
+    ch.addSeries(HistogramSeries, { priceFormat: fmt, base: 0, lastValueVisible: !1, priceLineVisible: !1 }).setData(vals.map((r) => ({ time: r.time, value: r.v * 100, color: r.v >= 0 ? up : dn })));
+  } else {
+    ch.addSeries(BaselineSeries, {
+      priceFormat: fmt,
+      lastValueVisible: !1,
+      priceLineVisible: !1,
+      baseValue: { type: "price", price: 0 },
+      topLineColor: up,
+      topFillColor1: up + "40",
+      topFillColor2: up + "05",
+      bottomLineColor: dn,
+      bottomFillColor1: dn + "05",
+      bottomFillColor2: dn + "40",
+      lineWidth: 2,
+    }).setData(vals.map((r) => ({ time: r.time, value: r.v * 100 })));
+  }
+  ch.timeScale().fitContent();
+  INF.chart = ch;
+  const avg = vals.reduce((a, r) => a + r.v, 0) / vals.length,
+    sum = vals.reduce((a, r) => a + r.v, 0),
+    put = (k, html) => {
+      const e = body.querySelector(`[data-stat="${k}"] b`);
+      e && (e.outerHTML = html);
+    };
+  put("avg", `<b class="${clsOf(avg)}">${fPct(avg, kind === "funding" ? 4 : 3)}${kind === "funding" ? " <small>за час</small>" : ""}</b>`);
+  kind === "funding" && put("sum", `<b class="${clsOf(sum)}">${fPct(sum, 2)}</b>`);
 }
 var MP = {
     tab: "all",
