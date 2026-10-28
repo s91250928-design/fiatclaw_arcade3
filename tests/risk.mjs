@@ -21,11 +21,16 @@ state.onUserInfo = (b) => {
   }
 };
 const { page, errors } = await setupPage(browser, { width: 1440, height: 900 }, state);
+const sounds = []; page.on("request", (r) => /sounds\/(buy|sell)\.mp3/.test(r.url()) && sounds.push(r.url()));
 const warns = []; page.on("console", (m) => m.type() === "warning" && /ws /.test(m.text()) && warns.push(m.text()));
 await page.goto(URL0 + "/#trade"); await page.waitForTimeout(5000);
 await connect(page);
-if (await page.isVisible("#btnEnable")) { await page.check("#consent").catch(() => {}); await page.click("#btnEnable"); await page.waitForTimeout(3000); }
-await page.waitForTimeout(2500);
+await page.waitForTimeout(4000);
+const appr = state.exchange.find((e) => e.action.type === "approveAgent"), fee = state.exchange.find((e) => e.action.type === "approveBuilderFee");
+R.ok("после подключения подпись запрошена сама, без кнопки и галочки (комиссия уже была разрешена)", !!appr && !fee);
+const vu = Number(/valid_until (\d+)/.exec(appr?.action.agentName || "")?.[1] || 0);
+R.ok("ключ для сделок на ~180 дней (максимум Hyperliquid)", Math.abs(vu - Date.now() - 179 * 864e5) < 36e5, appr?.action.agentName);
+R.ok("кнопки сделок активны сразу", !(await page.isDisabled("#btnBuy")));
 const mid = () => page.evaluate(() => Number(window.__totum.S.ctx[window.__totum.S.coin].midPx));
 const val = async (id) => Number(await page.inputValue(id));
 const near = (a, b, tol = 0.01) => Math.abs(a / b - 1) < tol;
@@ -76,6 +81,7 @@ await page.click("#btnBuy"); await page.waitForTimeout(700);
 await page.click("#cfOk").catch(() => {}); await page.waitForTimeout(1500);
 const ord = state.exchange.find((e) => e.action.type === "order");
 const sz = Number(ord?.action.orders[0].s || 0), slPx = Number(ord?.action.orders.find((o) => o.t.trigger?.tpsl === "sl")?.t.trigger.triggerPx || 0);
+R.ok("после сделки прозвучал звук «монеты вверх»", sounds.some((u) => /buy\.mp3/.test(u)), sounds.join());
 R.ok("ушёл лонг со стопом и тейком", ord?.action.orders.length === 3 && ord.action.orders[0].b === true);
 R.ok(`при стопе убыток по цене ≈ $10 (${(sz * Math.abs(m - slPx)).toFixed(2)})`, Math.abs(sz * Math.abs(m - slPx) - 10) < 0.5);
 R.ok("нет ошибок подписок WS", !warns.some((w) => /Already subscribed/.test(w)), warns.join(" | ").slice(0, 200));

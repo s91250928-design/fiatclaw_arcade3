@@ -1388,7 +1388,8 @@ async function connectWallet() {
       (i.dataset.label = short(S.user)),
       document.body.classList.add("connected"),
       await refreshStatus(),
-      startLoop());
+      startLoop(),
+      autoEnable());
   } catch (n) {
     toast(humanError(n), "err");
   } finally {
@@ -1579,15 +1580,22 @@ function updateSetupUI() {
     t = i && S.agentOk;
   (document.body.classList.toggle("ready", t),
     ($("btnBuy").disabled = $("btnSell").disabled = !t),
-    ($("btnEnable").disabled = !$("consent").checked || !isAddress(CFG.builder) || !S.user),
+    ($("btnEnable").disabled = !isAddress(CFG.builder) || !S.user || S.enabling),
     ($("setupState").textContent = isAddress(CFG.builder)
       ? i && !S.agentOk
         ? "Осталась одна подпись"
         : ""
       : "В config.js не указан адрес строителя"));
 }
+/* Почему нужна подпись, хотя кошелёк уже подключён. Подключение даёт сайту
+   только адрес — подписывать он ничего не может. Hyperliquid принимает ордер
+   лишь с подписью, поэтому один раз кошелёк выдаёт сайту ключ для сделок
+   (и разрешает комиссию Totum — так требует биржа). Дальше сделки идут без
+   окон в кошельке. Ключ живёт 180 дней — максимум, который даёт Hyperliquid. */
+const AGENT_DAYS = 179;
 async function enableTrading() {
-  if (!$("consent").checked) return;
+  if (S.enabling) return;
+  S.enabling = !0;
   try {
     localStorage.setItem("totum.consent", "1");
   } catch {}
@@ -1607,7 +1615,7 @@ async function enableTrading() {
       setBusy(i, !0, "Подпись 2 из 2 в кошельке…");
       let t = generatePrivateKey(),
         e = privateKeyToAccount(t),
-        n = Date.now() + 168 * 3600 * 1e3;
+        n = Date.now() + AGENT_DAYS * 864e5;
       (await S.userExchange.approveAgent({
         agentAddress: e.address,
         agentName: `${CFG.agentName} valid_until ${n}`,
@@ -1619,12 +1627,20 @@ async function enableTrading() {
           wallet: e,
         })));
     }
-    (toast("Торговля включена", "ok"), await refreshStatus());
+    (toast("Готово — можно торговать. Следующие сделки без подписей в кошельке", "ok"), await refreshStatus());
   } catch (t) {
     toast(humanError(t), "err");
   } finally {
-    (setBusy(i, !1), updateSetupUI());
+    ((S.enabling = !1), setBusy(i, !1), updateSetupUI());
   }
+}
+/* Сразу после подключения: если торговля ещё не включена — просим подпись сами,
+   без отдельной кнопки и галочки */
+function autoEnable() {
+  if (!S.user || !isAddress(CFG.builder) || S.enabling) return;
+  if (S.approvedFee >= CFG.feeTenthBps && S.agentOk) return;
+  toast("Подтвердите в кошельке доступ к сделкам — это один раз, дальше без подписей", "info");
+  enableTrading();
 }
 var FAVS = [];
 try {
@@ -4030,7 +4046,8 @@ async function placeOrder(i) {
         builder: builderParam(),
       })
     ).response.data.statuses[0];
-    (p?.filled
+    ((p?.filled || p?.resting) && tradeSound(i),
+    p?.filled
       ? toast(`Исполнено: ${p.filled.totalSz} ${S.coin} по ${p.filled.avgPx}`, "ok")
       : p?.resting
         ? toast("Лимитный ордер выставлен", "ok")
@@ -4045,6 +4062,18 @@ async function placeOrder(i) {
   } finally {
     setBusy(s, !1);
   }
+}
+/* Звук сделки: монеты вверх — покупка/лонг, вниз — продажа/шорт */
+const SOUNDS = {};
+function tradeSound(buy) {
+  if (SET.sound === !1) return;
+  try {
+    const k = buy ? "buy" : "sell";
+    SOUNDS[k] = SOUNDS[k] || new Audio(`sounds/${k}.mp3`);
+    SOUNDS[k].volume = 0.6;
+    SOUNDS[k].currentTime = 0;
+    SOUNDS[k].play().catch(() => {});
+  } catch {}
 }
 async function placeSpotOrder(i, t) {
   let e = baseOf(),
@@ -4090,7 +4119,8 @@ async function placeSpotOrder(i, t) {
         builder: builderParam(),
       })
     ).response.data.statuses[0];
-    (l?.filled
+    ((l?.filled || l?.resting) && tradeSound(i),
+    l?.filled
       ? toast(`${i ? "Куплено" : "Продано"}: ${l.filled.totalSz} ${e} по ${l.filled.avgPx}`, "ok")
       : l?.resting
         ? toast("Лимитный ордер выставлен", "ok")
@@ -5655,6 +5685,12 @@ function setTheme(i) {
 function initSettings() {
   (($("setRemember").checked = SET.remember),
     ($("setConfirm").checked = SET.confirmOn),
+    ($("setSound").checked = SET.sound !== !1),
+    ($("setSound").onchange = (i) => {
+      SET.sound = i.target.checked;
+      saveSettings();
+      i.target.checked && tradeSound(!0);
+    }),
     ($("btnSettings").onclick = () => {
       $("settingsPop").hidden = !$("settingsPop").hidden;
     }),
