@@ -95,6 +95,7 @@
       <b>Настройки</b>
       <label class="chk"><input type="checkbox" id="setRemember"> Оставаться в сети на этом устройстве (ключ для сделок хранится зашифрованным 7 дней)</label>
       <label class="chk"><input type="checkbox" id="setConfirm"> Показывать окно подтверждения перед сделкой</label>
+      <label class="chk"><input type="checkbox" id="setSound"> Звук сделок</label>
       <button id="setThemeBtn" class="btn ghost small m-theme" type="button">Светлая / тёмная тема</button>
       <button id="setForget" class="btn ghost small">Удалить ключ для сделок с устройства</button>
     </div>
@@ -277,9 +278,10 @@
 
     <!-- Включение торговли: согласие + 2 бесплатные подписи за один раз -->
     <div id="setup" class="setup">
-      <label class="consent"><input type="checkbox" id="consent"><span class="box"></span>
-        <span>Я принимаю <a href="#" id="termsLink">условия и политику конфиденциальности</a>, включая комиссию Totum <b id="feeLabel"></b> с объёма сделки.</span></label>
-      <button id="btnEnable" class="btn wide-btn" disabled>Включить торговлю</button>
+      <input type="checkbox" id="consent" checked hidden>
+      <p class="setup-why">Кошелёк подключён. Подтвердите в нём <b>доступ к сделкам</b> — это один раз, дальше сделки без подписей.</p>
+      <button id="btnEnable" class="btn wide-btn" disabled>Подтвердить в кошельке</button>
+      <p class="setup-terms">Продолжая, вы принимаете <a href="#" id="termsLink">условия и политику конфиденциальности</a>, включая комиссию Totum <b id="feeLabel"></b> с объёма сделки.</p>
       <p id="setupState" class="muted small"></p>
     </div>
     <button id="btnConnect2" class="btn wide-btn connect-cta">Подключить кошелёк</button>
