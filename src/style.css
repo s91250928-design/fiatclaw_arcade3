@@ -339,7 +339,10 @@ dialog .row{margin-top:12px}
 .unit-seg{display:inline-flex;background:var(--panel2);border-radius:6px;padding:2px;align-self:flex-start;margin-bottom:2px}
 .unit-seg button{background:transparent;border:0;border-radius:5px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--muted)}
 .unit-seg button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(15,23,42,.12)}
-.tpsl-hint{margin:2px 2px 6px;font-size:12px;color:var(--muted);font-family:var(--mono);min-height:15px}
+.tpsl-hint{margin:2px 0 6px;display:flex;gap:6px;flex-wrap:wrap;min-height:0}
+.tpsl-hint:empty{display:none}
+.th-chip{display:inline-flex;gap:6px;align-items:center;background:var(--panel2);border-radius:6px;padding:4px 8px;font-size:12px;font-weight:500;color:var(--muted);font-family:"Manrope",var(--font)}
+.th-chip b{font-family:var(--mono);font-weight:700}
 .tpsl-hint b.pos{color:var(--buy)} .tpsl-hint b.neg{color:var(--sell)}
 #tpslDialog .unit-seg{margin:6px 0}
 .chart.dragging,.chart.drag-hover{cursor:ns-resize}
@@ -902,9 +905,31 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 
 /* Вход от риска */
 .risk-box{display:flex;flex-direction:column;gap:6px;padding-bottom:6px;margin-bottom:2px;border-bottom:1px dashed var(--line,rgba(148,163,184,.25))}
-.risk-hint{margin:0 2px;font-size:12px;line-height:1.5;color:var(--muted);font-family:var(--mono)}
+.risk-hint{margin:0;display:flex;flex-direction:column;gap:8px}
 .risk-hint:empty{display:none}
-.risk-hint b.pos{color:var(--buy)} .risk-hint b.neg,.risk-hint .neg{color:var(--sell)} .risk-hint .warn{color:#f59e0b}
+.rk-empty{font-family:"Manrope",var(--font);font-weight:500;font-size:13px;color:var(--text);background:var(--panel2);border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
+.rk-card{--side:var(--buy);position:relative;border-radius:12px;padding:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--side) 10%,var(--panel)) 0%,var(--panel) 70%);border:1px solid color-mix(in srgb,var(--side) 35%,var(--line));font-family:"Manrope",var(--font)}
+.rk-card.short{--side:var(--sell)}
+.rk-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.rk-side{font-family:"Unbounded",var(--font);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:var(--side);border-radius:6px;padding:3px 8px}
+.rk-rr{font-size:12px;color:var(--muted);font-weight:500}
+.rk-rr b{font-family:"Unbounded",var(--font);font-size:13px;color:var(--text);margin-left:4px}
+.rk-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.rk-grid div{display:flex;flex-direction:column;gap:1px;min-width:0}
+.rk-grid span{font-size:11px;color:var(--muted);font-weight:500}
+.rk-grid b{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rk-grid em{font-style:normal;font-family:var(--mono);font-size:12px;color:var(--text);opacity:.75}
+.rk-grid .neg b{color:var(--sell)} .rk-grid .pos b{color:var(--buy)}
+.rk-bar{display:flex;height:6px;border-radius:4px;overflow:hidden;margin:12px 0 8px;gap:2px}
+.rk-bar i{display:block;height:100%} .rk-bar .l{background:var(--sell)} .rk-bar .w{background:var(--buy)}
+.rk-fee{font-size:12px;color:var(--muted);font-weight:500} .rk-fee b{font-family:var(--mono);color:var(--text)}
+.rk-alert{--c:#f59e0b;display:flex;flex-direction:column;gap:8px;border-radius:10px;padding:10px 12px;background:color-mix(in srgb,var(--c) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--c) 45%,var(--line));font-family:"Manrope",var(--font)}
+.rk-alert.danger{--c:var(--sell)}
+.rk-alert>div:first-child{display:flex;flex-direction:column;gap:2px}
+.rk-alert b{font-size:13px;color:var(--c)} .rk-alert span{font-size:12.5px;color:var(--text);font-weight:500;line-height:1.4}
+.rk-acts{display:flex;gap:6px;flex-wrap:wrap}
+.rk-acts button{border:0;border-radius:7px;padding:6px 10px;font-weight:700;font-size:12px;background:var(--c);color:#fff;cursor:pointer}
+.rk-acts button+button{background:transparent;color:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
 #pctSteps.off{opacity:.35;pointer-events:none}
 #size[readonly]{opacity:.85}
 .btn.risk-dim{opacity:.35}

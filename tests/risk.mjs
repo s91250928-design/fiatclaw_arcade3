@@ -65,6 +65,13 @@ R.ok("направление стало лонг, тейк сам ≈ +6%", !(aw
 await page.locator("#paneChart").screenshot({ path: "tests/out-risk-chart.png" });
 await page.locator("#tpslRow").screenshot({ path: "tests/out-risk-form.png" });
 
+// не хватает маржи: риск $300 → предупреждение с кнопками, «Риск $X» подставляет сумму, которая влезает
+await page.fill("#riskUsd", "300"); await page.waitForTimeout(400);
+R.ok("предупреждение «Не хватает маржи» или «не влезает» с кнопками", await page.isVisible(".rk-alert .rk-acts button"), await page.textContent("#riskHint"));
+await page.locator("#tpslRow").screenshot({ path: "tests/out-risk-alert.png" });
+await page.click("[data-rk-risk]"); await page.waitForTimeout(400);
+R.ok("кнопка «Риск $X» убрала предупреждение", !(await page.isVisible(".rk-alert")) , await page.inputValue("#riskUsd"));
+await page.fill("#riskUsd", "10"); await page.waitForTimeout(400);
 await page.click("#btnBuy"); await page.waitForTimeout(700);
 await page.click("#cfOk").catch(() => {}); await page.waitForTimeout(1500);
 const ord = state.exchange.find((e) => e.action.type === "order");

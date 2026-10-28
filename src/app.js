@@ -3751,11 +3751,11 @@ function updateTpslHints() {
     if (!s && !r) return "";
     let o = (a, c) => {
       let l = pxPnl(a.entry, c, a.sz, a.long);
-      return `<b class="${l >= 0 ? "pos" : "neg"}">${l >= 0 ? "+" : ""}${usd(l)}</b>`;
+      return `<b class="${l >= 0 ? "pos" : "neg"}">${l >= 0 ? "+" : "−"}${usd(Math.abs(l))}</b>`;
     };
     return UNITS.ord === "pct"
-      ? `Лонг: ${fmtPx(s)} → ${o(i, s)} · Шорт: ${fmtPx(r)} → ${o(t, r)}`
-      : `Если лонг: ${o(i, s)} · если шорт: ${o(t, r)}`;
+      ? `<span class="th-chip">Лонг ${fmtPx(s)} ${o(i, s)}</span><span class="th-chip">Шорт ${fmtPx(r)} ${o(t, r)}</span>`
+      : `<span class="th-chip">Если лонг ${o(i, s)}</span><span class="th-chip">Если шорт ${o(t, r)}</span>`;
   };
   (($("tpHint").innerHTML = e("tp")), ($("slHint").innerHTML = e("sl")));
 }
@@ -3880,31 +3880,54 @@ function riskSync() {
   }
   const r = riskPlan();
   if (r.err) {
-    $("riskHint").innerHTML = `<span class="muted">${r.err}</span>`;
+    $("riskHint").innerHTML = `<div class="rk-empty">${r.err}</div>`;
     return;
   }
   $("size").value = Math.floor(r.notional * 100) / 100;
   $("pct").value = 0;
   paintRange($("pct"));
   $(r.long ? "btnSell" : "btnBuy")?.classList.add("risk-dim");
-  const base = baseOf();
-  const lines = [
-    `<b class="${r.long ? "pos" : "neg"}">${r.long ? "Лонг" : "Шорт"}</b> · ${num(r.sz, 4)} ${base} на ${usd(r.notional)} · маржа ${usd(r.notional / r.lev)} при ${r.lev}x`,
-    `Стоп: <b class="neg">−${usd(r.risk)}</b>` +
-      (r.tp ? ` · тейк: <b class="pos">+${usd(r.reward)}</b> · прибыль/риск <b>1 : ${(r.reward / r.risk).toFixed(1)}</b>` : ""),
-    `Комиссия за вход и выход ≈ ${usd(r.feeSl)} (${((r.feeSl / (r.notional / r.lev)) * 100).toFixed(2)}% от маржи) — списывается отдельно`,
-  ];
+  const base = baseOf(),
+    rr = r.tp ? r.reward / r.risk : 0,
+    lossW = rr ? 100 / (1 + rr) : 100,
+    /* сколько можно рискнуть, чтобы позиция влезла в депозит при текущем плече */
+    riskFit = Math.floor(((r.avail * r.lev * Math.abs(r.entry - r.sl)) / r.entry) * 100) / 100;
+  let html = `<div class="rk-card ${r.long ? "long" : "short"}">
+    <div class="rk-head"><span class="rk-side">${r.long ? "Лонг" : "Шорт"}</span>${rr ? `<span class="rk-rr">прибыль / риск <b>1 : ${rr.toFixed(1)}</b></span>` : ""}</div>
+    <div class="rk-grid">
+      <div><span>Позиция</span><b>${num(r.sz, 4)} ${esc(base)}</b><em>${usd(r.notional)}</em></div>
+      <div><span>Маржа</span><b>${usd(r.notional / r.lev)}</b><em>плечо ${r.lev}x</em></div>
+      <div class="neg"><span>Если стоп</span><b>−${usd(r.risk)}</b></div>
+      <div class="pos"><span>Если тейк</span><b>${r.tp ? `+${usd(r.reward)}` : "—"}</b></div>
+    </div>
+    <div class="rk-bar"><i class="l" style="width:${lossW}%"></i><i class="w" style="width:${100 - lossW}%"></i></div>
+    <div class="rk-fee">Комиссия за вход и выход ≈ <b>${usd(r.feeSl)}</b> · ${((r.feeSl / (r.notional / r.lev)) * 100).toFixed(2)}% от маржи</div>
+  </div>`;
+  const alert = (kind, title, text, btns = "") =>
+    `<div class="rk-alert ${kind}"><div><b>${title}</b><span>${text}</span></div>${btns ? `<div class="rk-acts">${btns}</div>` : ""}</div>`;
+  const fitBtn = riskFit > 0 && riskFit < r.risk ? `<button type="button" data-rk-risk="${riskFit}">Риск ${usd(riskFit)}</button>` : "";
   if (r.needLev > r.maxLev)
-    lines.push(`<span class="neg">Стоп слишком близко: даже на ${r.maxLev}x депозита не хватит. Отодвиньте стоп или уменьшите риск.</span>`);
+    html += alert("danger", "Позиция не влезает в депозит", `Даже на максимальном плече ${r.maxLev}x не хватит маржи. Уменьшите риск или отодвиньте стоп.`, fitBtn);
   else if (r.needLev > r.lev)
-    lines.push(
-      `<span class="warn">Маржи не хватает — нужно плечо от ${Math.ceil(r.needLev)}x.</span> <button type="button" class="link-btn" id="riskLev" data-lv="${Math.ceil(r.needLev)}">Поставить</button>`,
+    html += alert(
+      "warn",
+      "Не хватает маржи",
+      `Нужно плечо от ${Math.ceil(r.needLev)}x или меньший риск.`,
+      `<button type="button" data-rk-lev="${Math.ceil(r.needLev)}">Плечо ${Math.ceil(r.needLev)}x</button>${fitBtn}`,
     );
-  if (r.liqFirst)
-    lines.push(`<span class="neg">Ликвидация (${fmtPx(r.liq)}) наступит раньше стопа — уменьшите плечо.</span>`);
-  $("riskHint").innerHTML = lines.join("<br>");
-  const b = $("riskLev");
-  b && (b.onclick = () => setLeverage(Number(b.dataset.lv)));
+  if (r.liqFirst) html += alert("danger", "Ликвидация раньше стопа", `Цена ликвидации ${fmtPx(r.liq)} ближе стопа — уменьшите плечо.`);
+  $("riskHint").innerHTML = html;
+  $("riskHint").querySelectorAll("[data-rk-lev]").forEach((b) => (b.onclick = () => setLeverage(Number(b.dataset.rkLev))));
+  $("riskHint").querySelectorAll("[data-rk-risk]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        $("riskUsd").value = b.dataset.rkRisk;
+        SET.riskUsd = b.dataset.rkRisk;
+        saveSettings();
+        updateOrderInfo();
+        drawChartLines();
+      }),
+  );
 }
 function toggleRisk(on) {
   SET.riskOn = !!on;
