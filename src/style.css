@@ -899,3 +899,12 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 .adl-now{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;background:var(--panel2)}
 .adl-now .adl i{height:16px;width:7px}
 .adl-now small{display:block;color:var(--muted)}
+
+/* Вход от риска */
+.risk-box{display:flex;flex-direction:column;gap:6px;padding-bottom:6px;margin-bottom:2px;border-bottom:1px dashed var(--line,rgba(148,163,184,.25))}
+.risk-hint{margin:0 2px;font-size:12px;line-height:1.5;color:var(--muted);font-family:var(--mono)}
+.risk-hint:empty{display:none}
+.risk-hint b.pos{color:var(--buy)} .risk-hint b.neg,.risk-hint .neg{color:var(--sell)} .risk-hint .warn{color:#f59e0b}
+#pctSteps.off{opacity:.35;pointer-events:none}
+#size[readonly]{opacity:.85}
+.btn.risk-dim{opacity:.35}
