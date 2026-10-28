@@ -259,6 +259,11 @@
     </div>
     <label class="chk dotted perp-only" id="tpslToggle"><input type="checkbox" id="tpslOn"><span class="box"></span> ТП / СЛ</label>
     <div id="tpslRow" class="tpsl perp-only" hidden>
+      <div class="risk-box">
+        <label class="chk" title="Укажите, сколько готовы потерять, и поставьте стоп — размер позиции посчитается сам"><input type="checkbox" id="riskOn"><span class="box"></span> Размер от риска</label>
+        <label class="inp" id="riskRow" hidden><span>Готов потерять</span><input id="riskUsd" type="number" inputmode="decimal" min="0" step="any" placeholder="напр. 20"><em>USDC</em></label>
+        <p class="risk-hint" id="riskHint"></p>
+      </div>
       <div class="unit-seg" data-unit-for="ord"><button data-unit="px" class="on" type="button">Цена</button><button data-unit="pct" type="button">%</button></div>
       <label class="inp"><span>Тейк-профит</span><input id="tp" type="number" inputmode="decimal" step="any" placeholder="цена"><em class="u">USDC</em></label>
       <p class="tpsl-hint" id="tpHint"></p>
