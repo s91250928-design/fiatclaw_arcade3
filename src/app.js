@@ -4991,13 +4991,13 @@ function renderHome() {
   (($("pgHome").innerHTML = `
     <div class="hero-card">
       <div class="hc-top"><img src="brand/mark-128.webp" alt="" class="hc-mark"><span>${S.user ? "Ваши активы" : "Добро пожаловать в Totum"}</span>${CFG.isTestnet ? '<span class="badge">ТЕСТ</span>' : ""}</div>
-      ${S.user ? `<div class="hc-sum">${usd(i)}</div><div class="hc-sub">${equitySub()}</div>` : '<div class="hc-lead">Фьючерсы, спот и акции в одном приложении. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
+      ${S.user ? `<div class="hc-sum">${usd(i)}</div><div class="hc-sub">${equitySub()}</div><div class="hc-cta"><button class="hc-btn main" type="button" data-act="deposit"><i>${NAV_IC.plus}</i>Пополнить</button><button class="hc-btn" type="button" data-act="futures"><i>${NAV_IC.bolt}</i>Торговать</button></div>` : '<div class="hc-lead">Фьючерсы, спот и акции в одном приложении. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
     </div>
     <div class="quick">
-      <button type="button" data-act="futures"><i>${NAV_IC.futures}</i>Фьючерсы</button>
-      <button type="button" data-act="trade"><i>${NAV_IC.trade}</i>Спот</button>
-      <button type="button" data-act="transfer"><i>${NAV_IC.swap}</i>Перевод</button>
-      <button type="button" data-act="orders"><i>${NAV_IC.doc}</i>Ордера</button>
+      <button type="button" data-act="futures"><i>${NAV_IC.futures}</i><span>Фьючерсы</span></button>
+      <button type="button" data-act="trade"><i>${NAV_IC.trade}</i><span>Спот</span></button>
+      <button type="button" data-act="assets"><i>${NAV_IC.wallet}</i><span>Активы</span></button>
+      <button type="button" data-act="orders"><i>${NAV_IC.doc}</i><span>Ордера</span></button>
     </div>
     <div class="card-block">
       <div class="seg mini-seg" id="homeSeg"><button data-ht="gain" class="${S.homeTab === "gain" ? "on" : ""}" type="button">Растут</button><button data-ht="loss" class="${S.homeTab === "loss" ? "on" : ""}" type="button">Падают</button><button data-ht="vol" class="${S.homeTab === "vol" ? "on" : ""}" type="button">По объёму</button></div>
@@ -5085,6 +5085,10 @@ var NAV_IC = {
   trade:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="5"/><path d="M14.5 7.2a5 5 0 1 1 0 9.6"/></svg>',
   swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8.5h12.5L14.5 5.5"/><path d="M19 15.5H6.5l3 3"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/></svg>',
+  wallet:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="13" rx="3"/><path d="M3.5 10h17M16 14.5h1.5"/><path d="M7 6l8.5-2.5 1.5 2.5"/></svg>',
   doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
 };
 function bindApp() {
@@ -5101,6 +5105,10 @@ function bindApp() {
           connectWallet()),
           (o === "futures" || o === "trade") && setApp(o),
           o === "transfer" && openTransfer(),
+          o === "assets" && setApp("assets"),
+          /* Пополнение: в тестовой сети — кран тестовых USDC; в основной — раздел пополнения Hyperliquid тем же кошельком */
+          o === "deposit" &&
+            window.open(CFG.isTestnet ? "https://app.hyperliquid-testnet.xyz/drip" : "https://app.hyperliquid.xyz/portfolio", "_blank", "noopener"),
           o === "orders" && openOrdersPage());
       }
       let n = t.target.closest("[data-go]");
