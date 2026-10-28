@@ -31,6 +31,7 @@ var USER_CFG = window.TERM_CONFIG || {},
     agentName: "totum",
     refreshMs: 5e3,
     hlTakerFee: 45e-5,
+    hlMakerFee: 15e-5,
   },
   feePercentStr = (i) => `${(i / 1e3).toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}%`,
   FEE_PCT = feePercentStr(CFG.feeTenthBps),
@@ -154,6 +155,7 @@ function humanError(i) {
       [/does not exist|User or API Wallet/i, "Ключ для сделок устарел. Нажмите «Включить торговлю» ещё раз."],
       [/must deposit|insufficient|Insufficient margin/i, "Недостаточно средств на счёте Hyperliquid."],
       [/User rejected|denied|4001/i, "Вы отменили подпись в кошельке."],
+      [/wallet-timeout/i, "Кошелёк не ответил на запрос подписи. Откройте кошелёк и нажмите кнопку ещё раз."],
       [
         /origin not allowed|Connection request reset|Proposal expired|relay|pairing|session/i,
         "Не удалось подключить кошелёк. Попробуйте ещё раз или выберите другой кошелёк.",
@@ -725,7 +727,7 @@ function drawChartLines() {
         slp = readTrig("sl", "ord", "sl", pv),
         tpp = readTrig("tp", "ord", "tp", pv),
         lbl = (k, px) => {
-          const v = sz > 0 ? netPnl(en, px, sz, lg) : 0;
+          const v = sz > 0 ? pxPnl(en, px, sz, lg) : 0;
           return `${k} · ${v >= 0 ? "+" : "−"}${usd(Math.abs(v))} · тяните`;
         };
       S.orderType === "limit" && Number($("px").value) > 0 && i(en, "#64748b", `Вход ${lg ? "лонг" : "шорт"}`, 1, "plan-entry");
@@ -735,12 +737,20 @@ function drawChartLines() {
   }
 }
 var FEE_RATE = (i = S.coin) => (isSpot(i) ? HL_SPOT_TAKER : CFG.hlTakerFee) + CFG.feeTenthBps / 1e5;
-function netPnl(i, t, e, n) {
-  return (t - i) * e * (n ? 1 : -1) - (i + t) * e * FEE_RATE();
+/* PnL как на Hyperliquid: только разница цен × размер. Комиссии
+   биржа списывает отдельно, и показываем их отдельной строкой. */
+function pxPnl(i, t, e, n) {
+  return (t - i) * e * (n ? 1 : -1);
+}
+/* Комиссии за вход и выход, $: вход лимитом — мейкер, маркетом — тейкер;
+   выход по TP/SL — всегда маркет (тейкер). Ставки: Hyperliquid + Totum. */
+const MAKER_RATE = () => CFG.hlMakerFee + CFG.feeTenthBps / 1e5;
+function roundFee(entry, exit, sz, makerEntry = S.orderType === "limit") {
+  return entry * sz * (makerEntry ? MAKER_RATE() : FEE_RATE()) + exit * sz * FEE_RATE();
 }
 function pnlAt(i, t, e) {
   let n = Number(e.szi) > 0,
-    s = netPnl(Number(e.entryPx), t, Math.abs(Number(e.szi)), n);
+    s = pxPnl(Number(e.entryPx), t, Math.abs(Number(e.szi)), n);
   return `${i === "tp" ? "TP" : "SL"} \xB7 ${s >= 0 ? "+" : ""}${usd(s)}`;
 }
 var DRAG = {
@@ -1230,6 +1240,55 @@ async function initWalletConnect() {
   }
   return wcProvider;
 }
+/* ═══════════ Подписи через WalletConnect ═══════════
+   На телефоне запрос подписи «терялся через раз»: пока человек в кошельке,
+   браузер усыпляет страницу и рвёт связь с сервером WalletConnect, и второй
+   запрос (их два при включении торговли) уходил в никуда. Теперь перед каждой
+   подписью проверяем связь и переподключаемся, а на телефоне сами открываем
+   кошелёк, когда запрос уже отправлен. */
+const isPhone = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const wcRelay = () => wcProvider?.signer?.client?.core?.relayer || null;
+async function wcEnsureRelay() {
+  const r = wcRelay();
+  if (!r || r.connected) return;
+  try {
+    await r.transportOpen();
+  } catch {
+    try {
+      await r.restartTransport();
+    } catch {}
+  }
+}
+function wcOpenWallet() {
+  const link = wcProvider?.session?.peer?.metadata?.redirect?.native;
+  if (link && /^[a-z][a-z0-9+.-]*:\/\//i.test(link) && !/^https?:/i.test(link)) location.href = link;
+}
+const WC_SIGN = ["eth_signTypedData_v4", "eth_signTypedData", "personal_sign", "eth_sendTransaction", "wallet_switchEthereumChain"];
+function wcSigner(p) {
+  return {
+    on: (...a) => p.on(...a),
+    removeListener: (...a) => p.removeListener?.(...a),
+    request: async (args) => {
+      if (!WC_SIGN.includes(args?.method)) return p.request(args);
+      await wcEnsureRelay();
+      const req = p.request(args);
+      toast("Подтвердите подпись в кошельке", "info");
+      isPhone() && setTimeout(wcOpenWallet, 400);
+      let timer;
+      const slow = new Promise((_, rej) => {
+        timer = setTimeout(() => rej(new Error("wallet-timeout")), 120e3);
+      });
+      try {
+        return await Promise.race([req, slow]);
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
+}
+document.addEventListener("visibilitychange", () => {
+  document.visibilityState === "visible" && wcEnsureRelay();
+});
 async function disconnectWallet() {
   if (confirm("Отключить кошелёк?")) {
     try {
@@ -1285,7 +1344,7 @@ async function connectWallet() {
       (S.user = getAddress(n)));
     let s = createWalletClient({
       account: S.user,
-      transport: custom(e),
+      transport: custom(e === wcProvider ? wcSigner(e) : e),
     });
     ((S.userExchange = new ExchangeClient({
       transport: transport,
@@ -3536,7 +3595,7 @@ function updateOrderInfo() {
         "—";
     return;
   }
-  let n = t * FEE_RATE(),
+  let n = t * (S.orderType === "limit" && !isSpot() ? MAKER_RATE() : FEE_RATE()),
     s = "";
   try {
     s = ` \xB7 ${sizeFor(!0, t).sz} ${baseOf()}`;
@@ -3652,7 +3711,7 @@ function updateTpslHints() {
       r = readTrig(n, "ord", n, t);
     if (!s && !r) return "";
     let o = (a, c) => {
-      let l = netPnl(a.entry, c, a.sz, a.long);
+      let l = pxPnl(a.entry, c, a.sz, a.long);
       return `<b class="${l >= 0 ? "pos" : "neg"}">${l >= 0 ? "+" : ""}${usd(l)}</b>`;
     };
     return UNITS.ord === "pct"
@@ -3664,8 +3723,8 @@ function updateTpslHints() {
 /* ═══════════ Вход от риска ═══════════
    Человек говорит «готов потерять $20» и ставит стоп — терминал сам
    считает размер позиции. Направление следует из стопа: стоп ниже
-   цены входа — лонг, выше — шорт. Убыток считаем с комиссиями входа
-   и выхода (как netPnl), проскальзывание на стопе не учтено. */
+   цены входа — лонг, выше — шорт. Убыток на стопе — по цене, как
+   считает Hyperliquid; комиссии показываем отдельной строкой. */
 const riskActive = () =>
   !isSpot() && S.mode !== "close" && $("tpslOn")?.checked && $("riskOn")?.checked;
 function planEntry() {
@@ -3689,19 +3748,21 @@ function riskPlan() {
   if (!(sl > 0) || sl === entry) return { err: "Поставьте стоп-лосс — от него считается размер" };
   if (!(risk > 0)) return { err: "Укажите, сколько готовы потерять" };
   const long = sl < entry;
-  const perUnit = Math.abs(entry - sl) + (entry + sl) * FEE_RATE();
+  const perUnit = Math.abs(entry - sl);
   const sz = risk / perUnit;
   const notional = sz * entry;
   const tp = Number($("tp").value) || 0;
   const tpOk = tp > 0 && (long ? tp > entry : tp < entry);
-  const reward = tpOk ? netPnl(entry, tp, sz, long) : 0;
+  const reward = tpOk ? pxPnl(entry, tp, sz, long) : 0;
   const avail = availFor();
   const lev = Number($("lev").value) || 1;
   const maxLev = Number(mkt()?.maxLeverage) || lev;
   const needLev = avail > 0 ? notional / avail : Infinity;
   const liq = estLiq(S.coin, long, entry, sz, lev, S.margin === "isolated");
   const liqFirst = liq > 0 && (long ? liq >= sl : liq <= sl);
-  return { entry, sl, tp: tpOk ? tp : 0, long, sz, notional, risk, reward, avail, lev, maxLev, needLev, liq, liqFirst };
+  const feeSl = roundFee(entry, sl, sz),
+    feeTp = tpOk ? roundFee(entry, tp, sz) : 0;
+  return { entry, sl, tp: tpOk ? tp : 0, long, sz, notional, risk, reward, avail, lev, maxLev, needLev, liq, liqFirst, feeSl, feeTp };
 }
 function riskSync() {
   const on = riskActive();
@@ -3727,6 +3788,7 @@ function riskSync() {
     `<b class="${r.long ? "pos" : "neg"}">${r.long ? "Лонг" : "Шорт"}</b> · ${num(r.sz, 4)} ${base} на ${usd(r.notional)} · маржа ${usd(r.notional / r.lev)} при ${r.lev}x`,
     `Стоп: <b class="neg">−${usd(r.risk)}</b>` +
       (r.tp ? ` · тейк: <b class="pos">+${usd(r.reward)}</b> · прибыль/риск <b>1 : ${(r.reward / r.risk).toFixed(1)}</b>` : ""),
+    `Комиссия за вход и выход ≈ ${usd(r.feeSl)} (${((r.feeSl / (r.notional / r.lev)) * 100).toFixed(2)}% от маржи) — списывается отдельно`,
   ];
   if (r.needLev > r.maxLev)
     lines.push(`<span class="neg">Стоп слишком близко: даже на ${r.maxLev}x депозита не хватит. Отодвиньте стоп или уменьшите риск.</span>`);
@@ -4208,7 +4270,7 @@ async function reversePosition(i, t) {
         ["Цена", "Маркет"],
         ["Закрыть", `${s} ${i}`],
         ["Открыть", `${s} ${i} ≈ ${usd(s * a)}`],
-        ["Комиссия Totum ≈", usd(2 * s * a * FEE_RATE())],
+        ["Комиссия ≈", usd(2 * s * a * FEE_RATE())],
       ],
       okLabel: "Развернуть",
       okCls: n ? "sell" : "buy",
@@ -4280,8 +4342,8 @@ function updateCloseInfo() {
     e = CLOSE.type === "limit" ? Number($("closePx").value) || 0 : Number(S.ctx[CLOSE.coin]?.midPx || 0),
     n = "";
   if (i && e) {
-    let s = netPnl(Number(i.entryPx), e, t, Number(i.szi) > 0);
-    n = ` · PnL с комиссией ≈ ${sgnUsd(s)}`;
+    let s = pxPnl(Number(i.entryPx), e, t, Number(i.szi) > 0);
+    n = ` · PnL ≈ ${sgnUsd(s)} · комиссия ≈ ${usd(t * e * (CLOSE.type === "limit" ? MAKER_RATE() : FEE_RATE()))}`;
   }
   $("closeInfo").textContent = `Закрыть ${num(t, 6)} ${CLOSE.coin} (${$("closePct").value}%) ≈ ${usd(t * e)}${n}`;
 }
@@ -4401,7 +4463,7 @@ function confirmOrder(i, t, e) {
         ["Цена", S.orderType === "limit" ? `${fmtPx(Number($("px").value))} (лимит)` : "Маркет"],
         expectedRow(i, e),
         ["Сумма", `${num(e, 2)} USDC${h}`],
-        ["Комиссия Totum", usd(e * FEE_RATE())],
+        ["Комиссия за вход", usd(e * (S.orderType === "limit" ? MAKER_RATE() : FEE_RATE()))],
       ].filter(Boolean),
       okLabel: i ? `Купить ${baseOf()}` : `Продать ${baseOf()}`,
       okCls: i ? "buy" : "sell",
@@ -4421,20 +4483,21 @@ function confirmOrder(i, t, e) {
     let h = $("tpslOn").checked,
       p = h && r ? readTrig("tp", "ord", "tp", r) : 0,
       f = h && r ? readTrig("sl", "ord", "sl", r) : 0;
-    (a.push(["Тейк-профит", p ? `${fmtPx(p)} \xB7 ${sgnUsd(netPnl(r.entry, p, r.sz, i))}` : "--", "pos"]),
-      a.push(["Стоп-лосс", f ? `${fmtPx(f)} \xB7 ${sgnUsd(netPnl(r.entry, f, r.sz, i))}` : "--", "neg"]));
+    (a.push(["Тейк-профит", p ? `${fmtPx(p)} \xB7 ${sgnUsd(pxPnl(r.entry, p, r.sz, i))}` : "--", "pos"]),
+      a.push(["Стоп-лосс", f ? `${fmtPx(f)} \xB7 ${sgnUsd(pxPnl(r.entry, f, r.sz, i))}` : "--", "neg"]));
     if (p && f) {
-      const rw = netPnl(r.entry, p, r.sz, i),
-        rk = -netPnl(r.entry, f, r.sz, i);
+      const rw = pxPnl(r.entry, p, r.sz, i),
+        rk = -pxPnl(r.entry, f, r.sz, i);
       rw > 0 && rk > 0 && a.push(["Прибыль / риск", `1 : ${(rw / rk).toFixed(1)}`]);
     }
+    (p || f) && r && a.push(["Комиссия вход + выход ≈", usd(roundFee(r.entry, f || p, r.sz))]);
     let b = r ? estLiq(S.coin, i, r.entry, r.sz, n, s) : 0;
     (a.push(["Расч. цена ликвидации", b ? fmtPx(b) : "—", "warn"]),
       a.push(["Расч. цена входа", r ? fmtPx(r.entry) : "—"]),
       a.push(["Маржа", `${num(e / n, 2)} USDC`]));
   }
   return (
-    a.push(["Комиссия Totum", usd(e * FEE_RATE())]),
+    a.push(["Комиссия за вход", usd(e * (S.orderType === "limit" ? MAKER_RATE() : FEE_RATE()))]),
     confirmBox({
       title: "Подтверждение ордера",
       pair: `${pairLabel(S.coin)} ${isSpot() ? "Спот" : "Бессрочный"}`,
@@ -4476,7 +4539,7 @@ var pxFromPct = (i, t, e) => e.entry * (1 + ((i === "tp" ? 1 : -1) * (e.long ? 1
   };
 function trigHint(i, t, e) {
   if (!t || !e) return "";
-  let n = netPnl(e.entry, t, e.sz, e.long),
+  let n = pxPnl(e.entry, t, e.sz, e.long),
     s = e.margin ? (n / e.margin) * 100 : null;
   return `${trigLabel(i)} ${fmtPx(t)} \xB7 PnL <b class="${n >= 0 ? "pos" : "neg"}">${n >= 0 ? "+" : ""}${usd(n)}</b>${s != null ? ` (${s >= 0 ? "+" : ""}${s.toFixed(1)}% ROE)` : ""}`;
 }
@@ -4653,7 +4716,7 @@ function renderInfo() {
         ["Капитализация", c ? compact(c * o) : "—"],
         ["Плечо", "нет (спот)"],
         ["Шаг размера", `${(1 / 10 ** i.szDecimals).toFixed(i.szDecimals)} ${i.base}`],
-        ["Комиссия Totum (тейкер)", `${(FEE_RATE() * 100).toFixed(3)}%`],
+        ["Комиссия (маркет / лимит)", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
         ["Идентификатор на Hyperliquid", `${i.name} · актив ${i.index}`],
       ];
     $("infoBody").innerHTML = l
@@ -4688,7 +4751,7 @@ function renderInfo() {
       ["Режим маржи", i.onlyIsolated ? "только изолированная" : "кросс и изолированная"],
       ["Шаг размера", `${(1 / 10 ** i.szDecimals).toFixed(i.szDecimals)} ${S.coin}`],
       ["Точность цены", s],
-      ["Комиссия Totum (тейкер)", `${(FEE_RATE() * 100).toFixed(3)}%`],
+      ["Комиссия (маркет / лимит)", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
       ["Биржа исполнения", `Hyperliquid ${CFG.isTestnet ? "(тестовая сеть)" : ""}`],
     ];
   $("infoBody").innerHTML = r.map(([o, a, c]) => `<div><span>${o}</span><b class="${c || ""}">${a}</b></div>`).join("");

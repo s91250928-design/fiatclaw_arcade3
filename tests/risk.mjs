@@ -37,7 +37,7 @@ const sl = Number((mid * 0.99).toPrecision(6));
 await page.fill("#sl", String(sl)); await page.waitForTimeout(300);
 const size1 = Number(await page.inputValue("#size"));
 const entry = await page.evaluate(() => Number(window.__totum.S.ctx[window.__totum.S.coin].midPx));
-const expect = (20 / (Math.abs(entry - sl) + (entry + sl) * fee)) * entry;
+const expect = (20 / Math.abs(entry - sl)) * entry;
 R.ok(`размер посчитан от риска $20 и стопа −1% (~${expect.toFixed(0)} USDC)`, Math.abs(size1 - expect) / expect < 0.02, `${size1} vs ${expect.toFixed(2)}`);
 R.ok("поле суммы закрыто для ручного ввода", await page.evaluate(() => document.getElementById("size").readOnly));
 const hint1 = await page.textContent("#riskHint");
@@ -50,7 +50,7 @@ R.ok("предупреждение про плечо, если маржи не �
 const tp = Number((mid * 1.03).toPrecision(6));
 await page.fill("#tp", String(tp)); await page.waitForTimeout(300);
 const hint2 = await page.textContent("#riskHint");
-R.ok("с тейком показано «прибыль/риск 1 : ~3»", /прибыль\/риск 1 : (2\.[3-9]|3\.0)/.test(hint2), hint2);
+R.ok("с тейком +3% и стопом −1% показано «прибыль/риск 1 : 3.0»", /прибыль\/риск 1 : (2\.9|3\.0|3\.1)/.test(hint2) && /Комиссия за вход и выход/.test(hint2), hint2);
 
 // тянем линию стопа на −2% — размер должен уменьшиться примерно вдвое
 const y0 = await page.evaluate((p) => window.__totum.priceToY(p), sl);
@@ -79,7 +79,8 @@ await page.click("#cfOk").catch(() => {}); await page.waitForTimeout(1500);
 const ord = state.exchange.find((e) => e.action.type === "order");
 R.ok("ушёл лонг + стоп + тейк", ord && ord.action.orders.length === 3 && ord.action.orders[0].b === true, JSON.stringify(ord?.action.orders?.map((o) => [o.b, o.s, o.t]))?.slice(0, 300));
 const sz = Number(ord?.action.orders[0].s || 0), slPx = Number(ord?.action.orders.find((o) => o.t.trigger?.tpsl === "sl")?.t.trigger.triggerPx || 0);
-const loss = sz * Math.abs(mid - slPx) + sz * (mid + slPx) * fee;
-R.ok(`если сработает стоп, убыток ≈ $20 (${loss.toFixed(2)})`, Math.abs(loss - 20) < 1.5);
+const loss = sz * Math.abs(mid - slPx);
+R.ok(`если сработает стоп, убыток по цене ≈ $20 (${loss.toFixed(2)}), как считает Hyperliquid`, Math.abs(loss - 20) < 0.6);
+R.ok("в подтверждении комиссия вход+выход отдельной строкой", /Комиссия вход \+ выход/.test(cf));
 R.ok(`без ошибок (${coin})`, errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();
