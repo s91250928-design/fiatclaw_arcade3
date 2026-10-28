@@ -908,3 +908,13 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 #pctSteps.off{opacity:.35;pointer-events:none}
 #size[readonly]{opacity:.85}
 .btn.risk-dim{opacity:.35}
+
+.risk-row{display:flex;flex-direction:column;gap:6px}
+.risk-side button[data-rside=long].on{color:var(--buy)} .risk-side button[data-rside=short].on{color:var(--sell)}
+.rr-chips{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.rr-chips span{margin-right:auto}
+.rr-chips button{background:var(--panel2);border:0;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+.rr-chips button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(15,23,42,.12)}
+.inp-btn.pick{font-size:16px;line-height:1;margin-left:6px;opacity:.7}
+.inp-btn.pick.on{opacity:1;color:var(--accent);text-shadow:0 0 6px var(--accent)}
+#chart.picking,#chart.picking *{cursor:crosshair!important}
