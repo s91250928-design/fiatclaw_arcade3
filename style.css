@@ -952,3 +952,65 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 
 .setup-why{margin:0 0 8px;font-family:"Manrope",var(--font);font-weight:500;font-size:13px;line-height:1.45;color:var(--text)}
 .setup-terms{margin:8px 0 0;font-size:11.5px;line-height:1.4;color:var(--muted)}
+
+/* ═══ Информация о рынке ═══ */
+.inf-tabs{display:inline-flex;gap:2px;background:var(--panel2);border-radius:10px;padding:3px;margin-bottom:12px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.inf-tabs::-webkit-scrollbar{display:none}
+.inf-tabs button{border:0;background:transparent;border-radius:8px;padding:6px 12px;font:600 12.5px "Manrope",var(--font);color:var(--muted);white-space:nowrap;cursor:pointer}
+.inf-tabs button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+#infoBody{font-family:"Manrope",var(--font)}
+.inf-grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px}
+.inf-col{display:flex;flex-direction:column;gap:12px}
+.inf-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.inf-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.inf-title b{font:700 16px "Unbounded",var(--font)}
+.inf-title .coin-ic{width:28px;height:28px}
+.inf-tags{display:flex;gap:6px;flex-wrap:wrap}
+.inf-tags i{font-style:normal;font-size:11px;font-weight:600;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:6px;padding:2px 8px}
+.inf-price{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.inf-price b{font:700 26px/1.1 var(--mono);letter-spacing:-.02em}
+.inf-ch{font:700 13px var(--mono);border-radius:6px;padding:3px 8px;color:#fff}
+.inf-ch.pos{background:var(--buy)} .inf-ch.neg{background:var(--sell)}
+.inf-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.inf-stats div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:var(--panel2);border-radius:10px}
+.inf-stats span{font-size:11.5px;color:var(--muted);font-weight:500}
+.inf-stats b{font:700 14px var(--mono);color:var(--text)}
+.inf-ct{display:flex;align-items:center;gap:8px;font:700 13px "Manrope",var(--font);margin-bottom:10px;flex-wrap:wrap}
+.inf-cd{margin-left:auto;font:700 12px var(--mono);background:var(--panel2);border-radius:6px;padding:3px 8px;color:var(--text)}
+.inf-fund{--c:var(--buy);background:linear-gradient(135deg,color-mix(in srgb,var(--c) 10%,var(--panel)),var(--panel) 70%);border-color:color-mix(in srgb,var(--c) 35%,var(--line))}
+.inf-fund.neg{--c:var(--sell)}
+.inf-big{font:700 24px var(--mono);color:var(--c)} .inf-big small{font:500 12px "Manrope",var(--font);color:var(--muted);margin-left:6px}
+.inf-fund p{margin:8px 0 6px;font-size:12.5px;color:var(--text);font-weight:500}
+.inf-link{border:0;background:none;padding:0;color:var(--accent);font:700 12.5px "Manrope",var(--font);cursor:pointer}
+.inf-kv{display:flex;flex-direction:column}
+.inf-kv div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.inf-kv div:last-child{border-bottom:0}
+.inf-kv span{font-size:12.5px;color:var(--muted);font-weight:500}
+.inf-kv span.dot{text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
+.inf-kv b{font:600 12.5px var(--mono);text-align:right;color:var(--text)}
+.inf-kv b.pos{color:var(--buy)} .inf-kv b.neg{color:var(--sell)}
+.inf-2col{display:grid;grid-template-columns:1fr 1fr;gap:0 32px}
+.inf-note{margin:0 0 12px;font-size:12.5px;line-height:1.5;color:var(--muted);font-weight:500}
+.inf-table{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.inf-table>div{display:grid;grid-template-columns:.7fr 1.6fr 1fr 1fr 1fr;gap:8px;padding:11px 14px;font:600 12.5px var(--mono);border-top:1px solid var(--line);align-items:center}
+.inf-table>div:first-child{border-top:0}
+.inf-table .th{background:var(--panel2);font:600 11.5px "Manrope",var(--font);color:var(--muted)}
+.inf-table>div.on{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.inf-table em{display:block;font:600 10.5px "Manrope",var(--font);color:var(--accent);font-style:normal}
+.inf-table b{color:var(--accent)}
+.inf-range{margin-left:auto;display:inline-flex;gap:2px;background:var(--panel2);border-radius:8px;padding:2px}
+.inf-range button{border:0;background:transparent;border-radius:6px;padding:4px 10px;font:600 12px "Manrope",var(--font);color:var(--muted);cursor:pointer}
+.inf-range button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(15,23,42,.12)}
+.inf-hh{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.inf-hh div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:var(--panel2);border-radius:10px;min-width:0}
+.inf-hh span{font-size:11.5px;color:var(--muted);font-weight:500}
+.inf-hh b{font:700 15px var(--mono);white-space:nowrap} .inf-hh small{font:500 11px "Manrope",var(--font);color:var(--muted)}
+.inf-hh b.pos{color:var(--buy)} .inf-hh b.neg{color:var(--sell)}
+.inf-chart{height:260px;margin-bottom:10px}
+@media (max-width:900px){
+  .inf-grid2,.inf-2col{grid-template-columns:1fr}
+  .inf-hh{grid-template-columns:1fr 1fr}
+  .inf-table>div{grid-template-columns:.55fr 1.7fr .8fr 1fr;padding:10px;font-size:12px;gap:6px}
+  .inf-table>div>span:nth-child(4){display:none}
+  .inf-table .th{font-size:10.5px}
+}
