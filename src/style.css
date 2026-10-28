@@ -1014,3 +1014,16 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
   .inf-table>div>span:nth-child(4){display:none}
   .inf-table .th{font-size:10.5px}
 }
+
+.inf-card+.inf-card{margin-top:12px}
+.inf-table.lev>div{grid-template-columns:.7fr 1.4fr 1fr 1.6fr}
+.inf-note.small2{margin:10px 0 0;font-size:11.5px}
+.inf-explain p{margin:0 0 10px;font-size:13px;line-height:1.55;color:var(--text);font-weight:500}
+.inf-explain b.pos{color:var(--buy)} .inf-explain b.neg{color:var(--sell)}
+.inf-steps{display:flex;flex-direction:column;gap:8px;margin:4px 0 12px}
+.inf-steps div{display:flex;gap:10px;align-items:flex-start;background:var(--panel2);border-radius:10px;padding:10px 12px}
+.inf-steps i{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font:700 12px "Manrope",var(--font);font-style:normal}
+.inf-steps span{font-size:12.5px;line-height:1.5;color:var(--text);font-weight:500}
+@media (max-width:900px){.inf-table.lev>div{grid-template-columns:.6fr 1.3fr .9fr 1.2fr}.inf-table.lev>div>span:nth-child(4){display:block}}
+
+@media (max-width:900px){#paneInfo{padding-bottom:110px}}

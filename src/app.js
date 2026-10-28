@@ -5017,6 +5017,28 @@ function renderInfo() {
           })
           .join("")}
       </div>
+    </section>
+    <section class="inf-card">
+      <div class="inf-ct">Какое плечо — до какого размера позиции</div>
+      <p class="inf-note">Плечо можно ставить любое от 1x до ${m.maxLeverage}x. Чем выше плечо, тем меньше максимальная позиция и тем ближе ликвидация.</p>
+      <div class="inf-table lev" role="table">
+        <div class="th"><span>Плечо</span><span>Макс. позиция</span><span>Начальная маржа</span><span>Ликвидация при движении против вас</span></div>
+        ${[1, 2, 3, 5, 10, 15, 20, 25, 30, 35, 40, 50]
+          .filter((L) => L <= m.maxLeverage)
+          .concat(m.maxLeverage)
+          .filter((L, k, a) => a.indexOf(L) === k)
+          .sort((a, b) => a - b)
+          .map((L) => {
+            /* максимум позиции: начало первого уровня, где плечо L уже не разрешено */
+            const cap = tiers.find((t) => t.lev < L)?.from;
+            /* грубо: на изолированной марже позиция ликвидируется, когда убыток съест начальную маржу минус поддерживающую */
+            const mm = 0.5 / tiers[0].lev,
+              move = 1 / L - mm;
+            return `<div><span><b>${L}x</b></span><span>${cap != null ? `до ${compact(cap)}` : "без ограничения"}</span><span>${(100 / L).toFixed(2)}%</span><span>≈ ${(move * 100).toFixed(1)}%</span></div>`;
+          })
+          .join("")}
+      </div>
+      <p class="inf-note small2">Последняя колонка — примерно: изолированная маржа, позиция первого уровня, без комиссий и фандинга. В кросс-марже ликвидацию отодвигает весь свободный баланс.</p>
     </section>`;
   }
   body.querySelectorAll("[data-inf-go]").forEach(
@@ -5062,9 +5084,10 @@ async function loadFundingHist(coin, days) {
 async function infHistory(m, c) {
   const body = $("infoBody"),
     kind = S.infTab,
-    days = INF.days || 7,
+    rng = (kind === "funding" ? INF.fRange : INF.pRange) || (kind === "funding" ? "40" : "7"),
+    days = rng === "40" ? 2 : Number(rng),
     theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light",
-    key = `${S.coin}|${kind}|${days}|${theme}`,
+    key = `${S.coin}|${kind}|${rng}|${theme}`,
     fr = Number(c.funding || 0),
     prem = Number(c.premium || 0);
   const head =
@@ -5091,19 +5114,35 @@ async function infHistory(m, c) {
   INF.key = key;
   body.innerHTML = `<section class="inf-card">
     <div class="inf-ct">${kind === "funding" ? "История ставки фандинга" : "Премия фьючерса к индексу"} · ${esc(pairLabel(S.coin))}
-      <span class="inf-range">${[7, 30].map((d) => `<button type="button" data-days="${d}" class="${d === days ? "on" : ""}">${d} дн.</button>`).join("")}</span></div>
+      <span class="inf-range">${(kind === "funding" ? [["40", "Последние 40"], ["7", "7 дн."], ["30", "30 дн."]] : [["7", "7 дн."], ["30", "30 дн."]])
+        .map(([v, l]) => `<button type="button" data-rng="${v}" class="${v === rng ? "on" : ""}">${l}</button>`)
+        .join("")}</span></div>
     ${head}
     <div class="inf-chart" id="infChart"><p class="muted">Загружаем историю…</p></div>
     <p class="inf-note">${
       kind === "funding"
-        ? "Фандинг платится каждый час. Плюс — лонги платят шортам, минус — шорты лонгам. Столбик — ставка за конкретный час."
-        : "Премия показывает, насколько цена фьючерса выше (+) или ниже (−) индекса спотовых бирж. Из неё складывается ставка фандинга."
+        ? "Фандинг платится каждый час. Плюс — лонги платят шортам, минус — шорты лонгам. Точка — ставка за конкретный час."
+        : "График — средняя премия за каждый час."
     }</p>
-  </section>`;
-  body.querySelectorAll("[data-days]").forEach(
+  </section>
+  ${
+    kind === "index"
+      ? `<section class="inf-card inf-explain">
+    <div class="inf-ct">Что такое премия</div>
+    <p><b>Премия</b> — насколько фьючерс на Hyperliquid сейчас дороже (+) или дешевле (−) <b>оракула</b>, то есть средней цены этой монеты на крупных спотовых биржах.</p>
+    <div class="inf-steps">
+      <div><i>1</i><span>Берётся цена, по которой в стакане можно купить или продать крупный объём, и сравнивается с ценой оракула.</span></div>
+      <div><i>2</i><span>Премия замеряется каждые 5 секунд и усредняется за час.</span></div>
+      <div><i>3</i><span>Из неё получается ставка фандинга: <b>средняя премия за час + поправка к базовой ставке 0,01% за 8 часов</b> (поправка не больше ±0,05%).</span></div>
+    </div>
+    <p>Премия <b class="pos">плюс</b> — фьючерс дороже спота, лонги платят шортам. Премия <b class="neg">минус</b> — фьючерс дешевле, шорты платят лонгам. Так фандинг притягивает цену фьючерса к споту.</p>
+  </section>`
+      : ""
+  }`;
+  body.querySelectorAll("[data-rng]").forEach(
     (b) =>
       (b.onclick = () => {
-        INF.days = Number(b.dataset.days);
+        kind === "funding" ? (INF.fRange = b.dataset.rng) : (INF.pRange = b.dataset.rng);
         INF.key = "";
         renderInfo();
       }),
@@ -5116,7 +5155,8 @@ async function infHistory(m, c) {
     return;
   }
   if (INF.key !== key || !$("infChart")) return;
-  const vals = rows.map((r) => ({ time: Math.floor(r.time / 1e3), v: Number(kind === "funding" ? r.fundingRate : r.premium) })).filter((r) => Number.isFinite(r.v));
+  let vals = rows.map((r) => ({ time: Math.floor(r.time / 1e3), v: Number(kind === "funding" ? r.fundingRate : r.premium) })).filter((r) => Number.isFinite(r.v));
+  rng === "40" && (vals = vals.slice(-40));
   const box = $("infChart");
   if (!vals.length) {
     box.innerHTML = `<p class="muted">История пока пустая.</p>`;
@@ -5138,9 +5178,24 @@ async function infHistory(m, c) {
     handleScroll: !1,
     handleScale: !1,
   });
-  const fmt = { type: "custom", minMove: 1e-6, formatter: (x) => `${x >= 0 ? "+" : ""}${x.toFixed(kind === "funding" ? 4 : 3)}%` };
+  const fmt = { type: "custom", minMove: 1e-6, formatter: (x) => {
+      const d = kind === "funding" ? 4 : 3,
+        t = Math.abs(x) < 0.5 / 10 ** d ? 0 : x;
+      return `${t > 0 ? "+" : ""}${t.toFixed(d)}%`;
+    } };
   if (kind === "funding") {
-    ch.addSeries(HistogramSeries, { priceFormat: fmt, base: 0, lastValueVisible: !1, priceLineVisible: !1 }).setData(vals.map((r) => ({ time: r.time, value: r.v * 100, color: r.v >= 0 ? up : dn })));
+    const gold = "#f0b90b";
+    ch.addSeries(LineSeries, {
+      priceFormat: fmt,
+      color: gold,
+      lineWidth: 2,
+      lineType: vals.length <= 200 ? LineType.Curved : LineType.Simple,
+      pointMarkersVisible: vals.length <= 200,
+      pointMarkersRadius: 3,
+      lastValueVisible: !1,
+      priceLineVisible: !1,
+      crosshairMarkerRadius: 5,
+    }).setData(vals.map((r) => ({ time: r.time, value: r.v * 100 })));
   } else {
     ch.addSeries(BaselineSeries, {
       priceFormat: fmt,
