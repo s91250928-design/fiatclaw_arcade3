@@ -158,17 +158,19 @@ const VENUES = {
     });
   } },
   okx: { name: "OKX", type: "cex", async load() {
-    const [fr, tk] = await Promise.all([
+    const [fr, tk, ins] = await Promise.all([
       j("https://www.okx.com/api/v5/public/funding-rate?instId=ANY"),
       j("https://www.okx.com/api/v5/market/tickers?instType=SWAP").catch(() => null),
+      j("https://www.okx.com/api/v5/public/instruments?instType=SWAP").catch(() => null),
     ]);
     const t = Object.fromEntries((tk?.data || []).map((x) => [x.instId, x]));
+    const cv = Object.fromEntries((ins?.data || []).map((x) => [x.instId, num(x.ctVal)]));
     return (fr?.data || []).map((x) => {
       const m = /^(.+)-USDT-SWAP$/.exec(x.instId || "");
       if (!m) return null;
       const ft = num(x.fundingTime), nt = num(x.nextFundingTime), k = t[x.instId] || {};
       const last = num(k.last);
-      return { sym: x.instId, base: baseOf(m[1]), rate: num(x.fundingRate), ih: ft && nt && nt > ft ? (nt - ft) / 36e5 : 8, next: ft, mark: last, vol: num(k.volCcy24h) && last ? num(k.volCcy24h) * last : null, oi: null };
+      return { sym: x.instId, base: baseOf(m[1]), rate: num(x.fundingRate), ih: ft && nt && nt > ft ? (nt - ft) / 36e5 : 8, next: ft, mark: last, vol: num(k.volCcy24h) && last ? num(k.volCcy24h) * last : null, oi: null, ct: cv[x.instId] || null };
     });
   } },
   bitget: { name: "Bitget", type: "cex", async load() {
@@ -194,20 +196,22 @@ const VENUES = {
       const m = /^(.+)_USDT$/.exec(x.name || "");
       if (!m || x.in_delisting) return null;
       const k = t[x.name] || {};
-      return { sym: x.name, base: baseOf(m[1]), rate: num(x.funding_rate), ih: num(x.funding_interval) ? num(x.funding_interval) / 3600 : 8, next: num(x.funding_next_apply) ? num(x.funding_next_apply) * 1000 : null, mark: num(x.mark_price), idx: num(x.index_price), vol: num(k.volume_24h_quote) || num(k.volume_24h_settle), oi: null };
+      return { sym: x.name, base: baseOf(m[1]), rate: num(x.funding_rate), ih: num(x.funding_interval) ? num(x.funding_interval) / 3600 : 8, next: num(x.funding_next_apply) ? num(x.funding_next_apply) * 1000 : null, mark: num(x.mark_price), idx: num(x.index_price), vol: num(k.volume_24h_quote) || num(k.volume_24h_settle), oi: null, ct: num(x.quanto_multiplier) || null };
     });
   } },
   mexc: { name: "MEXC", type: "cex", async load() {
-    const [tk, fr] = await Promise.all([
+    const [tk, fr, dt] = await Promise.all([
       j("https://contract.mexc.com/api/v1/contract/ticker"),
       j("https://contract.mexc.com/api/v1/contract/funding_rate").catch(() => null),
+      j("https://contract.mexc.com/api/v1/contract/detail").catch(() => null),
     ]);
+    const cs = Object.fromEntries((Array.isArray(dt?.data) ? dt.data : []).map((x) => [x.symbol, num(x.contractSize)]));
     const iv = Object.fromEntries((Array.isArray(fr?.data) ? fr.data : []).map((x) => [x.symbol, x]));
     return (tk?.data || []).map((x) => {
       const m = /^(.+)_USDT$/.exec(x.symbol || "");
       if (!m) return null;
       const c = iv[x.symbol] || {};
-      return { sym: x.symbol, base: baseOf(m[1]), rate: num(x.fundingRate), ih: num(c.collectCycle) || 8, next: num(c.nextSettleTime), mark: num(x.fairPrice) || num(x.lastPrice), idx: num(x.indexPrice), vol: num(x.amount24), oi: null };
+      return { sym: x.symbol, base: baseOf(m[1]), rate: num(x.fundingRate), ih: num(c.collectCycle) || 8, next: num(c.nextSettleTime), mark: num(x.fairPrice) || num(x.lastPrice), idx: num(x.indexPrice), vol: num(x.amount24), oi: null, ct: cs[x.symbol] || null };
     });
   } },
   dydx: { name: "dYdX", type: "dex", async load() {

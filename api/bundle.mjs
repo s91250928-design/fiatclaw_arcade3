@@ -41,7 +41,7 @@ const mexcLike = (host) => ({
     return (d.time || []).map((t, k) => [t * 1000, n(d.open?.[k]), n(d.high?.[k]), n(d.low?.[k]), n(d.close?.[k])]);
   },
   b: async (s) => {
-    const [d, k] = await Promise.all([j(`${host}/api/v1/contract/depth/${s}?limit=20`), ctSize(`${host}|${s}`, async () => (await j(`${host}/api/v1/contract/detail?symbol=${s}`))?.data?.contractSize)]);
+    const [d, k] = await Promise.all([j(`${host}/api/v1/contract/depth/${s}?limit=20`).catch(() => j(`${host}/api/v1/contract/depth/${s}`)), ctSize(`${host}|${s}`, async () => (await j(`${host}/api/v1/contract/detail?symbol=${s}`))?.data?.contractSize)]);
     return scale({ b: lv(d?.data?.bids), a: lv(d?.data?.asks) }, k);
   },
 });
