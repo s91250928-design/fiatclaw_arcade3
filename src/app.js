@@ -998,6 +998,7 @@ function renderBook() {
     ($("bids").innerHTML = r.map((q, U) => b(q, c[U])).join("")),
     ($("asks").hidden = i === "bids"),
     ($("bids").hidden = i === "asks"));
+  scOn() && (SC.agg === 0 && scBook(S.book), scRender());
   let w = S.book.asks[0]?.px,
     _ = S.book.bids[0]?.px;
   if (w && _) {
@@ -1129,7 +1130,8 @@ function onTrades(i) {
     })
     .sort((n, s) => s.time - n.time)
     .slice(0, 40)),
-    renderTrades());
+    renderTrades(),
+    scTrades(t));
 }
 function renderTrades() {
   let i = mkt(S.coin),
@@ -1159,6 +1161,7 @@ async function subscribeCoin() {
     ($("asks").innerHTML = $("bids").innerHTML = ""),
     renderTrades());
   let i = S.coin;
+  scOn() && scOpen();
   if ((await Promise.all([loadCandles(), pollBook(), pollTrades()]), !subs)) return;
   let t = S.interval,
     e = (n, s = 0) =>
@@ -4214,6 +4217,382 @@ function renderTools(open) {
   body.querySelectorAll("[data-tlcoin]").forEach((b) => (b.onclick = () => (switchCoin(b.dataset.tlcoin), setCpTab("chart"))));
   BX.key && $("bx") && !$("bx").hidden && bxHead();
 }
+/* ═══════════ Скальпинг: стакан-лестница (как в MetaScalp) ═══════════
+   Цены идут сверху вниз с постоянным шагом. Клик в колонке «Покупка» —
+   лимитная покупка по этой цене, в «Продажа» — лимитная продажа. Shift+клик —
+   стоп-ордер. Клик по своей заявке — снять её. Слева лента сделок, рядом —
+   объём сделок на каждой цене. Работает на той сети, на которой стоит сайт. */
+var SC_AGG = [
+  ["точно", null],
+  ["×2", { nSigFigs: 5, mantissa: 2 }],
+  ["×5", { nSigFigs: 5, mantissa: 5 }],
+  ["×10", { nSigFigs: 4 }],
+  ["×100", { nSigFigs: 3 }],
+];
+var SC = { agg: 0, center: null, step: 0, vols: [50, 100, 250, 500], vi: 1, hot: !0, confirm: !1, auto: !0, book: null, sub: null, subKey: "", tape: [], tv: new Map(), coin: null, levKey: "", raf: 0, sideAt: 0, busy: 0 };
+try {
+  const z = JSON.parse(localStorage.getItem("totum.scalp") || "{}");
+  Array.isArray(z.vols) && z.vols.length === 4 && z.vols.every((v) => v > 0) && (SC.vols = z.vols);
+  z.vi >= 0 && z.vi < 4 && (SC.vi = z.vi);
+  z.hot === !1 && (SC.hot = !1);
+  z.confirm === !0 && (SC.confirm = !0);
+  z.auto === !1 && (SC.auto = !1);
+  z.agg >= 0 && z.agg < SC_AGG.length && (SC.agg = z.agg);
+} catch {}
+const scSave = () => {
+  try {
+    localStorage.setItem("totum.scalp", JSON.stringify({ vols: SC.vols, vi: SC.vi, hot: SC.hot, confirm: SC.confirm, auto: SC.auto, agg: SC.agg }));
+  } catch {}
+};
+function scOn() {
+  return document.body.dataset.cp === "scalp";
+}
+const scRound = (p) => (SC.step ? Math.round(p / SC.step) * SC.step : p);
+const scKey = (p) => scRound(p).toFixed(10);
+function scOpen() {
+  const el = $("paneScalp");
+  if (!el) return;
+  if (!el.dataset.built) {
+    el.dataset.built = "1";
+    el.innerHTML = `<div class="sc">
+      <section class="sc-tape"><header>Лента сделок</header><div class="sc-tape-h"><span>Цена</span><span>Объём $</span><span>Время</span></div><div id="scTape"></div></section>
+      <section class="sc-dom">
+        <div class="sc-bar">
+          <div class="tl-seg" id="scAgg">${SC_AGG.map(([l], k) => `<button type="button" data-scagg="${k}">${l}</button>`).join("")}</div>
+          <button type="button" class="sc-center" id="scCenter" title="В центр (Пробел)">⦿ В центр</button>
+          <span class="sc-hint">Клик — лимит · Shift+клик — стоп · клик по заявке — снять</span>
+        </div>
+        <div class="sc-head"><span>Сделки</span><span class="b">Покупка</span><span>Цена</span><span class="s">Продажа</span></div>
+        <div class="sc-ladder" id="scLadder" tabindex="0"></div>
+      </section>
+      <aside class="sc-side">
+        <div class="sc-card"><b class="sc-t">Рабочий объём</b>
+          <div class="sc-vols" id="scVols"></div>
+          <label class="sc-edit">Изменить выбранный, $ <input id="scVolEdit" type="number" min="10" step="10" inputmode="decimal"></label>
+          <div class="sc-lev" id="scLev"></div>
+          <div class="sc-mk"><button type="button" class="btn buy" id="scBuyM">Купить по рынку <kbd>B</kbd></button><button type="button" class="btn sell" id="scSellM">Продать по рынку <kbd>S</kbd></button></div>
+        </div>
+        <div class="sc-card" id="scPos"></div>
+        <div class="sc-card" id="scOrd"></div>
+        <div class="sc-card sc-set">
+          <label class="chk"><input type="checkbox" id="scHot"><span class="box"></span> Горячие клавиши</label>
+          <label class="chk"><input type="checkbox" id="scConfirm"><span class="box"></span> Подтверждать сделки</label>
+          <label class="chk"><input type="checkbox" id="scAuto"><span class="box"></span> Держать цену в центре</label>
+          <div class="sc-keys"><span><kbd>1</kbd>–<kbd>4</kbd> объём</span><span><kbd>B</kbd> / <kbd>S</kbd> по рынку</span><span><kbd>X</kbd> закрыть позицию</span><span><kbd>C</kbd> снять заявки</span><span><kbd>Пробел</kbd> в центр</span><span><kbd>колесо</kbd> листать цены</span></div>
+        </div>
+      </aside></div>`;
+    el.querySelectorAll("[data-scagg]").forEach((b) => (b.onclick = () => ((SC.agg = Number(b.dataset.scagg)), scSave(), scResetData(), scSubscribe())));
+    $("scCenter").onclick = () => ((SC.auto = !0), ($("scAuto").checked = !0), scSave(), (SC.center = null), scRender());
+    $("scVolEdit").onchange = (e) => {
+      const v = Number(e.target.value);
+      v >= 10 ? ((SC.vols[SC.vi] = v), scSave(), scVolsUi()) : ((e.target.value = SC.vols[SC.vi]), toast("Минимальный ордер на бирже — $10", "err"));
+    };
+    $("scBuyM").onclick = () => scOrder(!0, 0, "market");
+    $("scSellM").onclick = () => scOrder(!1, 0, "market");
+    [["scHot", "hot"], ["scConfirm", "confirm"], ["scAuto", "auto"]].forEach(([id, k]) => {
+      $(id).checked = SC[k];
+      $(id).onchange = (e) => ((SC[k] = e.target.checked), scSave(), k === "auto" && SC.auto && ((SC.center = null), scRender()));
+    });
+    const lad = $("scLadder");
+    lad.addEventListener("click", scClick);
+    lad.addEventListener(
+      "wheel",
+      (e) => {
+        if (!SC.step || SC.center == null) return;
+        e.preventDefault();
+        SC.auto = !1;
+        $("scAuto").checked = !1;
+        SC.center = scRound(SC.center + (e.deltaY < 0 ? 1 : -1) * SC.step * Math.max(1, Math.round(Math.abs(e.deltaY) / 40)));
+        scRender();
+      },
+      { passive: !1 },
+    );
+    new ResizeObserver(() => scOn() && scRender()).observe(lad);
+    document.addEventListener("keydown", scKeys);
+  }
+  scVolsUi();
+  scSubscribe();
+  scRender();
+  scSideRender(!0);
+}
+function scVolsUi() {
+  const el = $("scVols");
+  if (!el) return;
+  el.innerHTML = SC.vols.map((v, k) => `<button type="button" data-scv="${k}" class="${k === SC.vi ? "on" : ""}"><kbd>${k + 1}</kbd>$${v.toLocaleString("ru-RU")}</button>`).join("");
+  el.querySelectorAll("[data-scv]").forEach((b) => (b.onclick = () => ((SC.vi = Number(b.dataset.scv)), scSave(), scVolsUi())));
+  $("scVolEdit").value = SC.vols[SC.vi];
+}
+function scResetData() {
+  SC.book = null;
+  SC.step = 0;
+  SC.center = null;
+  SC.tv = new Map();
+  document.querySelectorAll("#scAgg [data-scagg]").forEach((b) => b.classList.toggle("on", Number(b.dataset.scagg) === SC.agg));
+}
+/* стакан: «точно» — общий поток терминала; крупнее — своя подписка с округлением */
+async function scSubscribe() {
+  if (SC.coin !== S.coin) ((SC.coin = S.coin), (SC.tape = []), scResetData(), scTapeRender());
+  document.querySelectorAll("#scAgg [data-scagg]").forEach((b) => b.classList.toggle("on", Number(b.dataset.scagg) === SC.agg));
+  const p = SC_AGG[SC.agg][1],
+    key = p ? `${S.coin}|${JSON.stringify(p)}` : "";
+  if (SC.subKey === key && (SC.sub || !p)) return;
+  scUnsub();
+  SC.subKey = key;
+  if (!p) return (S.book && scBook(S.book), scRender());
+  const coin = S.coin;
+  info
+    .l2Book({ coin, ...p })
+    .then((d) => SC.subKey === key && d && scLevels(d.levels))
+    .catch(() => {});
+  if (subs)
+    try {
+      const s = await subs.l2Book({ coin, ...p }, (d) => SC.subKey === key && d.coin === coin && scLevels(d.levels));
+      SC.subKey === key ? (SC.sub = s) : s.unsubscribe().catch(() => {});
+    } catch {}
+}
+function scUnsub() {
+  if (!SC) return;
+  SC.sub && SC.sub.unsubscribe().catch(() => {});
+  SC.sub = null;
+  SC.subKey = "";
+}
+const scLevels = (lv) => lv && scBook({ bids: lv[0].map((n) => ({ px: +n.px, sz: +n.sz })), asks: lv[1].map((n) => ({ px: +n.px, sz: +n.sz })) });
+function scBook(b) {
+  if (!scOn() || !b?.bids || !b?.asks) return;
+  if (!SC.step) {
+    /* шаг цены — наименьшая разница между соседними уровнями */
+    const ps = [...b.asks, ...b.bids].map((x) => x.px).sort((x, y) => x - y);
+    let d = Infinity;
+    for (let k = 1; k < ps.length; k++) {
+      const v = ps[k] - ps[k - 1];
+      v > 1e-12 && v < d && (d = v);
+    }
+    if (!Number.isFinite(d)) return;
+    const e = 10 ** Math.floor(Math.log10(d));
+    SC.step = Math.round(d / e) * e;
+  }
+  SC.book = b;
+  scRender();
+}
+function scTrades(list) {
+  if (!scOn() || SC.coin !== S.coin) return;
+  for (const t of list) {
+    if (t.coin !== S.coin) continue;
+    const px = +t.px,
+      usd = px * +t.sz;
+    SC.tape.unshift({ px, usd, b: t.side === "B", time: t.time });
+    if (SC.step) {
+      const k = scKey(px),
+        o = SC.tv.get(k) || { b: 0, s: 0 };
+      t.side === "B" ? (o.b += usd) : (o.s += usd);
+      SC.tv.set(k, o);
+    }
+    SC.last = px;
+  }
+  SC.tape.length > 150 && (SC.tape.length = 150);
+  scTapeRender();
+  scRender();
+}
+function scTapeRender() {
+  const el = $("scTape");
+  if (!el) return;
+  const avg = SC.tape.reduce((a, t) => a + t.usd, 0) / (SC.tape.length || 1);
+  el.innerHTML =
+    SC.tape
+      .slice(0, 80)
+      .map((t) => `<div class="sc-tr ${t.b ? "b" : "s"}${t.usd >= avg * 4 && t.usd >= 1e3 ? " big" : ""}"><span>${fmtPx(t.px)}</span><span>${compactUsd(t.usd)}</span><span>${new Date(t.time).toLocaleTimeString("ru-RU", { hour12: !1 })}</span></div>`)
+      .join("") || '<p class="muted small">Ждём сделки…</p>';
+}
+function scRender() {
+  if (SC.raf || !scOn()) return;
+  SC.raf = requestAnimationFrame(() => {
+    SC.raf = 0;
+    scDraw();
+    Date.now() - SC.sideAt > 700 && scSideRender();
+  });
+}
+function scDraw() {
+  const lad = $("scLadder"),
+    b = SC.book;
+  if (!lad) return;
+  if (isSpot()) return void (lad.innerHTML = '<p class="sc-empty">Скальпинг-стакан работает для фьючерсов. Выберите фьючерсную пару.</p>');
+  if (!b || !SC.step || !b.asks[0] || !b.bids[0]) return void (lad.innerHTML = '<p class="sc-empty">Загружаем стакан…</p>');
+  const RH = 20,
+    n = Math.max(10, Math.floor(lad.clientHeight / RH)),
+    half = Math.floor(n / 2),
+    ask = b.asks[0].px,
+    bid = b.bids[0].px,
+    mid = scRound((ask + bid) / 2);
+  if (SC.center == null || (SC.auto && Math.abs(mid - SC.center) > SC.step * n * 0.3)) SC.center = mid;
+  const A = new Map(),
+    B = new Map();
+  b.asks.forEach((x) => A.set(scKey(x.px), (A.get(scKey(x.px)) || 0) + x.px * x.sz));
+  b.bids.forEach((x) => B.set(scKey(x.px), (B.get(scKey(x.px)) || 0) + x.px * x.sz));
+  const vis = [...A.values(), ...B.values()],
+    mx = Math.max(...vis, 1),
+    avg = vis.reduce((a, v) => a + v, 0) / (vis.length || 1),
+    tvMax = Math.max(1, ...[...SC.tv.values()].map((o) => o.b + o.s));
+  /* свои заявки, стопы и позиция */
+  const my = new Map();
+  for (const o of S.orders || []) {
+    if (o.coin !== S.coin) continue;
+    const px = Number(o.isTrigger ? o.triggerPx : o.limitPx),
+      k = scKey(px),
+      a = my.get(k) || [];
+    a.push(o);
+    my.set(k, a);
+  }
+  const pos = curPosition(),
+    entK = pos ? scKey(Number(pos.entryPx)) : null,
+    liqK = pos?.liquidationPx ? scKey(Number(pos.liquidationPx)) : null,
+    lastK = SC.last ? scKey(SC.last) : null,
+    pd = Math.max(0, -Math.floor(Math.log10(SC.step) + 1e-9)),
+    md = mkt(S.coin),
+    szD = md ? Math.min(md.szDecimals, 4) : 4;
+  let html = "";
+  for (let i = 0; i < n; i++) {
+    const px = SC.center + (half - i) * SC.step,
+      k = scKey(px),
+      av = A.get(k),
+      bv = B.get(k),
+      tv = SC.tv.get(k),
+      mine = my.get(k) || [],
+      mb = mine.filter((o) => o.side === "B"),
+      ms = mine.filter((o) => o.side !== "B"),
+      zone = px >= ask - SC.step / 2 ? "a" : px <= bid + SC.step / 2 ? "b" : "sp",
+      badge = (arr) =>
+        arr.map((o) => `<em class="sc-my${o.isTrigger ? " trg" : ""}" data-oid="${o.oid}" title="${o.isTrigger ? "Стоп-ордер" : "Ваша заявка"} — нажмите, чтобы снять">${o.isTrigger ? "⚡" : ""}${num(Number(o.sz), szD)} ✕</em>`).join(""),
+      bar = (v, cls) => (v ? `<i class="${cls}" style="width:${Math.min(100, (v / mx) * 100).toFixed(1)}%"></i>` : ""),
+      big = (v) => (v && v >= avg * 3 ? " big" : "");
+    html += `<div class="sc-row z-${zone}${k === entK ? " ent" : ""}${k === liqK ? " liq" : ""}${k === lastK ? " last" : ""}" data-px="${px}">
+      <span class="sc-c tv">${tv ? `<i style="width:${(((tv.b + tv.s) / tvMax) * 100).toFixed(1)}%"></i><b>${compactUsd(tv.b + tv.s)}</b>` : ""}</span>
+      <span class="sc-c bc${big(bv)}" data-side="b">${bar(bv, "bb")}<b>${bv ? compactUsd(bv) : ""}</b>${badge(mb)}</span>
+      <span class="sc-c pc">${px.toFixed(pd)}${k === entK ? `<small class="${clsOf(Number(pos.unrealizedPnl))}">${usd(Number(pos.unrealizedPnl))}</small>` : ""}${k === liqK ? "<small>ликв.</small>" : ""}</span>
+      <span class="sc-c ac${big(av)}" data-side="a">${bar(av, "ab")}<b>${av ? compactUsd(av) : ""}</b>${badge(ms)}</span></div>`;
+  }
+  lad.innerHTML = html;
+}
+function scSideRender(force) {
+  SC.sideAt = Date.now();
+  const P = $("scPos"),
+    O = $("scOrd"),
+    L = $("scLev");
+  if (!P || !O) return;
+  const pos = curPosition(),
+    lev = Number($("lev")?.value) || 1;
+  L && (L.innerHTML = `<span>Плечо <b>${lev}x</b> · ${S.margin === "cross" ? "кросс" : "изолированная"}</span><span class="muted small">меняется в обычной панели сделки</span>`);
+  if (pos) {
+    const sz = Number(pos.szi),
+      pnl = Number(pos.unrealizedPnl);
+    P.innerHTML = `<b class="sc-t">Позиция ${esc(S.coin)}</b>
+      <div class="bx-kv"><span>Размер</span><b class="${sz > 0 ? "pos" : "neg"}">${sz > 0 ? "Лонг" : "Шорт"} ${num(Math.abs(sz), 4)}</b></div>
+      <div class="bx-kv"><span>Цена входа</span><b>${fmtPx(Number(pos.entryPx))}</b></div>
+      <div class="bx-kv"><span>Прибыль / убыток</span><b class="${clsOf(pnl)}">${usd(pnl)} · ${(Number(pos.returnOnEquity) * 100).toFixed(2)}%</b></div>
+      ${pos.liquidationPx ? `<div class="bx-kv"><span>Ликвидация</span><b>${fmtPx(Number(pos.liquidationPx))}</b></div>` : ""}
+      <div class="sc-mk"><button type="button" class="btn ghost" id="scClose">Закрыть по рынку <kbd>X</kbd></button><button type="button" class="btn ghost" id="scRev">Развернуть</button></div>`;
+    $("scClose").onclick = () => scClosePos();
+    $("scRev").onclick = () => reversePosition(S.coin);
+  } else P.innerHTML = `<b class="sc-t">Позиция ${esc(S.coin)}</b><p class="muted small">Позиции нет</p>`;
+  const ords = (S.orders || []).filter((o) => o.coin === S.coin);
+  O.innerHTML = `<b class="sc-t">Заявки ${esc(S.coin)} <small>${ords.length || ""}</small></b>${
+    ords.length
+      ? ords
+          .map((o) => `<div class="sc-o"><span class="${o.side === "B" ? "pos" : "neg"}">${o.side === "B" ? "Покупка" : "Продажа"}${o.isTrigger ? " · стоп" : ""}</span><span>${fmtPx(Number(o.isTrigger ? o.triggerPx : o.limitPx))}</span><span>${num(Number(o.sz), 4)}</span><button type="button" data-sccancel="${o.oid}" title="Снять">✕</button></div>`)
+          .join("") + `<button type="button" class="btn ghost small wide-btn" id="scCancelAll">Снять все <kbd>C</kbd></button>`
+      : '<p class="muted small">Заявок нет</p>'
+  }`;
+  O.querySelectorAll("[data-sccancel]").forEach((b) => (b.onclick = () => scCancel([Number(b.dataset.sccancel)])));
+  $("scCancelAll") && ($("scCancelAll").onclick = () => scCancel(ords.map((o) => o.oid)));
+}
+function scClick(e) {
+  const my = e.target.closest(".sc-my");
+  if (my) return scCancel([Number(my.dataset.oid)]);
+  const cell = e.target.closest("[data-side]"),
+    row = e.target.closest(".sc-row");
+  if (!cell || !row) return;
+  const px = Number(row.dataset.px),
+    buy = cell.dataset.side === "b";
+  scOrder(buy, px, e.shiftKey ? "stop" : "limit");
+}
+function scKeys(e) {
+  if (!scOn() || !SC.hot || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  if (document.querySelector("dialog[open]") || ($("bx") && !$("bx").hidden)) return;
+  const k = e.key.toLowerCase();
+  if (["1", "2", "3", "4"].includes(k)) ((SC.vi = Number(k) - 1), scSave(), scVolsUi());
+  else if (k === "b" || k === "и") scOrder(!0, 0, "market");
+  else if (k === "s" || k === "ы") scOrder(!1, 0, "market");
+  else if (k === "x" || k === "ч") scClosePos();
+  else if (k === "c" || k === "с") scCancel((S.orders || []).filter((o) => o.coin === S.coin).map((o) => o.oid));
+  else if (k === " ") ((SC.auto = !0), ($("scAuto").checked = !0), (SC.center = null), scRender());
+  else return;
+  e.preventDefault();
+}
+async function scReady() {
+  if (isSpot()) return toast("Скальпинг-стакан — только для фьючерсов", "err"), !1;
+  if (!S.user || !S.agentExchange) return toast("Подключите кошелёк, чтобы торговать", "err"), !1;
+  return !0;
+}
+async function scOrder(buy, px, kind) {
+  if (!(await scReady())) return;
+  const m = mkt(S.coin),
+    usdAmt = SC.vols[SC.vi];
+  if (!m) return;
+  try {
+    let price = px,
+      o;
+    const slip = Number(SET.slippage) || CFG.slippage;
+    if (kind === "market") {
+      const mp = marketPx(S.coin, buy, { usdc: usdAmt });
+      price = mp.avg || Number(S.ctx[S.coin]?.midPx);
+      o = { a: m.index, b: buy, p: fmtP(mp.px, m), s: formatSize(usdAmt / price, m.szDecimals), r: !1, t: { limit: { tif: "Ioc" } } };
+    } else if (kind === "stop") {
+      const mid = Number(S.ctx[S.coin]?.midPx || px),
+        tpsl = buy ? (px > mid ? "sl" : "tp") : px < mid ? "sl" : "tp";
+      o = { a: m.index, b: buy, p: fmtP(px * (buy ? 1 + slip : 1 - slip), m), s: formatSize(usdAmt / px, m.szDecimals), r: !1, t: { trigger: { isMarket: !0, triggerPx: fmtP(px, m), tpsl } } };
+    } else o = { a: m.index, b: buy, p: fmtP(px, m), s: formatSize(usdAmt / px, m.szDecimals), r: !1, t: { limit: { tif: "Gtc" } } };
+    if (!(Number(o.s) > 0) || Number(o.s) * price < 10) return toast("Минимальный ордер на бирже — $10. Увеличьте рабочий объём.", "err");
+    const what = kind === "market" ? "по рынку" : kind === "stop" ? `стоп по ${fmtPx(px)}` : `лимит по ${fmtPx(px)}`;
+    if (
+      SC.confirm &&
+      !(await confirmBox({ title: buy ? "Купить?" : "Продать?", pair: pairLabel(S.coin), tag: buy ? "Покупка" : "Продажа", tagCls: buy ? "pos" : "neg", rows: [["Тип", what], ["Объём", `$${usdAmt} · ${o.s} ${baseOf()}`]], okLabel: buy ? "Купить" : "Продать" }))
+    )
+      return;
+    const lev = Number($("lev")?.value) || 1,
+      lk = `${S.coin}|${lev}|${S.margin}`;
+    if (SC.levKey !== lk) {
+      await S.agentExchange.updateLeverage({ asset: m.index, isCross: S.margin === "cross", leverage: lev });
+      logLeverage(S.coin, lev);
+      SC.levKey = lk;
+    }
+    const st = (await S.agentExchange.order({ orders: [o], grouping: "na", builder: builderParam() })).response.data.statuses[0];
+    if (st?.error) throw new Error(st.error);
+    (st?.filled || st?.resting) && tradeSound(buy);
+    st?.filled ? toast(`${buy ? "Куплено" : "Продано"}: ${st.filled.totalSz} ${baseOf()} по ${st.filled.avgPx}`, "ok") : toast(`${buy ? "Покупка" : "Продажа"}: ${what}`, "ok");
+    fundingAt = 0;
+    refreshAccount().then(() => scRender());
+  } catch (err) {
+    toast(humanError(err), "err");
+  }
+}
+async function scCancel(oids) {
+  if (!oids.length) return;
+  if (!(await scReady())) return;
+  try {
+    await safeCancel(S.coin, oids.map((oid) => ({ oid })));
+    toast(oids.length > 1 ? `Снято заявок: ${oids.length}` : "Заявка снята", "ok");
+  } catch (err) {
+    toast(humanError(err), "err");
+  }
+  refreshAccount().then(() => (scRender(), scSideRender()));
+}
+async function scClosePos() {
+  const pos = curPosition();
+  if (!pos) return toast(`Позиции по ${S.coin} нет`, "info");
+  if (!(await scReady())) return;
+  (await closePosition(S.coin, pos.szi)) && scRender();
+}
 /* ═══════════ Окно связки «Totum ↔ биржа» на весь экран ═══════════
    Сверху — фандинг каждой биржи, суммарный фандинг связки, вход и выход по
    стаканам. Слева — график: свечи спреда (таймфреймы 5м/15м/1ч/4ч), линии
@@ -6075,6 +6454,7 @@ function setCpTab(i) {
     $("sidePanel").classList.toggle("show-trades", i === "trades"),
     i === "info" && renderInfo(),
     i === "tools" && renderTools(!0),
+    i === "scalp" ? scOpen() : scUnsub(),
     i === "book" && renderBook(),
     i === "chart" && S.chartView === "depth" && requestAnimationFrame(renderDepth));
 }
