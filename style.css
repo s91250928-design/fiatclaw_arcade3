@@ -673,8 +673,8 @@ body:not(.connected) #trRow{display:none}
   body[data-mv="full"]{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
   .mnav{display:flex;position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:20;
     height:64px;padding:6px;border-radius:24px;
-    background:color-mix(in srgb,var(--panel) 72%,transparent);
-    -webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);
+    background:color-mix(in srgb,var(--panel) 96%,transparent);
+    transform:translateZ(0);will-change:transform;contain:layout paint;
     border:1px solid color-mix(in srgb,var(--line) 80%,transparent);
     box-shadow:0 10px 30px rgba(2,6,23,.28),inset 0 1px 0 rgba(255,255,255,.08)}
   body[data-mv="full"] .mnav,body.sheet .mnav{display:none}
@@ -756,19 +756,18 @@ body:not(.connected) #trRow{display:none}
 @media (max-width:900px){.set-btn svg{width:17px;height:17px}}
 /* Карточка «Ваши активы»: фон медленно переливается в фирменном градиенте (синий → бирюзовый) */
 @media (max-width:900px){
-  .hero-card{isolation:isolate;background:linear-gradient(120deg,#0b1430 0%,#1e3a8a 22%,#2563eb 40%,#06b6d4 58%,#1e40af 76%,#0b1430 100%);
-    background-size:320% 320%;animation:hero-flow 14s ease-in-out infinite}
-  .hero-card::before{content:"";position:absolute;inset:-40%;z-index:-1;pointer-events:none;
-    background:radial-gradient(closest-side,rgba(165,243,252,.55),transparent 70%) 0 0/45% 45% no-repeat,
-               radial-gradient(closest-side,rgba(59,130,246,.55),transparent 70%) 100% 100%/55% 55% no-repeat;
-    filter:blur(10px);animation:hero-orbs 18s linear infinite}
-  .hero-card::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
-    background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.16) 50%,transparent 65%) -150% 0/60% 100% no-repeat;
-    animation:hero-shine 7s ease-in-out infinite}
+  .hero-card{isolation:isolate;transform:translateZ(0);contain:paint;background:linear-gradient(120deg,#0b1430 0%,#1e3a8a 30%,#2563eb 55%,#0e7490 85%,#1e40af 100%)}
+  .hero-card::before{content:"";position:absolute;inset:-40%;z-index:-1;pointer-events:none;will-change:transform;
+    background:radial-gradient(closest-side,rgba(165,243,252,.42),transparent 75%) 0 0/50% 50% no-repeat,
+               radial-gradient(closest-side,rgba(59,130,246,.5),transparent 75%) 100% 100%/60% 60% no-repeat;
+    animation:hero-orbs 18s linear infinite}
+  .hero-card::after{content:"";position:absolute;top:0;bottom:0;left:0;width:60%;z-index:-1;pointer-events:none;will-change:transform;
+    background:linear-gradient(105deg,transparent 20%,rgba(255,255,255,.16) 50%,transparent 80%);
+    transform:translateX(-120%);animation:hero-shine 7s ease-in-out infinite}
 }
 @keyframes hero-flow{0%,100%{background-position:0% 30%}50%{background-position:100% 70%}}
 @keyframes hero-orbs{0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.15)}100%{transform:rotate(360deg) scale(1)}}
-@keyframes hero-shine{0%,55%{background-position:-150% 0}85%,100%{background-position:250% 0}}
+@keyframes hero-shine{0%,55%{transform:translateX(-120%)}85%,100%{transform:translateX(260%)}}
 @media (prefers-reduced-motion:reduce){.hero-card,.hero-card::before,.hero-card::after{animation:none}}
 @media (max-width:900px){.hero-card .wide-btn{background:#fff;color:#0f172a;border:0;box-shadow:0 6px 18px rgba(2,6,23,.25)}}
 

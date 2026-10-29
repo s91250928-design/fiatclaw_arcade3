@@ -407,12 +407,14 @@
   <div class="row"><button id="cfCancel" class="btn ghost grow" type="button">Отмена</button><button id="cfOk" class="btn grow" type="button">Подтвердить</button></div>
 </dialog>
 <dialog id="ordersPage" class="page-dlg">
-  <div class="pg-head"><button id="opBack" class="icon-btn2" type="button" aria-label="Назад">←</button><h2>Ордера</h2><button id="opRefresh" class="icon-btn2" type="button" title="Обновить" aria-label="Обновить">↻</button></div>
+  <div class="pg-head"><button id="opBack" class="icon-btn2" type="button" aria-label="Назад">←</button><h2 id="opTitle">Ордера</h2><button id="opRefresh" class="icon-btn2" type="button" title="Обновить" aria-label="Обновить">↻</button></div>
   <div class="pg-tabs" id="opTabs">
     <button data-op="open" class="on" type="button">Открытые ордера</button>
-    <button data-op="pos" type="button">История позиций</button>
-    <button data-op="fills" type="button">История ордеров</button>
-    <button data-op="funding" type="button">История фандинга</button>
+    <button data-op="pos" class="op-perp" type="button">История позиций</button>
+    <button data-op="fills" class="op-perp" type="button">История ордеров</button>
+    <button data-op="funding" class="op-perp" type="button">История фандинга</button>
+    <button data-op="sorders" class="op-spot" type="button" hidden>История ордеров</button>
+    <button data-op="strades" class="op-spot" type="button" hidden>История сделок</button>
     <button data-op="builder" id="opBuilderTab" type="button" hidden>Доход Totum</button>
     <button id="opCalTab" type="button" class="op-cal">Календарь PnL</button>
   </div>
