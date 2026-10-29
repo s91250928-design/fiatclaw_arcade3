@@ -12,7 +12,7 @@ await page.goto(URL0 + "/#trade"); await page.waitForTimeout(5000);
 const sp = await page.evaluate(() => { const m = window.__totum.S.spot.find((x) => x.quote === "USDC" && x.base !== "USDC"); return { name: m.name, base: m.base }; });
 const f = (o) => ({ coin: sp.name, crossed: true, startPosition: "0", dir: o.side === "B" ? "Buy" : "Sell", hash: "0x", tid: Math.random(), ...o });
 fills = [
-  f({ side: "B", px: "10", sz: "10", time: now - 5e6, oid: 1, fee: "0.007", feeToken: sp.base, builderFee: "0.0025" }), // купил через Totum 10 по 10
+  f({ side: "B", px: "10", sz: "10", time: now - 5e6, oid: 1, fee: "0.007", feeToken: sp.base, cloid: "0x746f74756d0102030405060708090a0b" }), // купил через Totum 10 по 10 (у покупок на споте нет комиссии строителя — метка в cloid)
   f({ side: "B", px: "8", sz: "5", time: now - 4e6, oid: 2, fee: "0.003", feeToken: sp.base }),                       // купил в другом месте — не считается
   f({ side: "A", px: "12", sz: "4", time: now - 3e6, oid: 3, fee: "0.03", feeToken: "USDC", builderFee: "0.01" }),    // продал через Totum 4 по 12
   f({ side: "A", px: "9", sz: "3", time: now - 2e6, oid: 4, fee: "0.02", feeToken: "USDC" }),                         // продал не через Totum — без PnL
@@ -43,5 +43,14 @@ const t2 = (await page.locator("#opTabs button:visible").allTextContents()).map(
 R.ok("у фьючерсов — прежние вкладки", t2.includes("История позиций") && !t2.includes("История сделок"), t2.join(" | "));
 await page.click('[data-op="fills"]'); await page.waitForTimeout(1500);
 R.ok("спотовые сделки не попадают во фьючерсы", (await page.locator("#opList .op-card").count()) === 0);
+// новый спотовый ордер помечается как ордер Totum
+const calOk = !(await page.locator("#opTabs").textContent()).includes("Календарь");
+await page.keyboard.press("Escape"); await page.waitForTimeout(400);
+await page.evaluate((c) => window.__totum.switchCoin(c), sp.name); await page.waitForTimeout(1200);
+await page.fill("#size", "20"); await page.click("#btnBuy"); await page.waitForTimeout(800);
+await page.click("#cfOk").catch(() => {}); await page.waitForTimeout(1500);
+const ord = state.exchange.find((e) => e.action.type === "order");
+R.ok("спотовый ордер уходит с меткой Totum (cloid 0x746f74756d…)", /^0x746f74756d[0-9a-f]{22}$/.test(ord?.action.orders[0].c || ""), ord?.action.orders[0].c);
+R.ok("календаря нет среди вкладок ордеров", calOk);
 R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();

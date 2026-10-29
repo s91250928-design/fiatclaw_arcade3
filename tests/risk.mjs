@@ -30,6 +30,7 @@ const appr = state.exchange.find((e) => e.action.type === "approveAgent"), fee =
 R.ok("после подключения подпись запрошена сама, без кнопки и галочки (комиссия уже была разрешена)", !!appr && !fee);
 const vu = Number(/valid_until (\d+)/.exec(appr?.action.agentName || "")?.[1] || 0);
 R.ok("ключ для сделок на ~180 дней (максимум Hyperliquid)", Math.abs(vu - Date.now() - 179 * 864e5) < 36e5, appr?.action.agentName);
+R.ok("у каждого устройства своё имя ключа (телефон не отключает компьютер)", /^totum [a-z0-9]{4} valid_until/.test(appr?.action.agentName || ""), appr?.action.agentName);
 R.ok("кнопки сделок активны сразу", !(await page.isDisabled("#btnBuy")));
 const mid = () => page.evaluate(() => Number(window.__totum.S.ctx[window.__totum.S.coin].midPx));
 const val = async (id) => Number(await page.inputValue(id));

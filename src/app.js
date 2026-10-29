@@ -1474,6 +1474,13 @@ async function saveAgent(i, t) {
       }),
     );
   } catch {
+    /* Встроенный браузер (например, в Telegram) не дал зашифрованное хранилище.
+       Ключ агента не может выводить деньги — только торговать, поэтому
+       сохраняем его как есть, чтобы не просить подпись при каждом входе. */
+    try {
+      localStorage.setItem(agentStoreKey(), JSON.stringify({ pk: i, validUntil: t }));
+      return;
+    } catch {}
     try {
       sessionStorage.setItem(
         agentStoreKey(),
@@ -1494,6 +1501,7 @@ async function loadAgent() {
     let i = JSON.parse(localStorage.getItem(agentStoreKey()) || "null");
     if (!i) return null;
     if (i.validUntil && i.validUntil < Date.now()) return (forgetAgent(), null);
+    if (i.pk) return i.pk;
     let t = await deviceKey(),
       e = await crypto.subtle.decrypt(
         {
@@ -1599,6 +1607,28 @@ function updateSetupUI() {
    (и разрешает комиссию Totum — так требует биржа). Дальше сделки идут без
    окон в кошельке. Ключ живёт 180 дней — максимум, который даёт Hyperliquid. */
 const AGENT_DAYS = 179;
+function deviceTag() {
+  try {
+    let d = localStorage.getItem("totum.dev");
+    d || ((d = Math.random().toString(36).slice(2, 6)), localStorage.setItem("totum.dev", d));
+    return d;
+  } catch {
+    return "web";
+  }
+}
+/* Hyperliquid даёт до 3 именованных ключей на аккаунт. Своё имя устройства;
+   если мест нет — заменяем самый старый ключ Totum. */
+async function agentNameFor() {
+  const mine = `${CFG.agentName} ${deviceTag()}`;
+  try {
+    const list = (await info.extraAgents({ user: S.user })) || [];
+    if (list.some((a) => a.name === mine) || list.filter((a) => a.name).length < 3) return mine;
+    const old = list.filter((a) => (a.name || "").startsWith(CFG.agentName)).sort((a, b) => (a.validUntil || 0) - (b.validUntil || 0))[0];
+    return old ? old.name : mine;
+  } catch {
+    return mine;
+  }
+}
 async function enableTrading() {
   if (S.enabling) return;
   S.enabling = !0;
@@ -1624,7 +1654,7 @@ async function enableTrading() {
         n = Date.now() + AGENT_DAYS * 864e5;
       (await S.userExchange.approveAgent({
         agentAddress: e.address,
-        agentName: `${CFG.agentName} valid_until ${n}`,
+        agentName: `${await agentNameFor()} valid_until ${n}`,
       }),
         await saveAgent(t, n),
         (S.agent = e),
@@ -3775,7 +3805,7 @@ function spotPnlByOrder(fills) {
       sz = Number(f.sz),
       px = Number(f.px),
       fee = Number(f.fee || 0),
-      ours = Number(f.builderFee || 0) > 0,
+      ours = viaTotum(f),
       L = (lots[f.coin] = lots[f.coin] || { q: 0, c: 0 });
     if (f.side === "B") {
       if (!ours) continue;
@@ -4449,6 +4479,10 @@ function tradeSound(buy) {
     SOUNDS[k].play().catch(() => {});
   } catch {}
 }
+const TOTUM_CLOID = "0x746f74756d"; /* «totum» в начале идентификатора ордера */
+const totumCloid = () =>
+  TOTUM_CLOID + [...crypto.getRandomValues(new Uint8Array(11))].map((b) => b.toString(16).padStart(2, "0")).join("");
+const viaTotum = (f) => Number(f.builderFee || 0) > 0 || String(f.cloid || "").toLowerCase().startsWith(TOTUM_CLOID);
 async function placeSpotOrder(i, t) {
   let e = baseOf(),
     n = Number(S.ctx[S.coin]?.midPx || 0);
@@ -4487,6 +4521,7 @@ async function placeSpotOrder(i, t) {
                 tif: S.orderType === "limit" ? "Gtc" : "Ioc",
               },
             },
+            c: totumCloid(),
           },
         ],
         grouping: "na",
@@ -6579,8 +6614,8 @@ function bindSettings() {
     ($("pnlShare").onclick = pnlShare),
     ($("pnlCopy").onclick = pnlCopy),
     ($("btnOrdersInfo").onclick = () => openOrdersPage()),
+    ($("btnCalendar").onclick = () => openCalendar()),
     ($("opBack").onclick = () => $("ordersPage").close()),
-    ($("opCalTab").onclick = () => openCalendar()),
     ($("calBack").onclick = () => $("calDialog").close()),
     ($("opRefresh").onclick = async () => {
       (OP.tab === "open" && (await refreshAccount()), loadOpTab());
