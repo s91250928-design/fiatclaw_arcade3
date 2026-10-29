@@ -114,6 +114,7 @@
       <button data-cp="info" type="button">Информация</button>
       <button data-cp="feed" type="button">Лента</button>
       <button data-cp="top" type="button">Лучшие трейдеры</button>
+      <button data-cp="scalp" type="button" class="cp-tools">Скальпинг</button>
       <button data-cp="tools" type="button" class="cp-tools">Инструменты</button>
     </div>
     <div class="chart-bar">
@@ -166,6 +167,7 @@
       <canvas id="depth" class="depth" aria-label="График глубины рынка"></canvas>
       <div id="chartLoader" class="chart-loader" aria-label="Загрузка графика"><div class="logo-anim"><div class="spin-logo"></div><i class="spin-glow"></i></div></div>
     </div>
+    <div class="cp-pane" id="paneScalp"></div>
     <div class="cp-pane" id="paneTools"><div class="tl-tabs" id="tlTabs"><button type="button" data-tl="funding" class="on">Сканер фандинга</button><button type="button" data-tl="arb">Арбитраж фьючерсов</button></div><div id="tlBody"></div></div>
     <div class="cp-pane" id="paneInfo"><div class="inf-tabs" id="infTabs"></div><div id="infoBody"></div></div>
     <div class="cp-pane" id="paneFeed">
