@@ -3208,8 +3208,14 @@ function openOrdersPage(i) {
     toast("Подключите кошелёк", "err");
     return;
   }
-  (($("opBuilderTab").hidden = !isBuilderUser()),
-    setOpTab(i || OP.tab),
+  /* Спот и фьючерсы — разные наборы вкладок, как на MEXC: у спота нет позиций и фандинга */
+  OP.kind = isSpot() ? "spot" : "perp";
+  document.querySelectorAll("#opTabs .op-perp").forEach((b) => (b.hidden = OP.kind === "spot"));
+  document.querySelectorAll("#opTabs .op-spot").forEach((b) => (b.hidden = OP.kind !== "spot"));
+  $("opTitle").textContent = OP.kind === "spot" ? "Спот · ордера" : "Фьючерсы · ордера";
+  const ok = OP.kind === "spot" ? ["open", "sorders", "strades"] : ["open", "pos", "fills", "funding", "builder"];
+  (($("opBuilderTab").hidden = OP.kind === "spot" || !isBuilderUser()),
+    setOpTab(ok.includes(i || OP.tab) ? i || OP.tab : "open"),
     $("ordersPage").open || $("ordersPage").showModal());
 }
 function setOpTab(i) {
@@ -3217,7 +3223,8 @@ function setOpTab(i) {
     document.querySelectorAll("[data-op]").forEach((t) => t.classList.toggle("on", t.dataset.op === i)),
     loadOpTab());
 }
-var opFilter = (i) => OP.filter === "all" || i === S.coin,
+var isSpotName = (c) => !!mkt(c)?.spot || /^@|\//.test(String(c || "")),
+  opFilter = (i) => (OP.kind === "spot") === isSpotName(i) && (OP.filter === "all" || i === S.coin),
   SHARE_IC =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M12 3v12M7 8l5-5 5 5"/></svg>',
   EMPTY_IC =
@@ -3288,6 +3295,7 @@ async function loadOpTab() {
       return;
     }
     if (i === "builder") return loadBuilderTab();
+    if (i === "sorders" || i === "strades") return loadSpotTab(i);
     let n = (
       (await info.userFills({
         user: S.user,
@@ -3753,6 +3761,115 @@ async function renderCal() {
   $("calDialog").open && draw();
 }
 const compactUsd = (v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e4 ? `${(v / 1e3).toFixed(0)}K` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : v >= 100 ? v.toFixed(0) : v.toFixed(2)).replace(".", ",");
+/* ═══════════ Спот: история ордеров и сделок ═══════════
+   PnL по споту считаем только для монет, купленных И проданных через Totum
+   (у таких сделок есть комиссия нашего строителя). Себестоимость — средняя
+   цена покупок через Totum; продажа в другом месте уменьшает остаток без PnL. */
+function spotPnlByOrder(fills) {
+  const lots = {},
+    byOid = {};
+  for (const f of fills.slice().sort((a, b) => a.time - b.time)) {
+    if (!isSpotName(f.coin)) continue;
+    const m = mkt(f.coin),
+      base = m?.base || "",
+      sz = Number(f.sz),
+      px = Number(f.px),
+      fee = Number(f.fee || 0),
+      ours = Number(f.builderFee || 0) > 0,
+      L = (lots[f.coin] = lots[f.coin] || { q: 0, c: 0 });
+    if (f.side === "B") {
+      if (!ours) continue;
+      L.q += sz - (f.feeToken === base ? fee : 0);
+      L.c += sz * px + (f.feeToken === "USDC" ? fee : 0);
+    } else {
+      const q = Math.min(sz, L.q);
+      if (q <= 0) continue;
+      const avg = L.c / L.q;
+      if (ours) {
+        const o = (byOid[f.oid] = byOid[f.oid] || { q: 0, cost: 0, proceeds: 0, fee: 0 });
+        o.q += q;
+        o.cost += q * avg;
+        o.proceeds += q * px;
+        o.fee += f.feeToken === "USDC" ? fee * (q / sz) : 0;
+      }
+      L.c -= q * avg;
+      L.q -= q;
+    }
+  }
+  for (const o of Object.values(byOid)) {
+    o.avg = o.cost / o.q;
+    o.exit = o.proceeds / o.q;
+    o.pnl = o.proceeds - o.cost - o.fee;
+  }
+  return byOid;
+}
+async function loadSpotTab(tab) {
+  const t = $("opList"),
+    e = $("opNote");
+  const fills = ((await info.userFills({ user: S.user })) || []).slice();
+  const mine = fills.filter((f) => opFilter(f.coin));
+  if (tab === "strades") {
+    e.textContent = "Каждое исполнение по споту: цена, количество и комиссия.";
+    t.innerHTML =
+      mine
+        .sort((a, b) => b.time - a.time)
+        .slice(0, 300)
+        .map((f) => {
+          const m = mkt(f.coin),
+            buy = f.side === "B";
+          return `<article class="op-card st-row"><header>${coinIcon(f.coin)}<b class="pair">${esc(pairLabel(f.coin))}</b><span class="tag ${buy ? "pos" : "neg"}">${buy ? "Покупка" : "Продажа"}</span><span class="when">${fmtTime(f.time)}</span></header>
+          <div class="op-grid" style="margin-top:10px">${kvOp("Цена", fmtPx(Number(f.px)))}${kvOp("Количество", `${num(Number(f.sz), 6)} ${esc(m?.base || "")}`)}${kvOp("Сумма", `${num(Number(f.sz) * Number(f.px), 2)} USDC`)}${kvOp("Роль", f.crossed ? "тейкер" : "мейкер")}${kvOp("Комиссия", `${num(Number(f.fee || 0), 6)} ${esc(f.feeToken || "")}`)}</div></article>`;
+        })
+        .join("") || opEmpty("Сделок по споту пока нет");
+    return fixIcons(t);
+  }
+  e.textContent = "Ордера по споту. PnL показывается у продаж монет, которые вы купили через Totum.";
+  const pnl = spotPnlByOrder(fills),
+    by = new Map();
+  for (const f of mine) {
+    const o = by.get(f.oid) || { ...f, sz: 0, ntl: 0, fee: 0, taker: !1 };
+    o.sz += Number(f.sz);
+    o.ntl += Number(f.sz) * Number(f.px);
+    o.fee += Number(f.fee || 0);
+    o.taker = o.taker || f.crossed;
+    o.time = Math.max(o.time, f.time);
+    by.set(f.oid, o);
+  }
+  const rows = [...by.values()].sort((a, b) => b.time - a.time).slice(0, 200);
+  t.innerHTML =
+    rows
+      .map((o) => {
+        const m = mkt(o.coin),
+          buy = o.side === "B",
+          px = o.ntl / o.sz,
+          r = !buy && pnl[o.oid];
+        let share = "";
+        if (r) {
+          OP.share.push({
+            coin: o.coin,
+            long: !0,
+            sideLabel: "Спот",
+            lev: null,
+            entry: r.avg,
+            exit: r.exit,
+            time: o.time,
+            pnl: r.pnl,
+            pnlLabel: "Прибыль с комиссиями",
+            pct: (r.pnl / r.cost) * 100,
+            pctLabel: "Доходность",
+          });
+          share = `<button class="share-btn" type="button" data-share="${OP.share.length - 1}">${SHARE_IC}PnL</button>`;
+        }
+        return `<article class="op-card ${r ? (r.pnl >= 0 ? "win" : "loss") : ""}">
+        <header>${coinIcon(o.coin)}<b class="pair">${esc(pairLabel(o.coin))}</b><span class="tag ${buy ? "pos" : "neg"}">${buy ? "Покупка" : "Продажа"}</span><span class="when">${fmtTime(o.time)}</span></header>
+        ${r ? `<div class="op-hero"><div><div class="lbl">Прибыль с комиссиями</div><div class="val ${clsOf(r.pnl)}">${sgnUsd(r.pnl)}</div></div><div class="pctv">${sgnNum((r.pnl / r.cost) * 100)}<div class="lbl">доходность</div></div></div>` : '<div style="height:12px"></div>'}
+        <div class="op-grid">${kvOp("Сумма", `${num(o.ntl, 2)} USDC`)}${kvOp("Количество", `${num(o.sz, 6)} ${esc(m?.base || "")}`)}${kvOp("Цена исполнения", fmtPx(px))}
+          ${r ? kvOp("Средняя цена покупки", fmtPx(r.avg)) : ""}${kvOp("Исполнение", o.taker ? "по рынку" : "лимит (мейкер)")}${kvOp("Комиссия", `${num(o.fee, 6)} ${esc(o.feeToken || "")}`)}</div>
+        <div class="op-foot"><span class="muted">Исполнен</span>${share}</div></article>`;
+      })
+      .join("") || opEmpty("Ордеров по споту пока нет");
+  fixIcons(t);
+}
 async function loadBuilderTab() {
   let i = await info.referral({
       user: S.user,
@@ -5551,10 +5668,44 @@ const equitySub = () =>
   isUnified()
     ? `Баланс ${usd(spotTotal())} · PnL позиций ${sgnUsd(upnlTotal())}`
     : `Фьючерсы ${usd(S.accountValue || 0)} · Спот ${usd(spotTotal())}`;
+/* Обновление страницы без пересоздания: меняем только то, что изменилось.
+   Раньше вся главная пересобиралась раз в секунду — на телефоне это давало
+   рывки при прокрутке и дёрганье нижней панели. */
+function morphNode(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) return a.replaceWith(b.cloneNode(!0));
+  if (a.nodeType === 3 || a.nodeType === 8) {
+    a.nodeValue !== b.nodeValue && (a.nodeValue = b.nodeValue);
+    return;
+  }
+  if (a.nodeType !== 1) return;
+  for (const at of [...a.attributes]) b.hasAttribute(at.name) || a.removeAttribute(at.name);
+  for (const at of [...b.attributes]) a.getAttribute(at.name) !== at.value && a.setAttribute(at.name, at.value);
+  /* картинку, которую уже заменили на букву (нет иконки), не трогаем */
+  if (a.classList?.contains("coin-ic") && !a.querySelector("img") && b.querySelector("img")) return;
+  morphKids(a, b);
+}
+function morphKids(a, b) {
+  const ac = [...a.childNodes],
+    bc = [...b.childNodes];
+  bc.forEach((n, k) => (ac[k] ? morphNode(ac[k], n) : a.appendChild(n.cloneNode(!0))));
+  for (let k = bc.length; k < ac.length; k++) ac[k].remove();
+}
+function morphInto(el, html) {
+  if (el.__html === html) return !1;
+  el.__html = html;
+  if (!el.firstChild) {
+    el.innerHTML = html;
+    return !0;
+  }
+  const t = document.createElement(el.tagName);
+  t.innerHTML = html;
+  morphKids(el, t);
+  return !0;
+}
 function renderHome() {
   let i = totalEquity(),
     t = moverRows(S.homeTab);
-  (($("pgHome").innerHTML = `
+  (morphInto($("pgHome"), `
     <div class="hero-card">
       <div class="hc-top"><img src="brand/mark-128.webp" alt="" class="hc-mark"><span>${S.user ? "Ваши активы" : "Добро пожаловать в Totum"}</span>${CFG.isTestnet ? '<span class="badge">ТЕСТ</span>' : ""}</div>
       ${S.user ? `<div class="hc-sum">${usd(i)}</div>${heroPnl()}<div class="hc-cta"><button class="hc-btn main" type="button" data-act="deposit"><i>${NAV_IC.plus}</i>Пополнить</button><button class="hc-btn" type="button" data-act="futures"><i>${NAV_IC.bolt}</i>Торговать</button></div>` : '<div class="hc-lead">Фьючерсы, спот и акции в одном приложении. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
@@ -5569,8 +5720,7 @@ function renderHome() {
       <div class="seg mini-seg" id="homeSeg"><button data-ht="gain" class="${S.homeTab === "gain" ? "on" : ""}" type="button">Растут</button><button data-ht="loss" class="${S.homeTab === "loss" ? "on" : ""}" type="button">Падают</button><button data-ht="vol" class="${S.homeTab === "vol" ? "on" : ""}" type="button">По объёму</button></div>
       <div class="movers">${t.map((e) => `<div class="mv-row" data-go="${esc(e.name)}">${coinIcon(e.name)}<b>${esc(dexBase(e.name))}</b><span class="muted small">${compact(e.vol)}</span><span class="mv-px">${fmtPx(e.mid)}</span><span class="mv-ch ${e.ch >= 0 ? "pos" : "neg"}">${e.ch >= 0 ? "+" : ""}${(e.ch * 100).toFixed(2)}%</span></div>`).join("") || '<p class="muted small pad">Загружаем рынки…</p>'}</div>
     </div>
-    ${CFG.isTestnet ? '<a class="faucet" href="https://app.hyperliquid-testnet.xyz/drip" target="_blank" rel="noopener">Нужны тестовые USDC? Кран тестовой сети →</a>' : ""}`),
-    fixIcons($("pgHome")));
+    ${CFG.isTestnet ? '<a class="faucet" href="https://app.hyperliquid-testnet.xyz/drip" target="_blank" rel="noopener">Нужны тестовые USDC? Кран тестовой сети →</a>' : ""}`) && fixIcons($("pgHome")));
 }
 function markMarketTabs() {
   (document.querySelectorAll("[data-mmk]").forEach((i) => i.classList.toggle("on", i.dataset.mmk === MP.mk)),
@@ -5615,7 +5765,7 @@ function renderAssets() {
   let i = S.positions || [],
     t = i.reduce((n, s) => n + Number(s.unrealizedPnl || 0), 0),
     e = S.spotBal.filter((n) => Number(n.total) > 0);
-  (($("pgAssets").innerHTML =
+  (morphInto($("pgAssets"),
     '<h1 class="pg-title">Активы</h1>' +
     (S.user
       ? `
@@ -5642,7 +5792,7 @@ function renderAssets() {
           : '<p class="muted small">На спот-счёте пусто. Нажмите «Перевести», чтобы перевести USDC с фьючерсного счёта.</p>'
       }
     </div>`
-      : '<div class="hero-card"><div class="hc-lead">Подключите кошелёк, чтобы увидеть балансы фьючерсного и спот-счёта.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button></div>')),
+      : '<div class="hero-card"><div class="hc-lead">Подключите кошелёк, чтобы увидеть балансы фьючерсного и спот-счёта.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button></div>')) &&
     fixIcons($("pgAssets")));
 }
 var NAV_IC = {
@@ -6112,7 +6262,7 @@ async function renderPnlCard() {
     e,
     a,
     170,
-    i.long ? "Лонг" : "Шорт",
+    i.sideLabel || (i.long ? "Лонг" : "Шорт"),
     i.long ? "rgba(52,211,153,.18)" : "rgba(251,113,133,.18)",
     i.long ? "#6EE7B7" : "#FDA4AF",
   )),
