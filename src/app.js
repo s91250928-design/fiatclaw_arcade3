@@ -2251,16 +2251,6 @@ let tradeMarks = null,
   tradeMarksSeries = null,
   fillsAt = 0;
 S.fills = [];
-const MARK_TEXT = {
-  "Open Long": "Лонг",
-  "Close Long": "Закрыл лонг",
-  "Open Short": "Шорт",
-  "Close Short": "Закрыл шорт",
-  "Long > Short": "Разворот в шорт",
-  "Short > Long": "Разворот в лонг",
-  Buy: "Покупка",
-  Sell: "Продажа",
-};
 async function loadFills(force = !1) {
   if (!S.user || (!force && Date.now() - fillsAt < 1e4)) return;
   fillsAt = Date.now();
@@ -2304,16 +2294,14 @@ function drawTradeMarks() {
   const marks = [...groups.values()]
     .sort((a, b) => a.time - b.time)
     .map((g) => {
-      const buy = g.side === "B",
-        d = [...g.dirs],
-        word = d.length === 1 ? MARK_TEXT[d[0]] || (buy ? "Покупка" : "Продажа") : buy ? "Покупка" : "Продажа";
+      const buy = g.side === "B";
       return {
         time: g.time,
         position: buy ? "atPriceBottom" : "atPriceTop",
         price: g.ntl / g.sz,
         shape: buy ? "arrowUp" : "arrowDown",
         color: buy ? UP_COLOR : DOWN_COLOR,
-        text: `${buy ? "Buy" : "Sell"} · ${word}`,
+        text: buy ? "Buy" : "Sell",
       };
     });
   tradeMarks.setMarkers(marks);

@@ -33,8 +33,8 @@ for (const vp of [{ width: 1440, height: 900, name: "desktop" }, { width: 390, h
   const marks = await page.evaluate(() => window.__totum.marks?.() || null);
   if (vp.name === "desktop") {
     R.ok("на графике 2 отметки BTC (сделки ETH не попали, части одной сделки объединены)", marks?.length === 2, JSON.stringify(marks?.map((m) => m.text)));
-    R.ok("продажа — красная стрелка вниз над ценой: «Sell · Шорт»", marks?.[0]?.shape === "arrowDown" && marks[0].text === "Sell · Шорт");
-    R.ok("покупка — зелёная стрелка вверх под ценой: «Buy · Закрыл шорт»", marks?.[1]?.shape === "arrowUp" && marks[1].text === "Buy · Закрыл шорт");
+    R.ok("продажа — красная стрелка вниз над ценой: «Sell»", marks?.[0]?.shape === "arrowDown" && marks[0].text === "Sell");
+    R.ok("покупка — зелёная стрелка вверх под ценой: «Buy»", marks?.[1]?.shape === "arrowUp" && marks[1].text === "Buy");
     await page.evaluate(() => window.__totum.S && document.querySelector(".chart-wrap"));
     await page.locator("#paneChart").screenshot({ path: "tests/out-marks.png" });
   } else {
