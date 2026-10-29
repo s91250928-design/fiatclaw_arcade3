@@ -11,8 +11,8 @@ const data = { t: now, venues, rows: [
   row("okx", "NEIRO", -0.0000815, 4, 0.00006758, 0.00006769, 6e5, 1, "NEIRO-USDT-SWAP"), row("aster", "NEIRO", 0.0000366, 4, 0.00006762, 0.00006772, 1.1e4, 1, "NEIROUSDT"),
 ] };
 const t5 = Math.floor(now / 3e5) * 3e5, wave = (k) => Math.sin(k / 9) * 3e-5;
-const hist = { t: now, i: "5m", hl: { c: Array.from({ length: 300 }, (_, k) => [t5 - (300 - k) * 3e5, 0.0078 + wave(k)]), f: Array.from({ length: 24 }, (_, k) => [now - (24 - k) * 36e5, -0.0025 + k * 1e-5]) },
-  x: { c: Array.from({ length: 300 }, (_, k) => [t5 - (300 - k) * 3e5, 0.00800 - wave(k) * 0.5]), f: Array.from({ length: 24 }, (_, k) => [now - (24 - k) * 36e5, -0.004 + k * 1e-4]), err: [] } };
+const hist = { t: now, i: "5m", hl: { c: Array.from({ length: 300 }, (_, k) => { const v = 0.0078 + wave(k); return [t5 - (300 - k) * 3e5, v, v * 1.002, v * 0.998, v * 1.0005]; }), f: Array.from({ length: 24 }, (_, k) => [now - (24 - k) * 36e5, -0.0025 + k * 1e-5]) },
+  x: { c: Array.from({ length: 300 }, (_, k) => { const v = 0.00800 - wave(k) * 0.5; return [t5 - (300 - k) * 3e5, v, v * 1.003, v * 0.997, v * 0.9995]; }).filter((_, k) => k % 7), f: Array.from({ length: 24 }, (_, k) => [now - (24 - k) * 36e5, -0.004 + k * 1e-4]), err: [] } };
 const book = { t: now, hl: { b: [[0.00779, 50000], [0.00778, 90000]], a: [[0.00781, 40000], [0.00782, 80000]] }, x: { b: [[0.00800, 60000], [0.00799, 70000]], a: [[0.00802, 30000], [0.00803, 200000]] }, err: [] };
 const { page, errors } = await setupPage(browser, { width: 1440, height: 1000 }, { exchange: [] }, { theme: "dark" });
 await page.addInitScript(() => { localStorage.setItem("totum.theme", "dark"); localStorage.removeItem("totum.tools"); });
@@ -49,7 +49,7 @@ await page.screenshot({ path: "tests/out-bx-candles.png" });
 await page.click('[data-bxtf="1h"]'); await page.waitForTimeout(1200);
 R.ok("таймфрейм 1ч → 15-минутные свечи", reqs.some((u) => /k=hist.*i=15m/.test(u)));
 await page.click('[data-bxm="ee"]'); await page.waitForTimeout(7000);
-R.ok("Вход/Выход: линии по стаканам", (await page.locator("#bxCh canvas").count()) > 0 && (await page.textContent("#bxLeg")).includes("выход"));
+R.ok("Вход/Выход: свечи входа и выхода", (await page.evaluate(() => document.querySelector("#bxLeg").textContent)).includes("выход") && await page.isHidden("#bxMsg"));
 await page.screenshot({ path: "tests/out-bx-ee.png" });
 await page.click('[data-bxm="funding"]'); await page.waitForTimeout(800);
 R.ok("Фандинг: накопленный фандинг связки", (await page.textContent("#bxLeg")).includes("накопленный"));

@@ -4486,22 +4486,41 @@ function bxMsg(t) {
 }
 /* свечи спреда (шорт / лонг − 1, %) из цен закрытия обеих бирж */
 function bxCandles(h) {
+  /* спред по полным свечам обеих бирж (открытие, макс., мин., закрытие).
+     Если на одной бирже в эту минуту не было сделок — берём её последнюю цену,
+     чтобы не было дыр. Свечи мельче таймфрейма собираются в одну. */
   const { T, X } = bxSides(),
     tf = BX_TF[BX.tf][1],
-    tm = new Map((h.hl?.c || []).map(([t, c]) => [t, c / T.m])),
+    step = (MIN_OF[h.i] || 5) * 6e4,
+    q = (a, m) => new Map((a || []).map((x) => [x[0], x.length > 2 ? [x[1] / m, x[2] / m, x[3] / m, x[4] / m] : [x[1] / m, x[1] / m, x[1] / m, x[1] / m]])),
+    tm = q(h.hl?.c, T.m),
+    xm = q(h.x?.c, X.m),
     out = [];
-  for (const [t, c] of h.x?.c || []) {
-    const pt = tm.get(t);
-    if (!pt || !(c > 0)) continue;
-    const px = c / X.m,
-      v = (BX.dir > 0 ? px / pt - 1 : pt / px - 1) * 100,
-      b = Math.floor(t / 1e3 / tf) * tf,
+  if (!tm.size || !xm.size) return out;
+  const t0 = Math.max(Math.min(...tm.keys()), Math.min(...xm.keys())),
+    t1 = Math.max(Math.max(...tm.keys()), Math.max(...xm.keys()));
+  let pt = null,
+    px = null;
+  for (let t = Math.floor(t0 / step) * step; t <= t1; t += step) {
+    const a = tm.get(t),
+      b = xm.get(t);
+    a ? (pt = a) : pt && (pt = [pt[3], pt[3], pt[3], pt[3]]);
+    b ? (px = b) : px && (px = [px[3], px[3], px[3], px[3]]);
+    if (!pt || !px || !(pt[3] > 0 && px[3] > 0)) continue;
+    const [S, L] = BX.dir > 0 ? [px, pt] : [pt, px],
+      r = (i, j) => (S[i] / L[j] - 1) * 100,
+      o = r(0, 0),
+      c = r(3, 3),
+      hi = Math.max(o, c, r(1, 1), r(2, 2)),
+      lo = Math.min(o, c, r(1, 1), r(2, 2)),
+      tb = Math.floor(t / 1e3 / tf) * tf,
       last = out[out.length - 1];
-    if (last && last.time === b) ((last.high = Math.max(last.high, v)), (last.low = Math.min(last.low, v)), (last.close = v));
-    else out.push({ time: b, open: v, high: v, low: v, close: v });
+    if (last && last.time === tb) ((last.high = Math.max(last.high, hi)), (last.low = Math.min(last.low, lo)), (last.close = c));
+    else out.push({ time: tb, open: o, high: hi, low: lo, close: c });
   }
   return out;
 }
+const MIN_OF = { "1m": 1, "5m": 5, "15m": 15, "1h": 60 };
 const bxFund = (a, ih, from) => {
   const out = [];
   for (const [t, v] of a || []) {
@@ -4570,30 +4589,33 @@ function bxDraw() {
     sX = fLine(fX, orange, 1);
     leg = `<i class="lg c">Спред ${BX.dir > 0 ? `${esc(X.name)} / Totum` : `Totum / ${esc(X.name)}`}</i>`;
   } else if (BX.mode === "ee") {
-    /* история — оценка по свечам спреда с поправкой на нынешние стаканы (пунктир),
-       дальше — живые точки по стаканам каждые 3 с (сплошная линия) */
+    /* вход и выход свечами: история — свечи спреда с поправкой на нынешние
+       стаканы, последняя свеча обновляется по стаканам каждые 3 с */
     const ee0 = bxEE(0),
-      { S: Sd } = bxSides(),
-      lastT = cs.length ? cs[cs.length - 1].time : 0,
-      live = (BX.ee[`${BX.key}|${BX.dir}`] || []).filter((p) => p.time > lastT);
+      { S: Sd } = bxSides();
     BX.S.est = !!ee0;
-    if (ee0 && cs.length) {
+    if (ee0 && cs.length > 1) {
       const m0 = (bxMid(Sd) / bxMid(L) - 1) * 100,
         dEn = ee0.en * 100 - m0,
         dEx = ee0.ex * 100 + m0,
-        o = { lineWidth: 1, lineStyle: LineStyle.Dashed, priceFormat: fmt(3), priceLineVisible: !1, lastValueVisible: !1, crosshairMarkerVisible: !1 };
-      c.addSeries(LineSeries, { ...o, color: up + "aa" }, 0).setData(cs.map((k) => ({ time: k.time, value: k.close + dEn })));
-      c.addSeries(LineSeries, { ...o, color: dn + "aa" }, 0).setData(cs.map((k) => ({ time: k.time, value: -k.close + dEx })));
+        one = (col) => ({ upColor: col, downColor: col, wickUpColor: col, wickDownColor: col, borderVisible: !1, priceFormat: fmt(3), priceLineVisible: !0, priceLineColor: col, priceLineStyle: LineStyle.Dotted });
+      BX.S.ce = c.addSeries(CandlestickSeries, { ...one(up), title: "вход" }, 0);
+      BX.S.cx = c.addSeries(CandlestickSeries, { ...one(dn), title: "выход" }, 0);
+      BX.S.ce.setData(cs.map((k) => ({ time: k.time, open: k.open + dEn, high: k.high + dEn, low: k.low + dEn, close: k.close + dEn })));
+      BX.S.cx.setData(cs.map((k) => ({ time: k.time, open: -k.open + dEx, high: -k.low + dEx, low: -k.high + dEx, close: -k.close + dEx })));
+      BX.S.ce.createPriceLine({ price: 0, color: th.text + "55", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: !1 });
+      bxMsg("");
+    } else {
+      const a = BX.ee[`${BX.key}|${BX.dir}`] || [];
+      BX.S.en = c.addSeries(LineSeries, { color: up, lineWidth: 2, priceFormat: fmt(3), priceLineVisible: !1, title: "вход" }, 0);
+      BX.S.ex = c.addSeries(LineSeries, { color: dn, lineWidth: 2, priceFormat: fmt(3), priceLineVisible: !1, title: "выход" }, 0);
+      BX.S.en.setData(a.map((p) => ({ time: p.time, value: p.en })));
+      BX.S.ex.setData(a.map((p) => ({ time: p.time, value: p.ex })));
+      bxMsg(ee0 ? (a.length < 3 ? "У биржи нет истории свечей — вход и выход рисуем по стаканам, пока окно открыто." : "") : "Загружаем стаканы…");
     }
-    BX.S.en = c.addSeries(LineSeries, { color: up, lineWidth: 2, priceFormat: fmt(3), priceLineVisible: !1, title: "вход" }, 0);
-    BX.S.ex = c.addSeries(LineSeries, { color: dn, lineWidth: 2, priceFormat: fmt(3), priceLineVisible: !1, title: "выход" }, 0);
-    BX.S.en.setData(live.map((p) => ({ time: p.time, value: p.en })));
-    BX.S.ex.setData(live.map((p) => ({ time: p.time, value: p.ex })));
-    BX.S.en.createPriceLine({ price: 0, color: th.text + "55", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: !1 });
     fLine(fT, blue, 1);
     sX = fLine(fX, orange, 1);
-    bxMsg(ee0 ? "" : "Загружаем стаканы…");
-    leg = `<i class="lg en">вход</i><i class="lg ex">выход</i><i class="lg note">пунктир — оценка по свечам, сплошная — по стаканам сейчас</i>`;
+    leg = `<i class="lg en">вход</i><i class="lg ex">выход</i>`;
   } else {
     bxMsg(fT.length || fX.length ? "" : "Нет истории ставок.");
     fLine(fT, blue, 0, 2);
@@ -4627,7 +4649,8 @@ function bxDraw() {
   panes[1] && panes[1].setStretchFactor(BX.mode === "funding" ? 0.6 : 0.28);
   panes[0] && panes[0].setStretchFactor(1);
   $("bxLeg").innerHTML = `${leg}<i class="lg t">Totum ${TL.norm === 1 ? "за 1 ч" : "за 8 ч"}</i><i class="lg x">${esc(X.name)}</i>`;
-  c.timeScale().fitContent();
+  const nBars = BX.mode === "funding" ? 0 : cs.length;
+  nBars > 150 ? c.timeScale().setVisibleLogicalRange({ from: nBars - 150, to: nBars + 4 }) : c.timeScale().fitContent();
   /* подсказка под курсором: спред и ставки обеих бирж */
   const tip = $("bxTip");
   c.subscribeCrosshairMove((p) => {
@@ -4639,6 +4662,12 @@ function bxDraw() {
     if (BX.S.c) {
       const k = p.seriesData.get(BX.S.c);
       k && (rows += `<div><span>Открытие</span><b>${f2(k.open)}</b></div><div><span>Макс.</span><b>${f2(k.high)}</b></div><div><span>Мин.</span><b>${f2(k.low)}</b></div><div><span>Закрытие</span><b>${f2(k.close)}</b></div>`);
+    }
+    if (BX.S.ce) {
+      const a = p.seriesData.get(BX.S.ce),
+        b = p.seriesData.get(BX.S.cx);
+      a && (rows += `<div><span><i class="dot en"></i>Вход</span><b>${f2(a.close)}</b></div>`);
+      b && (rows += `<div><span><i class="dot ex"></i>Выход</span><b>${f2(b.close)}</b></div>`);
     }
     if (BX.S.en) {
       const a = p.seriesData.get(BX.S.en),
@@ -4673,6 +4702,20 @@ function bxLive() {
       try {
         BX.S.c.update(last.time === t ? { time: t, open: last.open, high: Math.max(last.high, v), low: Math.min(last.low, v), close: v } : { time: t, open: last.close, high: Math.max(last.close, v), low: Math.min(last.close, v), close: v });
       } catch {}
+  }
+  if (BX.S.ce) {
+    const tf = BX_TF[BX.tf][1],
+      t = Math.floor(Date.now() / 1e3 / tf) * tf,
+      upd = (ser, v) => {
+        const d = ser.data(),
+          last = d[d.length - 1];
+        if (!last || t < last.time || !Number.isFinite(v)) return;
+        try {
+          ser.update(last.time === t ? { time: t, open: last.open, high: Math.max(last.high, v), low: Math.min(last.low, v), close: v } : { time: t, open: last.close, high: Math.max(last.close, v), low: Math.min(last.close, v), close: v });
+        } catch {}
+      };
+    upd(BX.S.ce, ee.en * 100);
+    upd(BX.S.cx, ee.ex * 100);
   }
   if (BX.S.en) {
     const a = BX.ee[`${BX.key}|${BX.dir}`] || [],
