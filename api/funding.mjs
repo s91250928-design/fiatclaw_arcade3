@@ -230,7 +230,7 @@ const rawBase = (sym) => {
 let CACHE = null;
 export default async function handler(req, res) {
   const debug = String(req.query?.debug || "") === "1";
-  if (!debug && CACHE && Date.now() - CACHE.t < 25e3) return send(res, CACHE);
+  if (!debug && CACHE && Date.now() - CACHE.t < 8e3) return send(res, CACHE);
   const ids = Object.keys(VENUES);
   const out = await Promise.allSettled(ids.map((id) => VENUES[id].load()));
   const venues = [],
@@ -249,7 +249,7 @@ export default async function handler(req, res) {
   send(res, debug ? { bundle: await selftest(rows).catch((e) => String(e)), t: body.t, venues: venues.map((v) => ({ id: v.id, ok: v.ok, n: v.n, err: v.err })) } : body);
 }
 function send(res, body) {
-  res.setHeader("cache-control", "public, s-maxage=30, stale-while-revalidate=60");
+  res.setHeader("cache-control", "public, s-maxage=8, stale-while-revalidate=20");
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.status(200).send(JSON.stringify(body));
 }
