@@ -13,6 +13,11 @@ const nextHour = () => Math.ceil(Date.now() / 36e5) * 36e5;
 const usdt = (s, suf = "USDT") => (s.endsWith(suf) ? s.slice(0, -suf.length) : null);
 /* 1000PEPE → PEPE и т.п.: множитель не трогаем в цене, но монета одна */
 const baseOf = (b) => b.replace(/^(1000000|100000|10000|1000|1M)(?=[A-Z])/, "").replace(/^k(?=[A-Z])/, "");
+/* во сколько монет один контракт: 1000PEPE → 1000, kPEPE → 1000 (нужно для сравнения цен) */
+const multOf = (b) => {
+  const m = /^(1000000|100000|10000|1000|1M|k)(?=[A-Z])/.exec(b);
+  return !m ? 1 : m[1] === "1M" ? 1e6 : m[1] === "k" ? 1000 : Number(m[1]);
+};
 
 const VENUES = {
   hyperliquid: { name: "Hyperliquid", type: "dex", async load() {
@@ -131,7 +136,7 @@ export default async function handler(req, res) {
       v = VENUES[id];
     if (r.status === "fulfilled") {
       const list = (r.value || []).filter((x) => x && x.base && Number.isFinite(x.rate));
-      list.forEach((x) => rows.push({ v: id, ...x }));
+      list.forEach((x) => rows.push({ v: id, ...x, mult: multOf(String(x.sym).replace(/[-_]?USDT?(-SWAP)?$|-USD$/, "")) }));
       venues.push({ id, name: v.name, type: v.type, ok: list.length > 0, n: list.length, sample: debug ? list.slice(0, 2) : undefined });
     } else venues.push({ id, name: v.name, type: v.type, ok: !1, n: 0, err: String(r.reason?.message || r.reason).slice(0, 160) });
   });
