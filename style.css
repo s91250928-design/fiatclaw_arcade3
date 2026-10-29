@@ -1027,3 +1027,62 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 @media (max-width:900px){.inf-table.lev>div{grid-template-columns:.6fr 1.3fr .9fr 1.2fr}.inf-table.lev>div>span:nth-child(4){display:block}}
 
 @media (max-width:900px){#paneInfo{padding-bottom:110px}}
+
+/* ═══ Баланс: PnL за период и график ═══ */
+.hc-pnl{display:flex;align-items:center;gap:8px;margin:2px 0 6px;font:600 13px "Manrope",var(--font);color:rgba(255,255,255,.85)}
+.hc-pnl b{font:700 14px var(--mono);color:#fff}
+.hc-pnl i{font:700 12px var(--mono);font-style:normal;padding:2px 7px;border-radius:6px;background:rgba(74,222,128,.22);color:#bbf7d0}
+.hc-pnl.down i{background:rgba(251,113,133,.22);color:#fecdd3}
+.hc-spark{display:block;width:100%;height:64px;margin:2px 0 8px}
+.hc-spark.empty{height:64px;border-bottom:1px dashed rgba(255,255,255,.25);margin:2px 0 8px}
+.hc-row{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.hc-wins{display:inline-flex;gap:2px;background:rgba(255,255,255,.12);border-radius:9px;padding:2px}
+.hc-wins button{border:0;background:transparent;color:rgba(255,255,255,.75);font:700 12px "Manrope",var(--font);padding:5px 9px;border-radius:7px;cursor:pointer}
+.hc-wins button.on{background:#fff;color:#0f172a}
+.hc-cal{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;border-radius:9px;padding:6px 10px;font:700 12px "Manrope",var(--font);cursor:pointer}
+.hc-cal svg{width:15px;height:15px}
+.op-cal{margin-left:auto;color:var(--accent)!important;font-weight:700!important}
+/* ═══ Календарь PnL ═══ */
+.cal-body{flex:1;overflow:auto;padding:12px 14px 24px;font-family:"Manrope",var(--font);display:flex;flex-direction:column;gap:12px}
+.cal-presets{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:none}
+.cal-presets::-webkit-scrollbar{display:none}
+.cal-presets button{flex:none;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:999px;padding:6px 12px;font:600 12.5px "Manrope",var(--font);cursor:pointer}
+.cal-presets button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.cal-sum{--c:var(--buy);border-radius:14px;padding:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--c) 12%,var(--panel)),var(--panel) 75%);border:1px solid color-mix(in srgb,var(--c) 35%,var(--line))}
+.cal-sum.down{--c:var(--sell)}
+.cal-sum.pick{--c:var(--accent);text-align:center;font-size:13.5px}
+.cal-sum-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.cal-sum-h span{font-size:12.5px;color:var(--muted);font-weight:600}
+.cal-sum-h b{font:700 22px var(--mono);color:var(--c)}
+.cal-sum-g{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cal-sum-g div{display:flex;flex-direction:column;gap:2px;background:var(--panel2);border-radius:10px;padding:8px 10px;min-width:0}
+.cal-sum-g span{font-size:11px;color:var(--muted);font-weight:500}
+.cal-sum-g b{font:700 13px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-nav{display:flex;align-items:center;gap:10px}
+.cal-nav b{font:700 15px "Unbounded",var(--font)}
+.cal-nav span{font:700 13px var(--mono);margin-right:auto}
+.cal-nav button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:18px;cursor:pointer}
+.cal-nav button:first-child{order:-1}
+.cal-nav button:disabled{opacity:.35;cursor:default}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.cal-w{text-align:center;font-size:11px;font-weight:600;color:var(--muted);padding-bottom:2px}
+.cal-c{aspect-ratio:1/1;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;cursor:pointer;font-family:"Manrope",var(--font);position:relative}
+.cal-c.pad{border:0;background:none;cursor:default}
+.cal-c span{font-size:12px;font-weight:600;opacity:.85}
+.cal-c b{font:700 10.5px var(--mono);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.cal-c.up{background:color-mix(in srgb,var(--buy) calc(var(--a) * 100%),var(--panel));border-color:color-mix(in srgb,var(--buy) 40%,var(--line))}
+.cal-c.down{background:color-mix(in srgb,var(--sell) calc(var(--a) * 100%),var(--panel));border-color:color-mix(in srgb,var(--sell) 40%,var(--line))}
+.cal-c.up b{color:var(--buy)} .cal-c.down b{color:var(--sell)}
+:root[data-theme="dark"] .cal-c.up b{color:#bbf7d0} :root[data-theme="dark"] .cal-c.down b{color:#fecdd3}
+.cal-c.today{box-shadow:inset 0 0 0 2px var(--accent)}
+.cal-c.sel:not(.up):not(.down){background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.cal-c.sel{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.cal-c.edge{outline:2px solid var(--accent);outline-offset:1px}
+.cal-c.fut{opacity:.35;cursor:default}
+.cal-best{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cal-best:empty{display:none}
+.cal-best div{display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.cal-best span{font-size:11.5px;color:var(--muted);font-weight:500}
+.cal-best b{font:700 13px var(--mono)}
+.cal-load{text-align:center;margin:0}
+@media (max-width:600px){.cal-sum-g{grid-template-columns:1fr 1fr}.cal-c{min-height:40px;border-radius:8px}.cal-c b{font-size:9.5px}}
