@@ -753,7 +753,8 @@ function pxPnl(i, t, e, n) {
 }
 /* Комиссии за вход и выход, $: вход лимитом — мейкер, маркетом — тейкер;
    выход по TP/SL — всегда маркет (тейкер). Ставки: Hyperliquid + Totum. */
-const MAKER_RATE = () => CFG.hlMakerFee + CFG.feeTenthBps / 1e5;
+const HL_SPOT_MAKER = 4e-4;
+const MAKER_RATE = (i = S.coin) => (isSpot(i) ? HL_SPOT_MAKER : CFG.hlMakerFee) + CFG.feeTenthBps / 1e5;
 function roundFee(entry, exit, sz, makerEntry = S.orderType === "limit") {
   return entry * sz * (makerEntry ? MAKER_RATE() : FEE_RATE()) + exit * sz * FEE_RATE();
 }
@@ -4956,7 +4957,7 @@ function renderInfo() {
           <div class="inf-ct">Торговые условия</div>
           ${infKV([
             ...(spot ? [["Плечо", "нет (спот)"]] : [["Макс. плечо", `${m.maxLeverage}x`], ["Маржа", m.onlyIsolated ? "только изолированная" : "кросс и изолированная"]]),
-            ["Комиссия маркет / лимит", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
+            ["Комиссия тейкер / мейкер", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`, "", "Тейкер — ордер исполняется сразу: маркет или лимит по текущей цене. Мейкер — лимитный ордер, который встаёт в стакан и ждёт. Ставки включают комиссию Hyperliquid и Totum."],
             ["Шаг размера", `${(1 / 10 ** m.szDecimals).toFixed(m.szDecimals)} ${esc(baseOf(S.coin))}`],
           ])}
         </section>
@@ -4982,7 +4983,7 @@ function renderInfo() {
           ["Интервал фандинга", "1 час"],
           ["Предел ставки фандинга", "4% за час"],
           ["Цена для TP/SL и ликвидаций", "справедливая цена"],
-          ["Комиссия маркет / лимит", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`],
+          ["Комиссия тейкер / мейкер", `${(FEE_RATE() * 100).toFixed(3)}% / ${(MAKER_RATE() * 100).toFixed(3)}%`, "", "Тейкер — ордер исполняется сразу: маркет или лимит по текущей цене. Мейкер — лимитный ордер, который встаёт в стакан и ждёт. Ставки включают комиссию Hyperliquid и Totum."],
           ["Биржа исполнения", `Hyperliquid${CFG.isTestnet ? " · тестовая сеть" : ""}${m.dex ? ` · площадка ${esc(m.dex)}` : ""}`],
         ])}
       </div>
