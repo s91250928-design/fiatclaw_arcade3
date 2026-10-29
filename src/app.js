@@ -4804,7 +4804,7 @@ function bxBooks() {
   const one = (s) => {
     const bk = s.bk,
       role = s === L ? "лонг" : "шорт";
-    if (!bk) return `<div class="bx-book"><header>${vAva(s.id)}<b>${esc(s.name)}</b><em class="bx-role ${role === "лонг" ? "l" : "s"}">${role}</em></header><p class="muted small">${BX.book ? "Стакан недоступен" : "Загружаем…"}</p></div>`;
+    if (!bk) return `<div class="bx-book"><header>${vAva(s.id)}<b>${esc(s.name)}</b><em class="bx-role ${role === "лонг" ? "l" : "s"}">${role}</em></header><p class="muted small">${BX.book ? (BX.W && BX_WS[BX.r.x.v] && s !== bxSides().T ? "Подключаемся к бирже напрямую…" : "Стакан недоступен") : "Загружаем…"}</p></div>`;
     const a = bk.a.slice(0, 10).reverse(),
       b = bk.b.slice(0, 10),
       mx = Math.max(...a.concat(b).map(([p, q]) => p * q), 1),
@@ -4923,7 +4923,7 @@ function bxWsStart() {
   bxWsStop();
   const r = BX.r,
     key = BX.key,
-    W = (BX.W = { hl: bxLB(), x: bxLB(), at: { hl: 0, x: 0 }, socks: [], ct: null, pend: 0 });
+    W = (BX.W = { hl: bxLB(), x: bxLB(), at: { hl: 0, x: 0 }, socks: [], ct: r.x.ct || null, pend: 0 });
   const up = (side) => () => {
     if (BX.key !== key || BX.W !== W) return;
     W.at[side] = Date.now();

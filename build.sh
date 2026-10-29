@@ -7,5 +7,9 @@ npx esbuild src/app.js --bundle --splitting --format=esm --minify --target=es202
   --outdir=dist --chunk-names=chunks/[name]-[hash] --legal-comments=eof --log-level=warning
 cp src/index.html src/style.css src/config.js src/favicon.png src/icon.png dist/
 cp -r src/brand src/fonts src/sounds dist/
+# метка версии: страница меняется при каждой сборке, и браузер берёт свежие
+# заголовки безопасности (иначе он мог держать старые и блокировать новые подключения)
+V=$(date +%s)
+sed -i "s|href=\"style.css\"|href=\"style.css?v=$V\"|; s|src=\"app.js\"|src=\"app.js?v=$V\"|" dist/index.html
 echo '[]' > dist/icons.json            # на Vercel заменяется скриптом deploy/scripts/fetch-icons.mjs
 echo "⚡ Готово: dist/"
