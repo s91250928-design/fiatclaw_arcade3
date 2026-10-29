@@ -45,7 +45,7 @@ const mexcLike = (host) => ({
     return scale({ b: lv(d?.data?.bids), a: lv(d?.data?.asks) }, k);
   },
 });
-const H = {
+export const H = {
   binance: binLike("https://fapi.binance.com"),
   aster: binLike("https://fapi.asterdex.com"),
   mexc: mexcLike("https://contract.mexc.com"),
@@ -197,4 +197,25 @@ export default async function handler(req, res) {
   const ok = (r) => (r.status === "fulfilled" ? clean(r.value, from - 36e5) : null);
   res.setHeader("cache-control", `public, s-maxage=${i === "1m" ? 20 : 60}, stale-while-revalidate=120`);
   res.status(200).json({ t: Date.now(), i, hl: { c: ok(a), f: ok(b) }, x: { c: ok(c), f: ok(d), err: [c, d].filter((r) => r.status === "rejected").map(why) } });
+}
+
+/* самопроверка для /api/funding?debug=1: по BTC на каждой бирже — стакан, свечи, ставки */
+export async function selftest(rows) {
+  const out = {};
+  await Promise.all(
+    Object.keys(H).map(async (v) => {
+      const r = rows.find((x) => x.v === v && x.base === "BTC");
+      if (!r) return (out[v] = "no BTC");
+      const X = H[v],
+        [b, c, f] = await Promise.allSettled([X.b ? X.b(r.sym) : Promise.reject(new Error("-")), X.c ? X.c(r.sym, "5m") : Promise.reject(new Error("-")), X.f ? X.f(r.sym, Date.now() - 2 * 864e5) : Promise.reject(new Error("-"))]);
+      out[v] = {
+        sym: r.sym,
+        mark: r.mark,
+        book: b.status === "fulfilled" ? `${b.value.b.length}/${b.value.a.length} bid ${b.value.b[0]?.[0]} $${Math.round((b.value.b[0]?.[0] || 0) * (b.value.b[0]?.[1] || 0))} ask ${b.value.a[0]?.[0]}` : why(b),
+        candles: c.status === "fulfilled" ? `${c.value.length} last ${JSON.stringify(c.value.sort((x, y) => x[0] - y[0]).at(-1))}` : why(c),
+        funding: f.status === "fulfilled" ? `${f.value.length} last ${JSON.stringify(f.value.sort((x, y) => x[0] - y[0]).at(-1))}` : why(f),
+      };
+    }),
+  );
+  return out;
 }
