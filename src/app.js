@@ -4149,15 +4149,14 @@ function renderTools(open) {
       warn = TL.tab === "funding" && Math.abs(r.ps) > Math.abs(r.fs / TL.norm) * 24 ? `<i class="tl-warn" title="Разница в цене больше, чем фандинг даст за сутки — можно потерять на цене">!</i>` : "";
     return `<tr class="${TL.open === key ? "open" : ""}">
       <td><div class="tl-c">${coinIcon(r.coin)}<div><button type="button" class="tl-coin" data-tlcoin="${esc(r.coin)}">${esc(r.base)}</button><small>${r.n} бирж</small></div></div></td>
-      <td class="tl-v"><b>Totum</b><b>${xn}</b></td>
+      <td class="tl-v"><b>${vAva("hyperliquid")}Totum</b><b>${vAva(r.x.v)}${xn}</b></td>
       <td class="fr"><span>${tlPx(r.tp)}<em>инд. ${tlPx((r.t.idx || 0) / (r.t.mult || 1))}</em></span><span>${tlPx(r.xp)}<em>инд. ${tlPx((r.x.idx || 0) / (r.x.mult || 1))}</em></span></td>
       <td class="spr ${TL.tab === "arb" ? "main" : ""} ${r.ps >= 0 ? "pos" : "neg"}">${r.ps >= 0 ? "+" : "−"}${Math.abs(r.ps * 100).toFixed(2)}%</td>
       <td class="fr"><span class="${r.t.rate > 0 ? "pos" : r.t.rate < 0 ? "neg" : ""}">${tlPct(tlRate(r.t))}<em>${r.t.ih} ч · ${tlLeft(r.t.next)}</em></span><span class="${r.x.rate > 0 ? "pos" : r.x.rate < 0 ? "neg" : ""}">${tlPct(tlRate(r.x))}<em>${r.x.ih} ч${r.x.next ? ` · ${tlLeft(r.x.next)}` : ""}</em></span></td>
       <td class="spr ${TL.tab === "funding" ? "main" : ""}" title="Ставка биржи минус ставка Totum">${tlPct(r.fs)}${warn}</td>
       <td>${r.x.vol != null ? compact(r.x.vol) : "—"}</td>
       <td class="idea">${TL.tab === "arb" ? pIdea : fIdea}</td>
-      <td><button type="button" class="tl-chart-btn" data-tlopen="${esc(key)}" title="Графики спреда и фандинга">${TL.open === key ? "▲" : "📈"}</button></td></tr>
-      ${TL.open === key ? `<tr class="tl-exp"><td colspan="9"><div class="tl-charts" data-key="${esc(key)}"></div></td></tr>` : ""}`;
+      <td><button type="button" class="tl-chart-btn" data-tlopen="${esc(key)}" title="Открыть связку: график спреда, вход и выход, фандинг, стаканы">📈</button></td></tr>`;
   };
   const ar = (k) => (TL.sk === k ? `<i class="tl-arr">${TL.sd < 0 ? "↓" : "↑"}</i>` : '<i class="tl-arr off">↕</i>'),
     th = (k, l, extra = "") => `<button type="button" class="tl-sort ${TL.sk === k ? "on" : ""}" data-tlsk="${k}" title="Сортировать: по убыванию / по возрастанию">${l}${ar(k)}</button>${extra}`,
@@ -4211,67 +4210,480 @@ function renderTools(open) {
         renderTools();
       }),
   );
-  body.querySelectorAll("[data-tlopen]").forEach((b) => (b.onclick = () => ((TL.open = TL.open === b.dataset.tlopen ? null : b.dataset.tlopen), renderTools())));
+  body.querySelectorAll("[data-tlopen]").forEach((b) => (b.onclick = () => bxOpen(b.dataset.tlopen)));
   body.querySelectorAll("[data-tlcoin]").forEach((b) => (b.onclick = () => (switchCoin(b.dataset.tlcoin), setCpTab("chart"))));
-  const box = body.querySelector(".tl-charts");
-  box && w && (box.style.width = `${w.clientWidth}px`);
-  box && tlCharts(box, rows.find((r) => `${r.base}|${r.x.v}` === TL.open));
+  BX.key && $("bx") && !$("bx").hidden && bxHead();
 }
-/* графики связки: спред цены по часам и ставки обеих сторон (приведены к выбранному периоду) */
-async function tlCharts(box, r) {
-  if (!r) return;
-  const key = `${r.base}|${r.x.v}|${TL.days}`;
-  box.innerHTML = `<div class="tl-ch-head"><b>${esc(r.base)}: Totum ↔ ${esc(tlVName(r.x.v))}</b><span class="tl-seg">${[2, 7].map((d) => `<button type="button" data-tldays="${d}" class="${TL.days === d ? "on" : ""}">${d} дн.</button>`).join("")}</span></div>
-    <div class="tl-ch-grid"><div><span>Спред цены (биржа − Totum), %</span><div class="tl-ch" id="tlChS"></div></div><div><span>Ставка фандинга за ${TL.norm === 1 ? "1 ч" : "8 ч"}, % · <i class="lg t">Totum</i> <i class="lg x">${esc(tlVName(r.x.v))}</i></span><div class="tl-ch" id="tlChF"></div></div></div>`;
-  box.querySelectorAll("[data-tldays]").forEach((b) => (b.onclick = () => ((TL.days = Number(b.dataset.tldays)), tlCharts(box, r))));
-  let d = TL.hist[key];
-  if (!d || Date.now() - d.at > 3e5) {
-    try {
-      const res = await fetch(`/api/pair?v=${encodeURIComponent(r.x.v)}&sym=${encodeURIComponent(r.x.sym)}&coin=${encodeURIComponent(r.coin)}&days=${TL.days}`);
-      d = { at: Date.now(), ...(await res.json()) };
-      TL.hist[key] = d;
-    } catch {
-      box.querySelector(".tl-ch-grid").innerHTML = '<p class="muted">Не удалось загрузить историю.</p>';
-      return;
-    }
+/* ═══════════ Окно связки «Totum ↔ биржа» на весь экран ═══════════
+   Сверху — фандинг каждой биржи, суммарный фандинг связки, вход и выход по
+   стаканам. Слева — график: свечи спреда (таймфреймы 5м/15м/1ч/4ч), линии
+   входа и выхода, фандинг; снизу — ставки обеих бирж. Справа — расчёт на
+   объём и стаканы обеих бирж (на телефоне стаканы — по кнопке).
+   Вход = продаём по bid там, где шорт, покупаем по ask там, где лонг.
+   Выход = обратные сделки. Итог по цене ≈ вход + выход. */
+const V_AVA = {
+  binance: ["#F0B90B", "B", "#1e2026"], bybit: ["#17181E", "BY", "#F7A600"], okx: ["#000", "OK", "#fff"], bitget: ["#00B8C8", "BG", "#fff"],
+  gate: ["#2354E6", "G", "#fff"], mexc: ["#1972F5", "M", "#fff"], kucoin: ["#23AF91", "KC", "#fff"], bingx: ["#2A54FF", "BX", "#fff"],
+  kraken: ["#7132F5", "K", "#fff"], htx: ["#2CA6E0", "H", "#fff"], whitebit: ["#16181d", "W", "#fff"], aster: ["#E8B27A", "A", "#1e2026"],
+  ourbit: ["#00B386", "O", "#fff"], paradex: ["#6C3BF5", "P", "#fff"], dydx: ["#6966FF", "dY", "#fff"], weex: ["#16181d", "WX", "#fff"],
+};
+function vAva(id) {
+  if (id === "hyperliquid") return '<img class="vava" src="brand/mark-128.webp" alt="">';
+  const [bg, t, fg] = V_AVA[id] || ["#64748b", String(id || "?").slice(0, 2).toUpperCase(), "#fff"];
+  return `<i class="vava" style="background:${bg};color:${fg}">${t}</i>`;
+}
+/* обычная комиссия тейкера без скидок (для оценки) */
+const V_TAKER = { hyperliquid: 7e-4, binance: 5e-4, aster: 3.5e-4, bybit: 5.5e-4, okx: 5e-4, bitget: 6e-4, gate: 5e-4, mexc: 2e-4, ourbit: 2e-4, kucoin: 6e-4, bingx: 5e-4, kraken: 5e-4, htx: 5e-4, whitebit: 5.5e-4, paradex: 3e-4, dydx: 5e-4, weex: 6e-4 };
+const BX_TF = { "5m": ["1m", 300], "15m": ["5m", 900], "1h": ["15m", 3600], "4h": ["1h", 14400] };
+const BX = { key: null, r: null, dir: 1, mode: "candles", tf: "15m", vol: 1000, hist: {}, book: null, ee: {}, bt: null, ct: null, chart: null, S: {}, busy: !1, bbusy: !1 };
+try {
+  const z = JSON.parse(localStorage.getItem("totum.bx") || "{}");
+  BX_TF[z.tf] && (BX.tf = z.tf);
+  ["candles", "ee", "funding"].includes(z.mode) && (BX.mode = z.mode);
+  z.vol > 0 && (BX.vol = z.vol);
+} catch {}
+const bxSave = () => {
+  try {
+    localStorage.setItem("totum.bx", JSON.stringify({ tf: BX.tf, mode: BX.mode, vol: BX.vol }));
+  } catch {}
+};
+const bxP = (x, d = 3) => (Number.isFinite(x) ? `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x * 100).toFixed(d)}%` : "—");
+const bxCls = (x) => (x > 0 ? "pos" : x < 0 ? "neg" : "");
+const bxUsd = (x) => (Number.isFinite(x) ? `${x < 0 ? "−" : x > 0 ? "+" : ""}$${Math.abs(x).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}` : "—");
+const bxMob = () => matchMedia("(max-width: 900px)").matches;
+/* стороны связки: L — где лонг, S — где шорт */
+function bxSides() {
+  const r = BX.r,
+    T = { id: "hyperliquid", name: "Totum", row: r.t, m: r.t.mult || 1, bk: BX.book?.hl },
+    X = { id: r.x.v, name: tlVName(r.x.v), row: r.x, m: r.x.mult || 1, bk: BX.book?.x };
+  return BX.dir > 0 ? { L: T, S: X, T, X } : { L: X, S: T, T, X };
+}
+const bxMid = (s) => (s.bk?.a?.[0] && s.bk?.b?.[0] ? (s.bk.a[0][0] + s.bk.b[0][0]) / 2 / s.m : NaN);
+const bxHr = (row) => (row.rate || 0) / (row.ih || 1);
+/* средняя цена исполнения на сумму usd по уровням стакана [[цена, кол-во]] */
+function bxVwap(lv, usd) {
+  let cost = 0,
+    qty = 0;
+  for (const [p, q] of lv || []) {
+    const take = Math.min(q, (usd - cost) / p);
+    cost += take * p;
+    qty += take;
+    if (cost >= usd - 1e-9) return { px: cost / qty, full: !0 };
   }
-  if (!box.isConnected) return;
-  const theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+  return qty ? { px: cost / qty, full: !1, have: cost } : null;
+}
+function bxEE(usd) {
+  const { L, S } = bxSides();
+  if (!L.bk || !S.bk) return null;
+  const pick = (bk, side) => (usd ? bxVwap(bk[side], usd) : bk[side]?.[0] ? { px: bk[side][0][0], full: !0 } : null);
+  const aL = pick(L.bk, "a"),
+    bS = pick(S.bk, "b"),
+    bL = pick(L.bk, "b"),
+    aS = pick(S.bk, "a");
+  if (!aL || !bS || !bL || !aS) return null;
+  return { en: bS.px / S.m / (aL.px / L.m) - 1, ex: bL.px / L.m / (aS.px / S.m) - 1, full: aL.full && bS.full && bL.full && aS.full, have: Math.min(...[aL, bS, bL, aS].map((x) => (x.full ? Infinity : x.have))) };
+}
+function bxOpen(key) {
+  const r = tlPairs().find((p) => `${p.base}|${p.x.v}` === key);
+  if (!r) return;
+  BX.key = key;
+  BX.r = r;
+  BX.book = null;
+  BX.dir = (TL.tab === "arb" ? r.ps : r.fs) >= 0 ? 1 : -1;
+  let el = $("bx");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "bx";
+    el.className = "bx";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-modal", "true");
+    el.innerHTML = `<div class="bx-top" id="bxTop"></div>
+      <div class="bx-main">
+        <section class="bx-chart">
+          <div class="bx-tools">
+            <div class="tl-seg" id="bxModes">${[["candles", "Свечи"], ["ee", "Вход/Выход"], ["funding", "Фандинг"]].map(([k, l]) => `<button type="button" data-bxm="${k}">${l}</button>`).join("")}</div>
+            <div class="tl-seg" id="bxTf">${Object.keys(BX_TF).map((k) => `<button type="button" data-bxtf="${k}">${k.replace("m", "м").replace("h", "ч")}</button>`).join("")}</div>
+            <span class="bx-leg" id="bxLeg"></span>
+            <button type="button" class="bx-bookbtn" id="bxBookBtn"></button>
+          </div>
+          <div class="bx-ch" id="bxCh"><div class="bx-tip" id="bxTip" hidden></div><div class="bx-msg" id="bxMsg" hidden></div></div>
+        </section>
+        <aside class="bx-side">
+          <div class="bx-calc"><label class="bx-vol">Объём на каждую биржу <span><input id="bxVol" type="number" inputmode="decimal" min="1" step="100"> $</span></label>
+            <div class="bx-volq">${[100, 1000, 5000, 20000].map((v) => `<button type="button" data-bxv="${v}">$${v.toLocaleString("ru-RU")}</button>`).join("")}</div>
+            <div id="bxCalc"></div></div>
+          <div class="bx-books" id="bxBooks"></div>
+        </aside>
+      </div>`;
+    document.body.appendChild(el);
+    el.querySelectorAll("[data-bxm]").forEach((b) => (b.onclick = () => ((BX.mode = b.dataset.bxm), bxSave(), bxDraw())));
+    el.querySelectorAll("[data-bxtf]").forEach((b) => (b.onclick = () => ((BX.tf = b.dataset.bxtf), bxSave(), bxLoad())));
+    el.querySelectorAll("[data-bxv]").forEach((b) => (b.onclick = () => (($("bxVol").value = b.dataset.bxv), (BX.vol = Number(b.dataset.bxv)), bxSave(), bxCalc())));
+    $("bxVol").oninput = (e) => ((BX.vol = Math.max(0, Number(e.target.value) || 0)), bxSave(), bxCalc());
+    $("bxBookBtn").onclick = () => el.classList.toggle("sheet");
+    el.addEventListener("click", (e) => e.target.closest("[data-bxclose]") && bxClose());
+    el.addEventListener("click", (e) => e.target.closest("[data-bxsheet]") && el.classList.remove("sheet"));
+    document.addEventListener("keydown", (e) => e.key === "Escape" && !$("bx").hidden && ($("bx").classList.contains("sheet") ? $("bx").classList.remove("sheet") : bxClose()));
+  }
+  el.hidden = !1;
+  el.classList.remove("sheet");
+  document.body.classList.add("bx-on");
+  $("bxVol").value = BX.vol;
+  bxHead();
+  bxCalc();
+  bxBooks();
+  bxLoad();
+  bxBook();
+  clearInterval(BX.bt);
+  clearInterval(BX.ct);
+  BX.bt = setInterval(() => !document.hidden && bxBook(), 3e3);
+  BX.ct = setInterval(() => {
+    if (document.hidden) return;
+    bxHead();
+    const h = BX.hist[bxHKey()];
+    h && Date.now() - h.at > 6e4 && bxLoad(!0);
+  }, 1e3);
+}
+function bxClose() {
+  const el = $("bx");
+  if (!el) return;
+  el.hidden = !0;
+  document.body.classList.remove("bx-on");
+  clearInterval(BX.bt);
+  clearInterval(BX.ct);
+  BX.chart && (BX.chart.remove(), (BX.chart = null));
+  BX.key = null;
+}
+function bxHead() {
+  if (!BX.r) return;
+  const fresh = tlPairs().find((p) => `${p.base}|${p.x.v}` === BX.key);
+  fresh && (BX.r = fresh);
+  const r = BX.r,
+    { L, S, T, X } = bxSides(),
+    net = bxHr(S.row) - bxHr(L.row),
+    ee = bxEE(0),
+    day = bxFundDay();
+  const fchip = (s) => {
+    const role = s === L ? "лонг" : "шорт",
+      pay = s === L ? -s.row.rate : s.row.rate;
+    return `<div class="bx-f">${vAva(s.id)}<div><span>${esc(s.name)} <em class="bx-role ${role === "лонг" ? "l" : "s"}">${role}</em></span>
+      <b class="${bxCls(s.row.rate)}">${bxP(s.row.rate, 4)}<small> за ${s.row.ih} ч</small></b>
+      <small>${s.row.next ? `выплата через ${tlLeft(s.row.next)} · ` : ""}${pay >= 0 ? "получаете" : "платите"} ${bxP(Math.abs(pay), 4).replace(/^[+−]/, "")}</small></div></div>`;
+  };
+  $("bxTop").innerHTML = `<div class="bx-title">${coinIcon(r.coin)}<div><b>${esc(r.base)}</b><span>${vAva("hyperliquid")}Totum <i>↔</i> ${vAva(r.x.v)}${esc(X.name)}</span></div></div>
+    <div class="tl-seg bx-dir"><button type="button" data-bxdir="1" class="${BX.dir > 0 ? "on" : ""}">Лонг Totum · шорт ${esc(X.name)}</button><button type="button" data-bxdir="-1" class="${BX.dir < 0 ? "on" : ""}">Лонг ${esc(X.name)} · шорт Totum</button></div>
+    <div class="bx-chips">${fchip(T)}${fchip(X)}
+      <div class="bx-f sum"><div><span>Фандинг связки</span><b class="${bxCls(net)}">${bxP(net * 8, 4)}<small> за 8 ч</small></b><small>${bxP(net * 24, 3)} в сутки${day != null ? ` · за прошлые 24 ч ${bxP(day, 3)}` : ""}</small></div></div>
+      <div class="bx-f ee"><div><span>Вход · Выход (по стаканам)</span><b><em class="${bxCls(ee?.en)}">${bxP(ee?.en)}</em> · <em class="${bxCls(ee?.ex)}">${bxP(ee?.ex)}</em></b><small>Спред цены ${bxP(BX.dir > 0 ? r.ps : 1 / (1 + r.ps) - 1, 2)}${ee ? ` · войти и сразу выйти ${bxP(ee.en + ee.ex, 2)}` : ""}</small></div></div>
+    </div>
+    <button type="button" class="bx-x" data-bxclose title="Закрыть (Esc)">✕</button>`;
+  fixIcons($("bxTop"));
+  $("bxTop").querySelectorAll("[data-bxdir]").forEach((b) => (b.onclick = () => ((BX.dir = Number(b.dataset.bxdir)), bxHead(), bxCalc(), bxBooks(), bxDraw())));
+  $("bxBookBtn").innerHTML = `${vAva(L.id)}${vAva(S.id)}<span>Стакан</span>`;
+  document.querySelectorAll("#bxModes [data-bxm]").forEach((b) => b.classList.toggle("on", b.dataset.bxm === BX.mode));
+  document.querySelectorAll("#bxTf [data-bxtf]").forEach((b) => b.classList.toggle("on", b.dataset.bxtf === BX.tf));
+}
+/* фактический фандинг связки за последние 24 ч по истории ставок */
+function bxFundDay() {
+  const h = BX.hist[bxHKey()];
+  if (!h?.hl?.f || !h?.x?.f) return null;
+  const from = Date.now() - 864e5,
+    { L } = bxSides(),
+    sum = (a) => a.filter(([t]) => t >= from).reduce((s, [, v]) => s + v, 0),
+    t = sum(h.hl.f),
+    x = sum(h.x.f);
+  return L.id === "hyperliquid" ? x - t : t - x;
+}
+function bxCalc() {
+  const el = $("bxCalc");
+  if (!el || !BX.r) return;
+  const { L, S } = bxSides(),
+    v = BX.vol || 0,
+    ee = bxEE(v),
+    fee = 2 * ((V_TAKER[L.id] ?? 5e-4) + (V_TAKER[S.id] ?? 5e-4)),
+    net = bxHr(S.row) - bxHr(L.row),
+    now = ee ? ee.en + ee.ex - fee : null,
+    be = now != null && now < 0 && net > 0 ? -now / net : null,
+    row = (l, val, cls = "", sub = "") => `<div class="bx-kv"><span>${l}${sub ? `<small>${sub}</small>` : ""}</span><b class="${cls}">${val}</b></div>`;
+  el.innerHTML = !ee
+    ? '<p class="muted small">Загружаем стаканы…</p>'
+    : `${row("Вход на этот объём", bxP(ee.en), bxCls(ee.en), `покупка на ${esc(L.name)}, продажа на ${esc(S.name)}`)}
+      ${row("Выход на этот объём", bxP(ee.ex), bxCls(ee.ex), "закрыть обе позиции сейчас")}
+      ${row("Комиссия за 4 сделки", `−${(fee * 100).toFixed(3)}% · ${bxUsd(-fee * v)}`, "neg", "открыть и закрыть на обеих биржах")}
+      ${row("Фандинг за 8 ч", `${bxP(net * 8, 4)} · ${bxUsd(net * 8 * v)}`, bxCls(net))}
+      ${row("Если войти и сразу выйти", `${bxP(now, 3)} · ${bxUsd(now * v)}`, bxCls(now))}
+      ${be != null ? row("Фандинг покроет это за", be < 1 ? "меньше часа" : `≈ ${be < 48 ? `${be.toFixed(0)} ч` : `${(be / 24).toFixed(0)} дн.`}`) : ""}
+      ${ee.full ? "" : `<p class="bx-warn">В стакане меньше, чем нужно: хватает примерно на $${Math.floor(ee.have).toLocaleString("ru-RU")}</p>`}
+      <p class="muted small">Итог по цене ≈ вход + выход. Комиссии — обычные ставки тейкера без скидок, у Totum ${(V_TAKER.hyperliquid * 100).toFixed(2)}%.</p>`;
+}
+function bxBooks() {
+  const el = $("bxBooks");
+  if (!el || !BX.r) return;
+  const { L, S } = bxSides();
+  const one = (s) => {
+    const bk = s.bk,
+      role = s === L ? "лонг" : "шорт";
+    if (!bk) return `<div class="bx-book"><header>${vAva(s.id)}<b>${esc(s.name)}</b><em class="bx-role ${role === "лонг" ? "l" : "s"}">${role}</em></header><p class="muted small">${BX.book ? "Стакан недоступен" : "Загружаем…"}</p></div>`;
+    const a = bk.a.slice(0, 10).reverse(),
+      b = bk.b.slice(0, 10),
+      mx = Math.max(...a.concat(b).map(([p, q]) => p * q), 1),
+      ln = (cls) => ([p, q]) => `<div class="bx-lv ${cls}"><i style="width:${((p * q) / mx) * 100}%"></i><span>${tlPx(p / s.m)}</span><span>$${compactUsd(p * q)}</span></div>`,
+      sp = bk.a[0] && bk.b[0] ? bk.a[0][0] / bk.b[0][0] - 1 : null;
+    return `<div class="bx-book"><header>${vAva(s.id)}<b>${esc(s.name)}</b><em class="bx-role ${role === "лонг" ? "l" : "s"}">${role}</em><small>спред ${sp != null ? `${(sp * 100).toFixed(3)}%` : "—"}</small></header>
+      <div class="bx-lvh"><span>Цена</span><span>Объём $</span></div>${a.map(ln("ask")).join("")}<div class="bx-mid">${tlPx(((bk.a[0]?.[0] || 0) + (bk.b[0]?.[0] || 0)) / 2 / s.m)}</div>${b.map(ln("bid")).join("")}</div>`;
+  };
+  el.innerHTML = `<div class="bx-sheet-h"><b>Стаканы</b><button type="button" data-bxsheet>✕</button></div><div class="bx-books-in">${one(L)}${one(S)}</div>`;
+  fixIcons(el);
+}
+async function bxBook() {
+  if (!BX.r || BX.bbusy) return;
+  BX.bbusy = !0;
+  const r = BX.r,
+    key = BX.key;
+  try {
+    const res = await fetch(`/api/bundle?k=book&v=${encodeURIComponent(r.x.v)}&sym=${encodeURIComponent(r.x.sym)}&coin=${encodeURIComponent(r.coin)}`);
+    const d = await res.json();
+    if (BX.key !== key) return;
+    BX.book = d;
+    /* запоминаем вход/выход: из них строится линия «Вход/Выход» */
+    const ee = bxEE(0);
+    if (ee) {
+      const k = `${BX.key}|${BX.dir}`,
+        a = (BX.ee[k] = BX.ee[k] || []),
+        t = Math.floor(Date.now() / 1e3);
+      (!a.length || a[a.length - 1].time < t) && a.push({ time: t, en: ee.en * 100, ex: ee.ex * 100 });
+      a.length > 5000 && a.splice(0, a.length - 5000);
+    }
+    bxCalc();
+    bxBooks();
+    bxLive();
+  } catch {}
+  BX.bbusy = !1;
+}
+const bxHKey = () => `${BX.key}|${BX_TF[BX.tf][0]}`;
+async function bxLoad(quiet) {
+  const r = BX.r;
+  if (!r) return;
+  const hk = bxHKey(),
+    h = BX.hist[hk];
+  bxHead();
+  if (h && Date.now() - h.at < 6e4) return bxDraw();
+  if (BX.busy) return;
+  BX.busy = !0;
+  quiet || (bxMsg("Загружаем историю…"), !h && BX.chart && (BX.chart.remove(), (BX.chart = null)));
+  try {
+    const res = await fetch(`/api/bundle?k=hist&v=${encodeURIComponent(r.x.v)}&sym=${encodeURIComponent(r.x.sym)}&coin=${encodeURIComponent(r.coin)}&i=${BX_TF[BX.tf][0]}`);
+    BX.hist[hk] = { at: Date.now(), ...(await res.json()) };
+  } catch {
+    h ? (h.at = Date.now()) : bxMsg("Не удалось загрузить историю. Попробуем ещё раз через минуту.");
+  }
+  BX.busy = !1;
+  BX.key && bxHKey() === hk && bxDraw();
+}
+function bxMsg(t) {
+  const m = $("bxMsg");
+  m && ((m.hidden = !t), (m.textContent = t || ""));
+}
+/* свечи спреда (шорт / лонг − 1, %) из цен закрытия обеих бирж */
+function bxCandles(h) {
+  const { T, X } = bxSides(),
+    tf = BX_TF[BX.tf][1],
+    tm = new Map((h.hl?.c || []).map(([t, c]) => [t, c / T.m])),
+    out = [];
+  for (const [t, c] of h.x?.c || []) {
+    const pt = tm.get(t);
+    if (!pt || !(c > 0)) continue;
+    const px = c / X.m,
+      v = (BX.dir > 0 ? px / pt - 1 : pt / px - 1) * 100,
+      b = Math.floor(t / 1e3 / tf) * tf,
+      last = out[out.length - 1];
+    if (last && last.time === b) ((last.high = Math.max(last.high, v)), (last.low = Math.min(last.low, v)), (last.close = v));
+    else out.push({ time: b, open: v, high: v, low: v, close: v });
+  }
+  return out;
+}
+const bxFund = (a, ih, from) => {
+  const out = [];
+  for (const [t, v] of a || []) {
+    const time = Math.floor(t / 1e3);
+    time >= from && (!out.length || time > out[out.length - 1].time) && out.push({ time, value: (v / (ih || 1)) * TL.norm * 100 });
+  }
+  return out;
+};
+const bxAt = (a, t) => {
+  let v = null;
+  for (const p of a) {
+    if (p.time > t) break;
+    v = p.value;
+  }
+  return v;
+};
+function bxDraw() {
+  const box = $("bxCh"),
+    h = BX.hist[bxHKey()];
+  bxHead();
+  if (!box || !BX.r) return;
+  BX.chart && (BX.chart.remove(), (BX.chart = null));
+  BX.S = {};
+  if (!h) return;
+  const { T, X, L } = bxSides(),
+    theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light",
     th = CHART_THEMES[theme],
     css = getComputedStyle(document.documentElement),
     blue = css.getPropertyValue("--accent").trim() || "#2563eb",
-    mk = (el) =>
-      createChart(el, {
-        height: 200,
-        autoSize: !0,
-        layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: th.text, fontSize: 11 },
-        grid: { vertLines: { visible: !1 }, horzLines: { color: th.grid } },
-        rightPriceScale: { borderVisible: !1 },
-        timeScale: { borderVisible: !1, timeVisible: !0 },
-        handleScroll: !1,
-        handleScale: !1,
-      }),
-    fmt = (dg) => ({ type: "custom", minMove: 1e-6, formatter: (v) => `${v > 0 ? "+" : ""}${v.toFixed(dg)}%` }),
-    hour = (t) => Math.floor(t / 36e5) * 3600;
-  /* спред: совмещаем часы обеих бирж */
-  const xm = new Map((d.x?.p || []).map(([t, v]) => [hour(t), v / (r.x.mult || 1)])),
-    sp = (d.hl?.p || []).map(([t, v]) => [hour(t), v / (r.t.mult || 1)]).filter(([t]) => xm.has(t)).map(([t, v]) => ({ time: t, value: (xm.get(t) / v - 1) * 100 }));
-  const elS = $("tlChS"),
-    elF = $("tlChF");
-  if (sp.length > 1) {
-    const c1 = mk(elS);
-    c1.addSeries(BaselineSeries, { priceFormat: fmt(3), baseValue: { type: "price", price: 0 }, lineWidth: 2, topLineColor: blue, topFillColor1: blue + "40", topFillColor2: blue + "05", bottomLineColor: "#f59e0b", bottomFillColor1: "#f59e0b05", bottomFillColor2: "#f59e0b40", lastValueVisible: !0, priceLineVisible: !1 }).setData(sp);
-    c1.timeScale().fitContent();
-  } else elS.innerHTML = `<p class="muted small">Нет истории цен${d.x?.err?.length ? ` (${esc(tlVName(r.x.v))} не отдаёт)` : ""}.</p>`;
-  const tf = (d.hl?.f || []).map(([t, v]) => ({ time: Math.floor(t / 1e3), value: v * TL.norm * 100 })),
-    xf = (d.x?.f || []).map(([t, v]) => ({ time: Math.floor(t / 1e3), value: (v / (r.x.ih || 1)) * TL.norm * 100 })),
-    uniq = (a) => a.filter((p, k) => !k || p.time > a[k - 1].time);
-  if (tf.length || xf.length) {
-    const c2 = mk(elF);
-    tf.length && c2.addSeries(LineSeries, { color: blue, lineWidth: 2, priceFormat: fmt(4), lastValueVisible: !1, priceLineVisible: !1 }).setData(uniq(tf));
-    xf.length && c2.addSeries(LineSeries, { color: "#f59e0b", lineWidth: 2, lineType: LineType.WithSteps, pointMarkersVisible: xf.length < 80, priceFormat: fmt(4), lastValueVisible: !1, priceLineVisible: !1 }).setData(uniq(xf));
-    c2.timeScale().fitContent();
-  } else elF.innerHTML = '<p class="muted small">Нет истории ставок.</p>';
+    orange = "#f59e0b",
+    up = css.getPropertyValue("--buy").trim() || "#16a34a",
+    dn = css.getPropertyValue("--sell").trim() || "#e11d48",
+    fmt = (dg) => ({ type: "custom", minMove: 1e-6, formatter: (v) => `${v > 0 ? "+" : ""}${v.toFixed(dg)}%` });
+  const cs = bxCandles(h),
+    from = cs.length ? cs[0].time : Math.floor(Date.now() / 1e3) - 864e5,
+    fT = bxFund(h.hl?.f, T.row.ih, from),
+    fX = bxFund(h.x?.f, X.row.ih, from);
+  const c = createChart(box, {
+    autoSize: !0,
+    layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: th.text, fontSize: 11, panes: { separatorColor: th.grid, separatorHoverColor: th.grid } },
+    grid: { vertLines: { color: th.grid }, horzLines: { color: th.grid } },
+    rightPriceScale: { borderVisible: !1 },
+    timeScale: { borderVisible: !1, timeVisible: !0, secondsVisible: !1, rightOffset: 4 },
+    crosshair: { mode: CrosshairMode.Normal },
+    localization: { locale: "ru-RU" },
+  });
+  BX.chart = c;
+  const fLine = (data, color, pane, w = 2) => {
+    if (!data.length) return null;
+    const s = c.addSeries(LineSeries, { color, lineWidth: w, lineType: LineType.WithSteps, priceFormat: fmt(4), lastValueVisible: !0, priceLineVisible: !1 }, pane);
+    s.setData(data);
+    return s;
+  };
+  let sX = null;
+  let leg = "";
+  if (BX.mode === "candles") {
+    if (cs.length < 2) bxMsg(`${esc(X.name)} не отдаёт историю цен для этой монеты — смотрите «Вход/Выход».`);
+    else bxMsg("");
+    const s = c.addSeries(CandlestickSeries, { upColor: up, downColor: dn, wickUpColor: up, wickDownColor: dn, borderVisible: !1, priceFormat: fmt(3) }, 0);
+    s.setData(cs);
+    BX.S.c = s;
+    s.createPriceLine({ price: 0, color: th.text + "55", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: !1 });
+    BX.S.pe = s.createPriceLine({ price: 0, color: up, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: !0, title: "вход" });
+    BX.S.px = s.createPriceLine({ price: 0, color: dn, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: !0, title: "выход" });
+    fLine(fT, blue, 1);
+    sX = fLine(fX, orange, 1);
+    leg = `<i class="lg c">Спред ${BX.dir > 0 ? `${esc(X.name)} / Totum` : `Totum / ${esc(X.name)}`}</i>`;
+  } else if (BX.mode === "ee") {
+    /* история — оценка по свечам спреда с поправкой на нынешние стаканы (пунктир),
+       дальше — живые точки по стаканам каждые 3 с (сплошная линия) */
+    const ee0 = bxEE(0),
+      { S: Sd } = bxSides(),
+      lastT = cs.length ? cs[cs.length - 1].time : 0,
+      live = (BX.ee[`${BX.key}|${BX.dir}`] || []).filter((p) => p.time > lastT);
+    BX.S.est = !!ee0;
+    if (ee0 && cs.length) {
+      const m0 = (bxMid(Sd) / bxMid(L) - 1) * 100,
+        dEn = ee0.en * 100 - m0,
+        dEx = ee0.ex * 100 + m0,
+        o = { lineWidth: 1, lineStyle: LineStyle.Dashed, priceFormat: fmt(3), priceLineVisible: !1, lastValueVisible: !1, crosshairMarkerVisible: !1 };
+      c.addSeries(LineSeries, { ...o, color: up + "aa" }, 0).setData(cs.map((k) => ({ time: k.time, value: k.close + dEn })));
+      c.addSeries(LineSeries, { ...o, color: dn + "aa" }, 0).setData(cs.map((k) => ({ time: k.time, value: -k.close + dEx })));
+    }
+    BX.S.en = c.addSeries(LineSeries, { color: up, lineWidth: 2, priceFormat: fmt(3), priceLineVisible: !1, title: "вход" }, 0);
+    BX.S.ex = c.addSeries(LineSeries, { color: dn, lineWidth: 2, priceFormat: fmt(3), priceLineVisible: !1, title: "выход" }, 0);
+    BX.S.en.setData(live.map((p) => ({ time: p.time, value: p.en })));
+    BX.S.ex.setData(live.map((p) => ({ time: p.time, value: p.ex })));
+    BX.S.en.createPriceLine({ price: 0, color: th.text + "55", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: !1 });
+    fLine(fT, blue, 1);
+    sX = fLine(fX, orange, 1);
+    bxMsg(ee0 ? "" : "Загружаем стаканы…");
+    leg = `<i class="lg en">вход</i><i class="lg ex">выход</i><i class="lg note">пунктир — оценка по свечам, сплошная — по стаканам сейчас</i>`;
+  } else {
+    bxMsg(fT.length || fX.length ? "" : "Нет истории ставок.");
+    fLine(fT, blue, 0, 2);
+    sX = fLine(fX, orange, 0, 2);
+    /* накопленный фандинг связки: каждый час — ставка шорта минус ставка лонга */
+    const sh = fT.length || fX.length ? [] : null;
+    if (sh) {
+      const t0 = Math.ceil(from / 3600) * 3600,
+        now = Math.floor(Date.now() / 1e3);
+      let acc = 0;
+      for (let t = t0; t <= now; t += 3600) {
+        const rt = bxAt(fT, t),
+          rx = bxAt(fX, t);
+        if (rt == null || rx == null) continue;
+        acc += ((L.id === "hyperliquid" ? rx - rt : rt - rx) / TL.norm);
+        sh.push({ time: t, value: acc });
+      }
+      sh.length &&
+        c.addSeries(BaselineSeries, { baseValue: { type: "price", price: 0 }, lineWidth: 2, topLineColor: up, topFillColor1: up + "33", topFillColor2: up + "05", bottomLineColor: dn, bottomFillColor1: dn + "05", bottomFillColor2: dn + "33", priceFormat: fmt(3), priceLineVisible: !1, title: "накоплено" }, 1).setData(sh);
+    }
+    leg = `<i class="lg acc">накопленный фандинг связки</i>`;
+  }
+  {
+    /* ставка биржи подписью у каждой её выплаты (если выплаты не каждый час) */
+    sX &&
+      X.row.ih >= 4 &&
+      fX.length < 200 &&
+      createSeriesMarkers(sX, fX.map((p) => ({ time: p.time, position: "aboveBar", color: orange, shape: "circle", size: 0.5, text: `${p.value > 0 ? "+" : ""}${p.value.toFixed(3)}%` })));
+  }
+  const panes = c.panes();
+  panes[1] && panes[1].setStretchFactor(BX.mode === "funding" ? 0.6 : 0.28);
+  panes[0] && panes[0].setStretchFactor(1);
+  $("bxLeg").innerHTML = `${leg}<i class="lg t">Totum ${TL.norm === 1 ? "за 1 ч" : "за 8 ч"}</i><i class="lg x">${esc(X.name)}</i>`;
+  c.timeScale().fitContent();
+  /* подсказка под курсором: спред и ставки обеих бирж */
+  const tip = $("bxTip");
+  c.subscribeCrosshairMove((p) => {
+    if (!p.time || !p.point || p.point.x < 0) return void (tip.hidden = !0);
+    const d = new Date(p.time * 1e3).toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: BX.mode === "ee" ? "2-digit" : void 0 }),
+      f2 = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(3)}%`),
+      f4 = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(4)}%`);
+    let rows = "";
+    if (BX.S.c) {
+      const k = p.seriesData.get(BX.S.c);
+      k && (rows += `<div><span>Открытие</span><b>${f2(k.open)}</b></div><div><span>Макс.</span><b>${f2(k.high)}</b></div><div><span>Мин.</span><b>${f2(k.low)}</b></div><div><span>Закрытие</span><b>${f2(k.close)}</b></div>`);
+    }
+    if (BX.S.en) {
+      const a = p.seriesData.get(BX.S.en),
+        b = p.seriesData.get(BX.S.ex);
+      a && (rows += `<div><span><i class="dot en"></i>Вход</span><b>${f2(a.value)}</b></div>`);
+      b && (rows += `<div><span><i class="dot ex"></i>Выход</span><b>${f2(b.value)}</b></div>`);
+    }
+    rows += `<div><span><i class="dot t"></i>Фандинг Totum</span><b>${f4(bxAt(fT, p.time))}</b></div><div><span><i class="dot x"></i>Фандинг ${esc(X.name)}</span><b>${f4(bxAt(fX, p.time))}</b></div>`;
+    tip.innerHTML = `<header>${d}</header>${rows}`;
+    tip.hidden = !1;
+    const W = box.clientWidth,
+      x = p.point.x + 16 + 210 > W ? p.point.x - 226 : p.point.x + 16;
+    tip.style.transform = `translate(${Math.max(4, x)}px, ${Math.max(4, Math.min(p.point.y - 20, box.clientHeight - 220))}px)`;
+  });
+  bxLive();
+}
+/* живое обновление: последняя свеча и линии входа/выхода по стаканам */
+function bxLive() {
+  if (!BX.chart) return;
+  const ee = bxEE(0);
+  if (!ee) return;
+  if (BX.S.c) {
+    BX.S.pe.applyOptions({ price: ee.en * 100 });
+    BX.S.px.applyOptions({ price: -ee.ex * 100 });
+    const { L, S } = bxSides(),
+      v = (bxMid(S) / bxMid(L) - 1) * 100,
+      tf = BX_TF[BX.tf][1],
+      t = Math.floor(Date.now() / 1e3 / tf) * tf,
+      d = BX.S.c.data(),
+      last = d[d.length - 1];
+    if (last && t >= last.time && Number.isFinite(v))
+      try {
+        BX.S.c.update(last.time === t ? { time: t, open: last.open, high: Math.max(last.high, v), low: Math.min(last.low, v), close: v } : { time: t, open: last.close, high: Math.max(last.close, v), low: Math.min(last.close, v), close: v });
+      } catch {}
+  }
+  if (BX.S.en) {
+    const a = BX.ee[`${BX.key}|${BX.dir}`] || [],
+      p = a[a.length - 1];
+    if (p)
+      try {
+        BX.S.en.update({ time: p.time, value: p.en });
+        BX.S.ex.update({ time: p.time, value: p.ex });
+      } catch {}
+  }
+  BX.mode === "ee" && !BX.S.est && bxDraw();
 }
 async function loadBuilderTab() {
   let i = await info.referral({

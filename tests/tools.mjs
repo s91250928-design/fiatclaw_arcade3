@@ -10,12 +10,14 @@ const data = { t: now, venues, rows: [
   row("hyperliquid", "NEIRO", 0.0000125, 1, 0.06761, 0.06775, 9e4, 1000, "kNEIRO"), row("kraken", "NEIRO", 0.00143, 1, 0.00006819, 0.00006766, 7e3, 1, "PF_NEIROUSD"),
   row("okx", "NEIRO", -0.0000815, 4, 0.00006758, 0.00006769, 6e5, 1, "NEIRO-USDT-SWAP"), row("aster", "NEIRO", 0.0000366, 4, 0.00006762, 0.00006772, 1.1e4, 1, "NEIROUSDT"),
 ] };
-const hist = { t: now, hl: { f: Array.from({ length: 48 }, (_, k) => [now - (48 - k) * 36e5, -0.002 + k * 1e-5]), p: Array.from({ length: 48 }, (_, k) => [Math.floor((now - (48 - k) * 36e5) / 36e5) * 36e5, 0.0078 + k * 1e-6]) },
-  x: { f: Array.from({ length: 12 }, (_, k) => [now - (48 - k * 4) * 36e5, -0.009 + k * 1e-4]), p: Array.from({ length: 48 }, (_, k) => [Math.floor((now - (48 - k) * 36e5) / 36e5) * 36e5, 0.00785 + k * 1e-6]), err: [] } };
+const t5 = Math.floor(now / 3e5) * 3e5, wave = (k) => Math.sin(k / 9) * 3e-5;
+const hist = { t: now, i: "5m", hl: { c: Array.from({ length: 300 }, (_, k) => [t5 - (300 - k) * 3e5, 0.0078 + wave(k)]), f: Array.from({ length: 24 }, (_, k) => [now - (24 - k) * 36e5, -0.0025 + k * 1e-5]) },
+  x: { c: Array.from({ length: 300 }, (_, k) => [t5 - (300 - k) * 3e5, 0.00800 - wave(k) * 0.5]), f: Array.from({ length: 24 }, (_, k) => [now - (24 - k) * 36e5, -0.004 + k * 1e-4]), err: [] } };
+const book = { t: now, hl: { b: [[0.00779, 50000], [0.00778, 90000]], a: [[0.00781, 40000], [0.00782, 80000]] }, x: { b: [[0.00800, 60000], [0.00799, 70000]], a: [[0.00802, 30000], [0.00803, 200000]] }, err: [] };
 const { page, errors } = await setupPage(browser, { width: 1440, height: 1000 }, { exchange: [] }, { theme: "dark" });
 await page.addInitScript(() => { localStorage.setItem("totum.theme", "dark"); localStorage.removeItem("totum.tools"); });
 await page.route("**/api/funding", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(data) }));
-let pairReq = ""; await page.route("**/api/pair**", (r) => { pairReq = r.request().url(); r.fulfill({ contentType: "application/json", body: JSON.stringify(hist) }); });
+const reqs = []; await page.route("**/api/bundle**", (r) => { const u = r.request().url(); reqs.push(u); r.fulfill({ contentType: "application/json", body: JSON.stringify(/k=book/.test(u) ? book : hist) }); });
 await page.goto(URL0 + "/#trade"); await page.waitForTimeout(4500);
 await page.click('[data-cp="tools"]'); await page.waitForTimeout(1500);
 const rows = await page.locator(".tl-table.bundles tbody tr").allTextContents();
@@ -25,17 +27,44 @@ R.ok("сортировка по спреду фандинга: первой BLUR
 R.ok("в строке есть цены обеих бирж и индексы", /инд\./.test(rows[0]));
 R.ok("биржа без данных (WEEX) зачёркнута", await page.isVisible('[data-tlv="weex"].bad'));
 await page.screenshot({ path: "tests/out-tools-funding.png" });
-await page.click(".tl-table.bundles tbody tr:first-child [data-tlopen]"); await page.waitForTimeout(2000);
-R.ok("по кнопке графика — запрос истории связки", /v=bybit&sym=BLURUSDT&coin=BLUR/.test(pairReq), pairReq);
-R.ok("два графика: спред и ставки", (await page.locator("#tlChS canvas").count()) > 0 && (await page.locator("#tlChF canvas").count()) > 0);
-await page.screenshot({ path: "tests/out-tools-charts.png" });
+// окно связки на весь экран
+await page.click(".tl-table.bundles tbody tr:first-child [data-tlopen]"); await page.waitForTimeout(2500);
+const bb = await page.locator("#bx").boundingBox();
+R.ok("окно связки открылось на весь экран", bb && bb.width === 1440 && bb.height === 1000);
+R.ok("запрос истории: 15м строим из 5-минутных свечей", reqs.some((u) => /k=hist&v=bybit&sym=BLURUSDT&coin=BLUR&i=5m/.test(u)), reqs.join(" "));
+R.ok("запрос стаканов обеих бирж", reqs.some((u) => /k=book&v=bybit/.test(u)));
+const top = await page.textContent("#bxTop");
+R.ok("направление по идее: лонг Bybit, шорт Totum", (await page.textContent("#bxTop .bx-dir .on")).includes("Лонг Bybit"));
+R.ok("суммарный фандинг связки: +1.2000% за 8 ч", /Фандинг связки\+1\.2000% за 8 ч/.test(top), top.slice(0, 400));
+R.ok("фандинг каждой биржи с отсчётом до выплаты", (top.match(/выплата через/g) || []).length === 2);
+R.ok("вход −2.868% и выход +2.433% по стаканам", /−2\.868%[\s\S]*\+2\.433%/.test(top), top.slice(-260));
+R.ok("свечи спреда и панель фандинга на графике", (await page.locator("#bxCh canvas").count()) > 2);
+const calc = await page.textContent("#bxCalc");
+R.ok("расчёт на объём: комиссия 4 сделок −0.250%", /−0\.250%/.test(calc), calc.slice(0, 300));
+R.ok("стаканы обеих бирж с ролями", (await page.locator(".bx-book").count()) === 2 && /лонг/.test(await page.textContent("#bxBooks")));
+const box = await page.locator("#bxCh").boundingBox();
+await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3); await page.waitForTimeout(300);
+R.ok("подсказка под курсором: спред и фандинг обеих бирж", /Фандинг Totum[\s\S]*Фандинг Bybit/.test(await page.textContent("#bxTip")) && await page.isVisible("#bxTip"));
+await page.screenshot({ path: "tests/out-bx-candles.png" });
+await page.click('[data-bxtf="1h"]'); await page.waitForTimeout(1200);
+R.ok("таймфрейм 1ч → 15-минутные свечи", reqs.some((u) => /k=hist.*i=15m/.test(u)));
+await page.click('[data-bxm="ee"]'); await page.waitForTimeout(7000);
+R.ok("Вход/Выход: линии по стаканам", (await page.locator("#bxCh canvas").count()) > 0 && (await page.textContent("#bxLeg")).includes("выход"));
+await page.screenshot({ path: "tests/out-bx-ee.png" });
+await page.click('[data-bxm="funding"]'); await page.waitForTimeout(800);
+R.ok("Фандинг: накопленный фандинг связки", (await page.textContent("#bxLeg")).includes("накопленный"));
+await page.screenshot({ path: "tests/out-bx-funding.png" });
+await page.click('[data-bxdir="1"]'); await page.waitForTimeout(400);
+R.ok("смена направления: фандинг связки −1.2000%", /−1\.2000% за 8 ч/.test(await page.textContent("#bxTop")));
+await page.click('[data-bxm="candles"]'); await page.keyboard.press("Escape"); await page.waitForTimeout(300);
+R.ok("Esc закрывает окно", await page.isHidden("#bx"));
 await page.click('[data-tl="arb"]'); await page.waitForTimeout(500);
 const a0 = await page.locator(".tl-table.bundles tbody tr").first().textContent();
 R.ok("арбитраж: сортировка по спреду цены (BLUR Bybit +2,56%)", /BLUR[\s\S]*Bybit[\s\S]*\+2\.56%/.test(a0), a0.slice(0, 160));
 await page.screenshot({ path: "tests/out-tools-arb.png" });
 // сортировка по столбцам: спред фандинга по убыванию, затем по возрастанию
 await page.click('[data-tl="funding"]'); await page.waitForTimeout(300);
-const fsOf = async () => (await page.locator(".tl-table.bundles tbody tr:not(.tl-exp) td:nth-child(6)").allTextContents()).map((t) => Number(t.replace(/[^\d.+−-]/g, "").replace("−", "-")));
+const fsOf = async () => (await page.locator(".tl-table.bundles tbody tr td:nth-child(6)").allTextContents()).map((t) => Number(t.replace(/[^\d.+−-]/g, "").replace("−", "-")));
 await page.click('[data-tlsk="fs"]'); await page.waitForTimeout(300);
 const d1 = await fsOf();
 await page.click('[data-tlsk="fs"]'); await page.waitForTimeout(300);
@@ -49,8 +78,24 @@ R.ok("стрелка показывает направление", (await page.t
 await page.screenshot({ path: "tests/out-tools-sort.png" });
 // мелкие биржи и малый объём тоже видны: у NEIRO (на Totum это kNEIRO) три связки
 await page.click('[data-tlsk=""]').catch(() => {}); await page.fill("#tlQ", "NEIRO"); await page.waitForTimeout(400);
-const nr = await page.locator(".tl-table.bundles tbody tr:not(.tl-exp)").allTextContents();
+const nr = await page.locator(".tl-table.bundles tbody tr").allTextContents();
 R.ok("NEIRO: связки с Kraken, OKX и Aster (объём ниже $1M не прячется)", nr.length === 3 && /Kraken/.test(nr.join()) && /Aster/.test(nr.join()), nr.map((r) => r.slice(0, 40)).join(" | "));
 R.ok("пагинация: «Показано 1–3 из 3»", /Показано 1–3 из 3/.test(await page.textContent(".tl-pager")));
+// телефон: стаканы по кнопке
+const m = await browser.newPage({ viewport: { width: 390, height: 844 } });
+const merr = []; m.on("pageerror", (e) => merr.push(String(e)));
+await m.addInitScript(() => localStorage.setItem("totum.theme", "dark"));
+await m.route("**/api/funding", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(data) }));
+await m.route("**/api/bundle**", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(/k=book/.test(r.request().url()) ? book : hist) }));
+await m.goto(URL0 + "/#trade"); await m.waitForTimeout(4000);
+await m.evaluate(() => document.querySelector('[data-cp="tools"]')?.click()); await m.waitForTimeout(1500);
+await m.evaluate(() => document.querySelector("[data-tlopen]")?.click()); await m.waitForTimeout(2500);
+const inView = async () => { const b = await m.locator("#bxBooks").boundingBox(); return b && b.y < 844; };
+R.ok("телефон: стаканы спрятаны, есть кнопка «Стакан»", (await m.isVisible("#bxBookBtn")) && !(await inView()));
+await m.screenshot({ path: "tests/out-bx-mobile.png" });
+await m.click("#bxBookBtn"); await m.waitForTimeout(500);
+R.ok("телефон: по кнопке стаканы выезжают снизу", await inView());
+await m.screenshot({ path: "tests/out-bx-mobile-book.png" });
+R.ok("телефон: без ошибок", merr.length === 0, merr.join(" | "));
 R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();

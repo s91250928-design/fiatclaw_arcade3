@@ -2,6 +2,7 @@
    Сервер собирает публичные данные бирж (без ключей), приводит к одному виду
    и отдаёт сайту одним ответом. Кэш на 30 с, чтобы не упираться в лимиты бирж.
    Ставка — за один период выплаты биржи (ih — длина периода в часах). */
+import { selftest } from "./bundle.mjs";
 const T = 8000;
 const j = async (url, opt = {}) => {
   const r = await fetch(url, { ...opt, signal: AbortSignal.timeout(T), headers: { accept: "application/json", "user-agent": "totum-scanner/1.0", ...(opt.headers || {}) } });
@@ -245,7 +246,7 @@ export default async function handler(req, res) {
   });
   const body = { t: Date.now(), venues, rows };
   rows.length && (CACHE = body);
-  send(res, debug ? { t: body.t, venues } : body);
+  send(res, debug ? { t: body.t, venues, bundle: await selftest(rows).catch((e) => String(e)) } : body);
 }
 function send(res, body) {
   res.setHeader("cache-control", "public, s-maxage=30, stale-while-revalidate=60");
