@@ -1198,3 +1198,9 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 .tl-sort.reset{color:var(--muted);font-size:13px}
 .tl-arr{font-style:normal;font-size:11px} .tl-arr.off{opacity:.4}
 .tl-sub{display:flex;gap:10px;justify-content:flex-end;margin-top:3px;font-weight:600}
+
+.tl-pager{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--muted);font-weight:600}
+.tl-pg{display:inline-flex;align-items:center;gap:8px}
+.tl-pg b{color:var(--text);font-family:var(--mono)}
+.tl-pg button{width:32px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:16px;cursor:pointer}
+.tl-pg button:disabled{opacity:.35;cursor:default}
