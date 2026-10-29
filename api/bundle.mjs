@@ -26,7 +26,7 @@ const scale = (b, k) => ({ b: b.b.map(([p, q]) => [p, q * k]), a: b.a.map(([p, q
 
 const binLike = (host) => ({
   f: async (s, from) => (await j(`${host}/fapi/v1/fundingRate?symbol=${s}&startTime=${from}&limit=1000`)).map((x) => [n(x.fundingTime), n(x.fundingRate)]),
-  c: async (s, i) => (await j(`${host}/fapi/v1/klines?symbol=${s}&interval=${i}&limit=1000`)).map((x) => [n(x[0]), n(x[4])]),
+  c: async (s, i) => (await j(`${host}/fapi/v1/klines?symbol=${s}&interval=${i}&limit=1000`)).map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]),
   b: async (s) => {
     const d = await j(`${host}/fapi/v1/depth?symbol=${s}&limit=20`);
     return { b: lv(d.bids), a: lv(d.asks) };
@@ -38,7 +38,7 @@ const mexcLike = (host) => ({
     const m = MIN[i],
       end = Math.floor(Date.now() / 1000);
     const d = (await j(`${host}/api/v1/contract/kline/${s}?interval=Min${m}&start=${end - m * 60 * 1000}&end=${end}`))?.data || {};
-    return (d.time || []).map((t, k) => [t * 1000, n(d.close?.[k])]);
+    return (d.time || []).map((t, k) => [t * 1000, n(d.open?.[k]), n(d.high?.[k]), n(d.low?.[k]), n(d.close?.[k])]);
   },
   b: async (s) => {
     const [d, k] = await Promise.all([j(`${host}/api/v1/contract/depth/${s}?limit=20`), ctSize(`${host}|${s}`, async () => (await j(`${host}/api/v1/contract/detail?symbol=${s}`))?.data?.contractSize)]);
@@ -52,7 +52,7 @@ export const H = {
   ourbit: mexcLike("https://futures.ourbit.com"),
   bybit: {
     f: async (s, from) => ((await j(`https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${s}&startTime=${from}&endTime=${Date.now()}&limit=200`))?.result?.list || []).map((x) => [n(x.fundingRateTimestamp), n(x.fundingRate)]),
-    c: async (s, i) => ((await j(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${s}&interval=${MIN[i]}&limit=1000`))?.result?.list || []).map((x) => [n(x[0]), n(x[4])]),
+    c: async (s, i) => ((await j(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${s}&interval=${MIN[i]}&limit=1000`))?.result?.list || []).map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]),
     b: async (s) => {
       const d = (await j(`https://api.bybit.com/v5/market/orderbook?category=linear&symbol=${s}&limit=25`))?.result || {};
       return { b: lv(d.b), a: lv(d.a) };
@@ -69,7 +69,7 @@ export const H = {
         if (!more.length) break;
         out = out.concat(more);
       }
-      return out.map((x) => [n(x[0]), n(x[4])]);
+      return out.map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]);
     },
     b: async (s) => {
       const [d, k] = await Promise.all([
@@ -82,7 +82,7 @@ export const H = {
   },
   bitget: {
     f: async (s) => ((await j(`https://api.bitget.com/api/v2/mix/market/history-fund-rate?symbol=${s}&productType=USDT-FUTURES&pageSize=100`))?.data || []).map((x) => [n(x.fundingTime), n(x.fundingRate)]),
-    c: async (s, i) => ((await j(`https://api.bitget.com/api/v2/mix/market/candles?symbol=${s}&productType=USDT-FUTURES&granularity=${i === "1h" ? "1H" : i}&limit=1000`))?.data || []).map((x) => [n(x[0]), n(x[4])]),
+    c: async (s, i) => ((await j(`https://api.bitget.com/api/v2/mix/market/candles?symbol=${s}&productType=USDT-FUTURES&granularity=${i === "1h" ? "1H" : i}&limit=1000`))?.data || []).map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]),
     b: async (s) => {
       const d = (await j(`https://api.bitget.com/api/v2/mix/market/merge-depth?symbol=${s}&productType=USDT-FUTURES&limit=15`))?.data || {};
       return { b: lv(d.bids), a: lv(d.asks) };
@@ -90,7 +90,7 @@ export const H = {
   },
   gate: {
     f: async (s) => (await j(`https://api.gateio.ws/api/v4/futures/usdt/funding_rate?contract=${s}&limit=200`)).map((x) => [n(x.t) * 1000, n(x.r)]),
-    c: async (s, i) => (await j(`https://api.gateio.ws/api/v4/futures/usdt/candlesticks?contract=${s}&interval=${i}&limit=1000`)).map((x) => [n(x.t) * 1000, n(x.c)]),
+    c: async (s, i) => (await j(`https://api.gateio.ws/api/v4/futures/usdt/candlesticks?contract=${s}&interval=${i}&limit=1000`)).map((x) => [n(x.t) * 1000, n(x.o), n(x.h), n(x.l), n(x.c)]),
     b: async (s) => {
       const [d, k] = await Promise.all([
         j(`https://api.gateio.ws/api/v4/futures/usdt/order_book?contract=${s}&limit=20`),
@@ -104,7 +104,7 @@ export const H = {
     f: async (s, from) => ((await j(`https://api-futures.kucoin.com/api/v1/contract/funding-rates?symbol=${s}&from=${from}&to=${Date.now()}`))?.data || []).map((x) => [n(x.timepoint), n(x.fundingRate)]),
     c: async (s, i) => {
       const m = MIN[i];
-      return ((await j(`https://api-futures.kucoin.com/api/v1/kline/query?symbol=${s}&granularity=${m}&from=${Date.now() - m * 6e4 * 500}&to=${Date.now()}`))?.data || []).map((x) => [n(x[0]), n(x[4])]);
+      return ((await j(`https://api-futures.kucoin.com/api/v1/kline/query?symbol=${s}&granularity=${m}&from=${Date.now() - m * 6e4 * 500}&to=${Date.now()}`))?.data || []).map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]);
     },
     b: async (s) => {
       const [d, k] = await Promise.all([
@@ -116,7 +116,7 @@ export const H = {
   },
   bingx: {
     f: async (s, from) => ((await j(`https://open-api.bingx.com/openApi/swap/v2/quote/fundingRate?symbol=${s}&startTime=${from}&limit=1000`))?.data || []).map((x) => [n(x.fundingTime), n(x.fundingRate)]),
-    c: async (s, i) => ((await j(`https://open-api.bingx.com/openApi/swap/v3/quote/klines?symbol=${s}&interval=${i}&limit=1000`))?.data || []).map((x) => (Array.isArray(x) ? [n(x[0]), n(x[4])] : [n(x.time), n(x.close)])),
+    c: async (s, i) => ((await j(`https://open-api.bingx.com/openApi/swap/v3/quote/klines?symbol=${s}&interval=${i}&limit=1000`))?.data || []).map((x) => (Array.isArray(x) ? [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])] : [n(x.time), n(x.open), n(x.high), n(x.low), n(x.close)])),
     b: async (s) => {
       const d = (await j(`https://open-api.bingx.com/openApi/swap/v2/quote/depth?symbol=${s}&limit=20`))?.data || {};
       return { b: lv(d.bids), a: lv(d.asks) };
@@ -125,7 +125,7 @@ export const H = {
   kraken: {
     /* у Kraken ставка «relative» — доля от цены за час */
     f: async (s, from) => ((await j(`https://futures.kraken.com/derivatives/api/v4/historicalfundingrates?symbol=${s}`))?.rates || []).map((x) => [Date.parse(x.timestamp), n(x.relativeFundingRate)]).filter((x) => x[0] >= from),
-    c: async (s, i) => ((await j(`https://futures.kraken.com/api/charts/v1/trade/${s}/${i}?from=${Math.floor(Date.now() / 1000) - MIN[i] * 60 * 1000}`))?.candles || []).map((x) => [n(x.time), n(x.close)]),
+    c: async (s, i) => ((await j(`https://futures.kraken.com/api/charts/v1/trade/${s}/${i}?from=${Math.floor(Date.now() / 1000) - MIN[i] * 60 * 1000}`))?.candles || []).map((x) => [n(x.time), n(x.open), n(x.high), n(x.low), n(x.close)]),
     b: async (s) => {
       const d = (await j(`https://futures.kraken.com/derivatives/api/v3/orderbook?symbol=${s}`))?.orderBook || {};
       return { b: lv(d.bids).slice(0, 20), a: lv(d.asks).slice(0, 20) };
@@ -133,7 +133,7 @@ export const H = {
   },
   htx: {
     f: async (s) => ((await j(`https://api.hbdm.com/linear-swap-api/v1/swap_historical_funding_rate?contract_code=${s}&page_size=50`))?.data?.data || []).map((x) => [n(x.funding_time), n(x.funding_rate)]),
-    c: async (s, i) => ((await j(`https://api.hbdm.com/linear-swap-ex/market/history/kline?contract_code=${s}&period=${MIN[i]}min&size=1000`))?.data || []).map((x) => [n(x.id) * 1000, n(x.close)]),
+    c: async (s, i) => ((await j(`https://api.hbdm.com/linear-swap-ex/market/history/kline?contract_code=${s}&period=${MIN[i]}min&size=1000`))?.data || []).map((x) => [n(x.id) * 1000, n(x.open), n(x.high), n(x.low), n(x.close)]),
     b: async (s) => {
       const [d, k] = await Promise.all([
         j(`https://api.hbdm.com/linear-swap-ex/market/depth?contract_code=${s}&type=step0`),
@@ -143,14 +143,14 @@ export const H = {
     },
   },
   whitebit: {
-    c: async (s, i) => ((await j(`https://whitebit.com/api/v1/public/kline?market=${s}&interval=${i}&limit=1440`))?.result || []).map((x) => [n(x[0]) * 1000, n(x[2])]),
+    c: async (s, i) => ((await j(`https://whitebit.com/api/v1/public/kline?market=${s}&interval=${i}&limit=1440`))?.result || []).map((x) => [n(x[0]) * 1000, n(x[1]), n(x[3]), n(x[4]), n(x[2])]),
     b: async (s) => {
       const d = await j(`https://whitebit.com/api/v4/public/orderbook/${s}?limit=20`);
       return { b: lv(d.bids), a: lv(d.asks) };
     },
   },
   paradex: {
-    c: async (s, i) => ((await j(`https://api.prod.paradex.trade/v1/markets/klines?symbol=${s}&resolution=${MIN[i]}&start_at=${Date.now() - MIN[i] * 6e4 * 1000}&end_at=${Date.now()}`))?.results || []).map((x) => [n(x[0]), n(x[4])]),
+    c: async (s, i) => ((await j(`https://api.prod.paradex.trade/v1/markets/klines?symbol=${s}&resolution=${MIN[i]}&start_at=${Date.now() - MIN[i] * 6e4 * 1000}&end_at=${Date.now()}`))?.results || []).map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]),
     b: async (s) => {
       const d = await j(`https://api.prod.paradex.trade/v1/orderbook/${s}?depth=20`);
       return { b: lv(d.bids), a: lv(d.asks) };
@@ -158,7 +158,7 @@ export const H = {
   },
   dydx: {
     f: async (s, from) => ((await j(`https://indexer.dydx.trade/v4/historicalFunding/${s}?limit=1000`))?.historicalFunding || []).map((x) => [Date.parse(x.effectiveAt), n(x.rate)]).filter((x) => x[0] >= from),
-    c: async (s, i) => ((await j(`https://indexer.dydx.trade/v4/candles/perpetualMarkets/${s}?resolution=${{ "1m": "1MIN", "5m": "5MINS", "15m": "15MINS", "1h": "1HOUR" }[i]}&limit=1000`))?.candles || []).map((x) => [Date.parse(x.startedAt), n(x.close)]),
+    c: async (s, i) => ((await j(`https://indexer.dydx.trade/v4/candles/perpetualMarkets/${s}?resolution=${{ "1m": "1MIN", "5m": "5MINS", "15m": "15MINS", "1h": "1HOUR" }[i]}&limit=1000`))?.candles || []).map((x) => [Date.parse(x.startedAt), n(x.open), n(x.high), n(x.low), n(x.close)]),
     b: async (s) => {
       const d = await j(`https://indexer.dydx.trade/v4/orderbooks/perpetualMarket/${s}`);
       const f = (x) => [x.price, x.size];
@@ -167,7 +167,7 @@ export const H = {
   },
 };
 
-const clean = (a, from) => a.filter((x) => Number.isFinite(x[0]) && Number.isFinite(x[1]) && x[0] >= from).sort((x, y) => x[0] - y[0]);
+const clean = (a, from) => a.filter((x) => Number.isFinite(x[0]) && x.slice(1).every(Number.isFinite) && x[0] >= from).sort((x, y) => x[0] - y[0]);
 const why = (r) => String(r.reason?.message || r.reason).slice(0, 120);
 
 export default async function handler(req, res) {
@@ -189,7 +189,7 @@ export default async function handler(req, res) {
   const i = MIN[q.i] ? String(q.i) : "5m",
     from = Date.now() - MIN[i] * 6e4 * 1000;
   const [a, b, c, d] = await Promise.allSettled([
-    hl({ type: "candleSnapshot", req: { coin, interval: i, startTime: from, endTime: Date.now() } }).then((r) => r.map((x) => [x.t, n(x.c)])),
+    hl({ type: "candleSnapshot", req: { coin, interval: i, startTime: from, endTime: Date.now() } }).then((r) => r.map((x) => [x.t, n(x.o), n(x.h), n(x.l), n(x.c)])),
     hl({ type: "fundingHistory", coin, startTime: from }).then((r) => r.map((x) => [x.time, n(x.fundingRate)])),
     X?.c ? X.c(sym, i) : Promise.reject(new Error("no-candles")),
     X?.f ? X.f(sym, from) : Promise.reject(new Error("no-funding-history")),
