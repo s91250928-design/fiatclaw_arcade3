@@ -1154,3 +1154,41 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 .tl-empty{padding:40px;text-align:center;color:var(--muted);font-weight:600}
 #paneTools .inf-note{margin-top:10px}
 @media (max-width:900px){.tl-wrap{max-height:none}.tl-upd{margin-left:0;width:100%}#paneTools{padding-bottom:110px}}
+
+.adl-toast{display:flex;flex-direction:column;gap:4px;max-width:340px;pointer-events:auto}
+.adl-toast b{font-size:13px} .adl-toast span{font-size:12.5px;line-height:1.4}
+.adl-toast button{align-self:flex-start;margin-top:4px;border:0;border-radius:7px;padding:5px 10px;background:var(--sell);color:#fff;font:700 12px "Manrope",var(--font);cursor:pointer}
+
+.tl-table.bundles td{vertical-align:middle}
+.tl-c{display:flex;align-items:center;gap:8px}
+.tl-c .coin-ic{width:24px;height:24px;flex:none}
+.tl-c small{display:block;font:500 10.5px "Manrope",var(--font);color:var(--muted)}
+.tl-table.bundles td span{display:block;line-height:1.5}
+.tl-table.bundles td.tl-v b{display:block;font:700 12px "Manrope",var(--font);line-height:1.5;text-align:left}
+.tl-table.bundles td.tl-v b:first-child{color:var(--accent)}
+.tl-table.bundles th:nth-child(2),.tl-table.bundles td.tl-v{text-align:left}
+.tl-table.bundles td.fr span em{font:500 10px "Manrope",var(--font);font-style:normal;color:var(--muted);margin-left:6px}
+.tl-table.bundles td.fr span.pos{color:var(--buy)} .tl-table.bundles td.fr span.neg{color:var(--sell)}
+.tl-table.bundles td.spr{color:var(--muted)} .tl-table.bundles td.spr.main{color:var(--accent);font-size:13.5px}
+.tl-table.bundles td.spr.pos.main{color:var(--accent)}
+.tl-warn{display:inline-grid;place-items:center;width:16px;height:16px;margin-left:6px;border-radius:50%;background:#f59e0b;color:#111;font:800 11px "Manrope",var(--font);font-style:normal;cursor:help;vertical-align:middle}
+.tl-chart-btn{border:1px solid var(--line);background:var(--panel2);border-radius:8px;width:32px;height:30px;cursor:pointer;color:var(--text)}
+.tl-table tr.open td{background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
+.tl-exp td{padding:0!important;background:var(--panel2)!important}
+.tl-charts{padding:12px 14px;position:sticky;left:0;box-sizing:border-box}
+.tl-ch-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tl-ch-head b{font:700 13px "Manrope",var(--font)}
+.tl-ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tl-ch-grid>div>span{display:block;font:600 12px "Manrope",var(--font);color:var(--muted);margin-bottom:4px;text-align:left}
+.tl-ch{height:200px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.lg{font-style:normal;font-weight:700} .lg::before{content:"";display:inline-block;width:10px;height:3px;border-radius:2px;margin:0 4px 2px 6px;vertical-align:middle}
+.lg.t{color:var(--accent)} .lg.t::before{background:var(--accent)} .lg.x{color:#f59e0b} .lg.x::before{background:#f59e0b}
+@media (max-width:900px){.tl-ch-grid{grid-template-columns:1fr}}
+
+/* на компьютере инструментам — больше места: стакан прячем, панель выше */
+@media (min-width:901px){
+  body[data-cp="tools"] #sidePanel{display:none}
+  body[data-cp="tools"] #paneChart{grid-column:1 / span 2}
+  body[data-cp="tools"] .layout{grid-template-rows:680px auto}
+  body[data-cp="tools"] .tl-wrap{max-height:470px}
+}
