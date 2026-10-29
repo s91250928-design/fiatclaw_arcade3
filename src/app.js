@@ -4037,7 +4037,7 @@ async function renderAccHist() {
    Показываем только связки с Totum: у монеты на Totum и на другой бирже —
    цены (и индекс), ставки фандинга, спред цены и спред ставки. По кнопке
    графика — история спреда и ставок обеих сторон (/api/pair). Годовых нет. */
-const TL = { tab: "funding", data: null, at: 0, busy: !1, norm: 1, q: "", minVol: 1e6, off: new Set(), timer: null, open: null, days: 2, hist: {} };
+const TL = { sk: null, sd: -1, tab: "funding", data: null, at: 0, busy: !1, norm: 1, q: "", minVol: 1e6, off: new Set(), timer: null, open: null, days: 2, hist: {} };
 try {
   const z = JSON.parse(localStorage.getItem("totum.tools") || "{}");
   z.norm && (TL.norm = z.norm);
@@ -4121,7 +4121,13 @@ function renderTools(open) {
   const V = (TL.data.venues || []).filter((v) => v.id !== "hyperliquid"),
     q = TL.q.trim().toUpperCase();
   let rows = tlPairs().filter((r) => !q || r.base.includes(q) || r.coin.toUpperCase().includes(q));
-  rows.sort((a, c) => (TL.tab === "arb" ? Math.abs(c.ps) - Math.abs(a.ps) : Math.abs(c.fs) - Math.abs(a.fs)));
+  /* сортировка: по умолчанию — самые большие разницы по модулю; нажатие на заголовок —
+     по убыванию, повторное — по возрастанию */
+  const SV = { coin: (r) => r.base, ps: (r) => r.ps, tr: (r) => tlRate(r.t), xr: (r) => tlRate(r.x), fs: (r) => r.fs, vol: (r) => r.x.vol ?? -1 };
+  if (TL.sk && SV[TL.sk]) {
+    const f = SV[TL.sk];
+    rows.sort((a, c) => (TL.sk === "coin" ? a.base.localeCompare(c.base) * TL.sd : (f(c) - f(a)) * -TL.sd));
+  } else rows.sort((a, c) => (TL.tab === "arb" ? Math.abs(c.ps) - Math.abs(a.ps) : Math.abs(c.fs) - Math.abs(a.fs)));
   rows = rows.slice(0, 120);
   const ctrl = `<div class="tl-ctrl">
       <input class="tl-q" type="search" placeholder="Монета, например BTC" value="${esc(TL.q)}" id="tlQ">
@@ -4143,13 +4149,16 @@ function renderTools(open) {
       <td class="fr"><span>${tlPx(r.tp)}<em>инд. ${tlPx((r.t.idx || 0) / (r.t.mult || 1))}</em></span><span>${tlPx(r.xp)}<em>инд. ${tlPx((r.x.idx || 0) / (r.x.mult || 1))}</em></span></td>
       <td class="spr ${TL.tab === "arb" ? "main" : ""} ${r.ps >= 0 ? "pos" : "neg"}">${r.ps >= 0 ? "+" : "−"}${Math.abs(r.ps * 100).toFixed(2)}%</td>
       <td class="fr"><span class="${r.t.rate > 0 ? "pos" : r.t.rate < 0 ? "neg" : ""}">${tlPct(tlRate(r.t))}<em>${r.t.ih} ч · ${tlLeft(r.t.next)}</em></span><span class="${r.x.rate > 0 ? "pos" : r.x.rate < 0 ? "neg" : ""}">${tlPct(tlRate(r.x))}<em>${r.x.ih} ч${r.x.next ? ` · ${tlLeft(r.x.next)}` : ""}</em></span></td>
-      <td class="spr ${TL.tab === "funding" ? "main" : ""}">${tlPct(Math.abs(r.fs))}${warn}</td>
+      <td class="spr ${TL.tab === "funding" ? "main" : ""}" title="Ставка биржи минус ставка Totum">${tlPct(r.fs)}${warn}</td>
       <td>${r.x.vol != null ? compact(r.x.vol) : "—"}</td>
       <td class="idea">${TL.tab === "arb" ? pIdea : fIdea}</td>
       <td><button type="button" class="tl-chart-btn" data-tlopen="${esc(key)}" title="Графики спреда и фандинга">${TL.open === key ? "▲" : "📈"}</button></td></tr>
       ${TL.open === key ? `<tr class="tl-exp"><td colspan="9"><div class="tl-charts" data-key="${esc(key)}"></div></td></tr>` : ""}`;
   };
-  const html = `<div class="tl-wrap"><table class="tl-table bundles"><thead><tr><th>Монета</th><th>Связка</th><th>Цена</th><th class="${TL.tab === "arb" ? "on" : ""}">Спред цены</th><th>Фандинг за ${N}</th><th class="${TL.tab === "funding" ? "on" : ""}">Спред фандинга</th><th>Объём биржи</th><th>Идея</th><th></th></tr></thead><tbody>
+  const ar = (k) => (TL.sk === k ? `<i class="tl-arr">${TL.sd < 0 ? "↓" : "↑"}</i>` : '<i class="tl-arr off">↕</i>'),
+    th = (k, l, extra = "") => `<button type="button" class="tl-sort ${TL.sk === k ? "on" : ""}" data-tlsk="${k}" title="Сортировать: по убыванию / по возрастанию">${l}${ar(k)}</button>${extra}`,
+    dflt = !TL.sk;
+  const html = `<div class="tl-wrap"><table class="tl-table bundles"><thead><tr><th>${th("coin", "Монета")}</th><th>Связка</th><th>Цена</th><th class="${dflt && TL.tab === "arb" ? "on" : ""}">${th("ps", "Спред цены")}</th><th>Фандинг за ${N}<div class="tl-sub">${th("tr", "Totum")}${th("xr", "биржа")}</div></th><th class="${dflt && TL.tab === "funding" ? "on" : ""}">${th("fs", "Спред фандинга")}</th><th>${th("vol", "Объём биржи")}</th><th>Идея</th><th>${TL.sk ? '<button type="button" class="tl-sort reset" data-tlsk="" title="Сбросить сортировку">✕</button>' : ""}</th></tr></thead><tbody>
       ${rows.map(line).join("") || '<tr><td colspan="9" class="na">Ничего не нашли</td></tr>'}</tbody></table></div>
     <p class="inf-note">${
       TL.tab === "funding"
@@ -4178,6 +4187,16 @@ function renderTools(open) {
         const id = b.dataset.tlv;
         TL.off.has(id) ? TL.off.delete(id) : TL.off.add(id);
         tlSave();
+        renderTools();
+      }),
+  );
+  body.querySelectorAll("[data-tlsk]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const k = b.dataset.tlsk;
+        if (!k) TL.sk = null;
+        else if (TL.sk === k) TL.sd = -TL.sd;
+        else ((TL.sk = k), (TL.sd = k === "coin" ? 1 : -1));
         renderTools();
       }),
   );
