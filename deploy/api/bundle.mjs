@@ -22,7 +22,7 @@ const ctSize = async (key, load) => {
   CT.set(key, { t: Date.now(), v });
   return v;
 };
-const scale = (b, k) => ({ b: b.b.map(([p, q]) => [p, q * k]), a: b.a.map(([p, q]) => [p, q * k]) });
+const scale = (b, k) => ({ b: b.b.map(([p, q]) => [p, q * k]), a: b.a.map(([p, q]) => [p, q * k]), ct: k });
 
 const binLike = (host) => ({
   f: async (s, from) => (await j(`${host}/fapi/v1/fundingRate?symbol=${s}&startTime=${from}&limit=1000`)).map((x) => [n(x.fundingTime), n(x.fundingRate)]),

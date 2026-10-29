@@ -4055,7 +4055,7 @@ const tlSave = () => {
   } catch {}
 };
 async function loadTools(force) {
-  if (TL.busy || (!force && TL.data && Date.now() - TL.at < 3e4)) return;
+  if (TL.busy || (!force && TL.data && Date.now() - TL.at < 9e3)) return;
   TL.busy = !0;
   try {
     const r = await fetch("/api/funding", { cache: "no-store" });
@@ -4111,7 +4111,7 @@ function tlPairs() {
 function renderTools(open) {
   const body = $("tlBody");
   if (!body) return;
-  open && (clearInterval(TL.timer), (TL.timer = setInterval(() => (document.body.dataset.cp === "tools" ? loadTools() : clearInterval(TL.timer)), 3e4)));
+  open && (clearInterval(TL.timer), (TL.timer = setInterval(() => (document.body.dataset.cp === "tools" ? loadTools() : clearInterval(TL.timer)), 1e4)));
   document.querySelectorAll("#tlTabs [data-tl]").forEach((b) => {
     b.classList.toggle("on", b.dataset.tl === TL.tab);
     b.onclick = () => ((TL.tab = b.dataset.tl), (TL.open = null), tlSave(), renderTools());
@@ -4715,7 +4715,8 @@ function bxOpen(key) {
   bxBook();
   clearInterval(BX.bt);
   clearInterval(BX.ct);
-  BX.bt = setInterval(() => !document.hidden && bxBook(), 3e3);
+  bxWsStart();
+  BX.bt = setInterval(() => !document.hidden && bxBook(), 2e3);
   BX.ct = setInterval(() => {
     if (document.hidden) return;
     bxHead();
@@ -4730,6 +4731,7 @@ function bxClose() {
   document.body.classList.remove("bx-on");
   clearInterval(BX.bt);
   clearInterval(BX.ct);
+  bxWsStop();
   BX.chart && (BX.chart.remove(), (BX.chart = null));
   BX.key = null;
 }
@@ -4814,8 +4816,169 @@ function bxBooks() {
   el.innerHTML = `<div class="bx-sheet-h"><b>Стаканы</b><button type="button" data-bxsheet>✕</button></div><div class="bx-books-in">${one(L)}${one(S)}</div>`;
   fixIcons(el);
 }
+/* ── живые стаканы связки: прямые WebSocket-потоки бирж в браузер ──
+   Биржа сама присылает каждое изменение (10 раз в секунду и чаще). Для бирж
+   без потока (и пока поток не подключился) — запасной путь через наш сервер. */
+function bxSock(url, onOpen, onMsg, ping, every = 2e4) {
+  let ws,
+    timer,
+    closed = !1,
+    tries = 0;
+  const go = () => {
+    try {
+      ws = new WebSocket(url);
+    } catch {
+      return;
+    }
+    ws.onopen = () => {
+      tries = 0;
+      onOpen(ws);
+      ping && (timer = setInterval(() => ws.readyState === 1 && ws.send(typeof ping === "function" ? ping() : ping), every));
+    };
+    ws.onmessage = (e) => {
+      if (typeof e.data !== "string" || e.data === "pong") return;
+      let d;
+      try {
+        d = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      onMsg(d);
+    };
+    ws.onclose = () => {
+      clearInterval(timer);
+      !closed && tries++ < 8 && setTimeout(go, Math.min(1e4, 800 * tries));
+    };
+    ws.onerror = () => {};
+  };
+  go();
+  return {
+    close() {
+      closed = !0;
+      clearInterval(timer);
+      try {
+        ws && ws.close();
+      } catch {}
+    },
+  };
+}
+const bxLB = () => ({ b: new Map(), a: new Map() });
+const bxLSet = (m, arr, f = (x) => x) => (arr || []).forEach((x) => {
+  const [p, q] = f(x).map(Number);
+  p > 0 && (q > 0 ? m.set(p, q) : m.delete(p));
+});
+const bxSnap = (L, b, a, f) => (L.b.clear(), L.a.clear(), bxLSet(L.b, b, f), bxLSet(L.a, a, f));
+const bxTop = (L, k = 1) => ({ b: [...L.b].sort((x, y) => y[0] - x[0]).slice(0, 20).map(([p, q]) => [p, q * k]), a: [...L.a].sort((x, y) => x[0] - y[0]).slice(0, 20).map(([p, q]) => [p, q * k]) });
+const BX_CT = new Set(["okx", "gate", "mexc"]); /* стакан в контрактах — нужен размер контракта */
+const binWs = (host) => (sym, L, up) => bxSock(`${host}/ws/${sym.toLowerCase()}@depth20@100ms`, () => {}, (d) => d.b && (bxSnap(L, d.b, d.a), up()));
+const BX_WS = {
+  binance: binWs("wss://fstream.binance.com"),
+  aster: binWs("wss://fstream.asterdex.com"),
+  bybit: (sym, L, up) =>
+    bxSock("wss://stream.bybit.com/v5/public/linear", (ws) => ws.send(JSON.stringify({ op: "subscribe", args: [`orderbook.50.${sym}`] })), (d) => {
+      if (!String(d.topic || "").startsWith("orderbook")) return;
+      d.type === "snapshot" ? bxSnap(L, d.data.b, d.data.a) : (bxLSet(L.b, d.data.b), bxLSet(L.a, d.data.a));
+      up();
+    }, JSON.stringify({ op: "ping" })),
+  okx: (sym, L, up) =>
+    bxSock("wss://ws.okx.com:8443/ws/v5/public", (ws) => ws.send(JSON.stringify({ op: "subscribe", args: [{ channel: "books5", instId: sym }] })), (d) => {
+      const x = d.arg?.channel === "books5" && d.data?.[0];
+      x && (bxSnap(L, x.bids, x.asks, (v) => [v[0], v[1]]), up());
+    }, "ping"),
+  bitget: (sym, L, up) =>
+    bxSock("wss://ws.bitget.com/v2/ws/public", (ws) => ws.send(JSON.stringify({ op: "subscribe", args: [{ instType: "USDT-FUTURES", channel: "books15", instId: sym }] })), (d) => {
+      const x = d.arg?.channel === "books15" && d.data?.[0];
+      x && (bxSnap(L, x.bids, x.asks), up());
+    }, "ping"),
+  gate: (sym, L, up) =>
+    bxSock("wss://fx-ws.gateio.ws/v4/ws/usdt", (ws) => ws.send(JSON.stringify({ time: Math.floor(Date.now() / 1e3), channel: "futures.order_book", event: "subscribe", payload: [sym, "20", "0"] })), (d) => {
+      const x = d.channel === "futures.order_book" && d.event === "all" && d.result;
+      x && (bxSnap(L, x.bids, x.asks, (v) => [v.p, Math.abs(v.s)]), up());
+    }, () => JSON.stringify({ time: Math.floor(Date.now() / 1e3), channel: "futures.ping" })),
+  mexc: (sym, L, up) =>
+    bxSock("wss://contract.mexc.com/edge", (ws) => ws.send(JSON.stringify({ method: "sub.depth.full", param: { symbol: sym, limit: 20 } })), (d) => {
+      const x = d.channel === "push.depth.full" && d.data;
+      x && (bxSnap(L, x.bids, x.asks, (v) => [v[0], v[1]]), up());
+    }, JSON.stringify({ method: "ping" }), 15e3),
+  kraken: (sym, L, up) =>
+    bxSock("wss://futures.kraken.com/ws/v1", (ws) => ws.send(JSON.stringify({ event: "subscribe", feed: "book", product_ids: [sym] })), (d) => {
+      if (d.feed === "book_snapshot") (bxSnap(L, d.bids, d.asks, (v) => [v.price, v.qty]), up());
+      else if (d.feed === "book" && d.price != null) (bxLSet(d.side === "buy" ? L.b : L.a, [[d.price, d.qty]]), up());
+    }),
+  dydx: (sym, L, up) =>
+    bxSock("wss://indexer.dydx.trade/v4/ws", (ws) => ws.send(JSON.stringify({ type: "subscribe", channel: "v4_orderbook", id: sym })), (d) => {
+      const c = d.contents;
+      if (!c) return;
+      if (d.type === "subscribed") bxSnap(L, c.bids, c.asks, (v) => [v.price, v.size]);
+      else if (d.type === "channel_data") (bxLSet(L.b, c.bids, (v) => (Array.isArray(v) ? v : [v.price, v.size])), bxLSet(L.a, c.asks, (v) => (Array.isArray(v) ? v : [v.price, v.size])));
+      else return;
+      /* у dYdX бывают «пересёкшиеся» уровни — убираем всё, что хуже лучшей встречной цены */
+      const bb = Math.max(...L.b.keys()),
+        ba = Math.min(...L.a.keys());
+      if (bb >= ba) for (const p of [...L.b.keys()]) p >= ba && L.b.delete(p);
+      up();
+    }),
+};
+function bxWsStart() {
+  bxWsStop();
+  const r = BX.r,
+    key = BX.key,
+    W = (BX.W = { hl: bxLB(), x: bxLB(), at: { hl: 0, x: 0 }, socks: [], ct: null, pend: 0 });
+  const up = (side) => () => {
+    if (BX.key !== key || BX.W !== W) return;
+    W.at[side] = Date.now();
+    W.pend ||
+      (W.pend = setTimeout(() => {
+        W.pend = 0;
+        if (BX.W !== W) return;
+        const book = { ...(BX.book || {}) };
+        W.at.hl && (book.hl = bxTop(W.hl));
+        W.at.x && (!BX_CT.has(r.x.v) || W.ct) && (book.x = bxTop(W.x, BX_CT.has(r.x.v) ? W.ct : 1));
+        BX.book = book;
+        bxOnBook();
+      }, 150));
+  };
+  W.socks.push(
+    bxSock("wss://api.hyperliquid.xyz/ws", (ws) => ws.send(JSON.stringify({ method: "subscribe", subscription: { type: "l2Book", coin: r.coin } })), (d) => {
+      const lv = d.channel === "l2Book" && d.data?.coin === r.coin && d.data.levels;
+      lv && (bxSnap(W.hl, lv[0], lv[1], (v) => [v.px, v.sz]), up("hl")());
+    }, JSON.stringify({ method: "ping" }), 3e4),
+  );
+  BX_WS[r.x.v] && W.socks.push(BX_WS[r.x.v](r.x.sym, W.x, up("x")));
+}
+function bxWsStop() {
+  if (!BX.W) return;
+  BX.W.socks.forEach((s) => s.close());
+  clearTimeout(BX.W.pend);
+  BX.W = null;
+}
+/* поток считается живым, если обновлялся последние 5 с */
+const bxLive2 = (side) => BX.W && Date.now() - BX.W.at[side] < 5e3;
+function bxOnBook() {
+  /* запоминаем вход/выход: из них строится линия «Вход/Выход» */
+  const ee = bxEE(0);
+  if (ee) {
+    const k = `${BX.key}|${BX.dir}`,
+      a = (BX.ee[k] = BX.ee[k] || []),
+      t = Math.floor(Date.now() / 1e3),
+      p = { time: t, en: ee.en * 100, ex: ee.ex * 100 };
+    !a.length || a[a.length - 1].time < t ? a.push(p) : (a[a.length - 1] = p);
+    a.length > 5000 && a.splice(0, a.length - 5000);
+  }
+  bxCalc();
+  bxBooks();
+  bxLive();
+  bxHeadEE();
+}
+/* быстро обновляем только «Вход · Выход» в шапке, не перерисовывая её целиком */
+function bxHeadEE() {
+  const el = document.querySelector("#bxTop .bx-f.ee b"),
+    ee = bxEE(0);
+  el && ee && (el.innerHTML = `<em class="${bxCls(ee.en)}">${bxP(ee.en)}</em> · <em class="${bxCls(ee.ex)}">${bxP(ee.ex)}</em>`);
+}
 async function bxBook() {
   if (!BX.r || BX.bbusy) return;
+  if (BX.W && bxLive2("hl") && (bxLive2("x") || !BX_WS[BX.r.x.v]) && BX.W.ct != null && BX_WS[BX.r.x.v]) return;
   BX.bbusy = !0;
   const r = BX.r,
     key = BX.key;
@@ -4823,19 +4986,12 @@ async function bxBook() {
     const res = await fetch(`/api/bundle?k=book&v=${encodeURIComponent(r.x.v)}&sym=${encodeURIComponent(r.x.sym)}&coin=${encodeURIComponent(r.coin)}`);
     const d = await res.json();
     if (BX.key !== key) return;
-    BX.book = d;
-    /* запоминаем вход/выход: из них строится линия «Вход/Выход» */
-    const ee = bxEE(0);
-    if (ee) {
-      const k = `${BX.key}|${BX.dir}`,
-        a = (BX.ee[k] = BX.ee[k] || []),
-        t = Math.floor(Date.now() / 1e3);
-      (!a.length || a[a.length - 1].time < t) && a.push({ time: t, en: ee.en * 100, ex: ee.ex * 100 });
-      a.length > 5000 && a.splice(0, a.length - 5000);
-    }
-    bxCalc();
-    bxBooks();
-    bxLive();
+    BX.W && BX.W.ct == null && (BX.W.ct = d.x?.ct || 1);
+    const book = { ...(BX.book || {}) };
+    (!bxLive2("hl") && d.hl) && (book.hl = d.hl);
+    (!bxLive2("x") && d.x) && (book.x = d.x);
+    BX.book = book;
+    bxOnBook();
   } catch {}
   BX.bbusy = !1;
 }
