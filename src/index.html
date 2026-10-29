@@ -414,10 +414,15 @@
     <button data-op="fills" type="button">История ордеров</button>
     <button data-op="funding" type="button">История фандинга</button>
     <button data-op="builder" id="opBuilderTab" type="button" hidden>Доход Totum</button>
+    <button id="opCalTab" type="button" class="op-cal">Календарь PnL</button>
   </div>
   <div class="pg-filters"><button data-opf="all" class="on" type="button">Все пары</button><button data-opf="cur" type="button">Текущая пара</button></div>
   <p class="muted small" id="opNote"></p>
   <div id="opList" class="op-list"></div>
+</dialog>
+<dialog id="calDialog" class="page-dlg">
+  <div class="pg-head"><button id="calBack" class="icon-btn2" type="button" aria-label="Назад">←</button><h2>Календарь PnL</h2></div>
+  <div id="calBody" class="cal-body"></div>
 </dialog>
 <dialog id="pnlDialog">
   <div class="pg-head" style="padding:0 0 10px;background:transparent;border:0"><h2>Поделиться PnL</h2><button id="pnlClose" class="icon-btn2" type="button" aria-label="Закрыть">✕</button></div>

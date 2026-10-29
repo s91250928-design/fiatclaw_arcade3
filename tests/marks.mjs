@@ -39,7 +39,7 @@ for (const vp of [{ width: 1440, height: 900, name: "desktop" }, { width: 390, h
     await page.locator("#paneChart").screenshot({ path: "tests/out-marks.png" });
   } else {
     await page.click("#mnav [data-app=home]"); await page.waitForTimeout(1200);
-    const sum = await page.textContent("#pgHome .hc-sum"), sub = await page.textContent("#pgHome .hc-sub");
+    const sum = await page.textContent("#pgHome .hc-sum"), sub = "";
     R.ok("главная: единый счёт не удваивается", /727,71/.test(sum) && !/1\s?455/.test(sum), `${sum} | ${sub}`);
     await page.locator("#pgHome .hero-card").screenshot({ path: "tests/out-home-sum.png" });
   }

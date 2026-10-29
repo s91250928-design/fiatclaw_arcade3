@@ -3490,6 +3490,269 @@ function buildPositionHistory(i, t) {
   }
   return s.reverse();
 }
+/* ═══════════ Баланс: график и PnL за период ═══════════
+   Источник — portfolio Hyperliquid: история стоимости счёта и PnL
+   за день / неделю / месяц / всё время. Рисуем SVG — карточка
+   перерисовывается каждую секунду, и SVG это переносит легко. */
+const PF_WIN = [
+  ["day", "1Д", "за день"],
+  ["week", "7Д", "за неделю"],
+  ["month", "30Д", "за месяц"],
+  ["allTime", "Всё", "за всё время"],
+];
+try {
+  S.pfWin = localStorage.getItem("totum.pfwin") || "day";
+} catch {
+  S.pfWin = "day";
+}
+async function loadPortfolio(force = !1) {
+  if (!S.user || (!force && S.pfAt && Date.now() - S.pfAt < 6e4)) return;
+  S.pfAt = Date.now();
+  try {
+    const r = await info.portfolio({ user: S.user });
+    S.portfolio = Object.fromEntries(r || []);
+    appRenderT = 0;
+    renderAppPage();
+  } catch (e) {
+    console.warn("[portfolio]", e?.message || e);
+  }
+}
+function heroSpark(pts, up) {
+  if (pts.length < 2) return '<div class="hc-spark empty"></div>';
+  const W = 320,
+    H = 64,
+    xs = pts.map((p) => p[0]),
+    ys = pts.map((p) => p[1]),
+    x0 = Math.min(...xs),
+    x1 = Math.max(...xs),
+    y0 = Math.min(...ys),
+    y1 = Math.max(...ys),
+    sx = (x) => ((x - x0) / (x1 - x0 || 1)) * W,
+    sy = (y) => H - 4 - ((y - y0) / (y1 - y0 || 1)) * (H - 8),
+    line = pts.map((p, k) => `${k ? "L" : "M"}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(""),
+    c = up ? "#4ade80" : "#fb7185";
+  return `<svg class="hc-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <defs><linearGradient id="hcg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".45"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${line}L${W},${H}L0,${H}Z" fill="url(#hcg)"/><path d="${line}" fill="none" stroke="${c}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+}
+function heroPnl() {
+  loadPortfolio();
+  const w = S.portfolio?.[S.pfWin],
+    av = (w?.accountValueHistory || []).map(([t, v]) => [t, Number(v)]),
+    ph = w?.pnlHistory || [],
+    pnl = ph.length ? Number(ph.at(-1)[1]) - Number(ph[0][1]) : 0,
+    base = av.find((p) => p[1] > 0)?.[1] || 0,
+    pc = base ? (pnl / base) * 100 : 0,
+    lbl = PF_WIN.find((x) => x[0] === S.pfWin)?.[2] || "";
+  return `<div class="hc-pnl ${pnl >= 0 ? "up" : "down"}">PnL ${lbl} <b>${w ? `${pnl >= 0 ? "+" : "−"}${usd(Math.abs(pnl))}` : "…"}</b>${base ? `<i>${pnl >= 0 ? "+" : "−"}${Math.abs(pc).toFixed(2)}%</i>` : ""}</div>
+    ${w ? heroSpark(av, pnl >= 0) : '<div class="hc-spark empty"></div>'}
+    <div class="hc-row"><div class="hc-wins">${PF_WIN.map(([k, l]) => `<button type="button" data-pfwin="${k}" class="${k === S.pfWin ? "on" : ""}">${l}</button>`).join("")}</div>
+    <button type="button" class="hc-cal" data-act="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Календарь PnL</button></div>`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-pfwin]");
+  if (!b) return;
+  S.pfWin = b.dataset.pfwin;
+  try {
+    localStorage.setItem("totum.pfwin", S.pfWin);
+  } catch {}
+  appRenderT = 0;
+  renderAppPage();
+});
+
+/* ═══════════ Календарь PnL ═══════════
+   PnL дня = закрытые сделки (closedPnl) − комиссии + фандинг, по местному времени.
+   Открытые позиции в календарь не входят, как в календарях PnL на биржах. */
+const CAL = { y: 0, m: 0, sel: null, pick: null, days: {}, loaded: {}, busy: !1 };
+const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+const MONTHS_G = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const keyDate = (k) => {
+  const [y, m, d] = k.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+const fmtDay = (d) => `${d.getDate()} ${MONTHS_G[d.getMonth()]}`;
+async function calLoad(from, to) {
+  /* грузим по месяцам, каждый месяц один раз (текущий — раз в минуту) */
+  const jobs = [];
+  for (let d = new Date(from.getFullYear(), from.getMonth(), 1); d <= to; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+    const mk = `${d.getFullYear()}-${d.getMonth()}`,
+      cur = d.getFullYear() === new Date().getFullYear() && d.getMonth() === new Date().getMonth();
+    if (CAL.loaded[mk] && (!cur || Date.now() - CAL.loaded[mk] < 6e4)) continue;
+    jobs.push(calLoadMonth(d.getFullYear(), d.getMonth()).then(() => (CAL.loaded[mk] = Date.now())));
+  }
+  await Promise.all(jobs);
+}
+async function calLoadMonth(y, m) {
+  const start = new Date(y, m, 1).getTime(),
+    end = new Date(y, m + 1, 1).getTime() - 1;
+  const days = {};
+  const add = (t, k, v) => {
+    const key = dayKey(new Date(t));
+    const d = (days[key] = days[key] || { pnl: 0, fee: 0, fund: 0, n: 0 });
+    d[k] += v;
+  };
+  let st = start;
+  for (let n = 0; n < 10; n++) {
+    const f = (await info.userFillsByTime({ user: S.user, startTime: st, endTime: end, aggregateByTime: !0 })) || [];
+    for (const x of f) {
+      add(x.time, "pnl", Number(x.closedPnl || 0));
+      add(x.time, "fee", Number(x.fee || 0));
+      Number(x.closedPnl) !== 0 && add(x.time, "n", 1);
+    }
+    if (f.length < 2000) break;
+    st = f.at(-1).time + 1;
+  }
+  st = start;
+  for (let n = 0; n < 10; n++) {
+    const f = (await info.userFunding({ user: S.user, startTime: st, endTime: end })) || [];
+    for (const x of f) add(x.time, "fund", Number(x.delta?.usdc || 0));
+    if (f.length < 500) break;
+    st = f.at(-1).time + 1;
+  }
+  for (const k of Object.keys(CAL.days)) {
+    const d = keyDate(k);
+    d.getFullYear() === y && d.getMonth() === m && delete CAL.days[k];
+  }
+  for (const [k, v] of Object.entries(days)) CAL.days[k] = { ...v, net: v.pnl - v.fee + v.fund };
+}
+function calSum(a, b) {
+  const r = { net: 0, pnl: 0, fee: 0, fund: 0, n: 0, win: 0, loss: 0, best: null, worst: null };
+  for (let d = new Date(a); d <= b; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    const v = CAL.days[dayKey(d)];
+    if (!v) continue;
+    for (const k of ["net", "pnl", "fee", "fund", "n"]) r[k] += v[k];
+    v.net > 0 && r.win++;
+    v.net < 0 && r.loss++;
+    (!r.best || v.net > r.best.v) && (r.best = { d: new Date(d), v: v.net });
+    (!r.worst || v.net < r.worst.v) && (r.worst = { d: new Date(d), v: v.net });
+  }
+  return r;
+}
+function calPreset(k) {
+  const t = new Date(),
+    d0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()),
+    wd = (d0.getDay() + 6) % 7,
+    sh = (n) => new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + n);
+  const map = {
+    today: [d0, d0],
+    yday: [sh(-1), sh(-1)],
+    week: [sh(-wd), d0],
+    pweek: [sh(-wd - 7), sh(-wd - 1)],
+    month: [new Date(d0.getFullYear(), d0.getMonth(), 1), d0],
+    pmonth: [new Date(d0.getFullYear(), d0.getMonth() - 1, 1), new Date(d0.getFullYear(), d0.getMonth(), 0)],
+  };
+  if (k === "custom") {
+    CAL.sel = null;
+    CAL.pick = "start";
+    CAL.preset = "custom";
+    return renderCal();
+  }
+  CAL.sel = map[k];
+  CAL.preset = k;
+  CAL.pick = null;
+  CAL.y = CAL.sel[1].getFullYear();
+  CAL.m = CAL.sel[1].getMonth();
+  renderCal();
+}
+function openCalendar() {
+  if (!S.user) return toast("Подключите кошелёк, чтобы видеть свой PnL", "info");
+  const t = new Date();
+  CAL.y = t.getFullYear();
+  CAL.m = t.getMonth();
+  $("calDialog").open || $("calDialog").showModal();
+  calPreset("month");
+}
+async function renderCal() {
+  const box = $("calBody"),
+    first = new Date(CAL.y, CAL.m, 1),
+    last = new Date(CAL.y, CAL.m + 1, 0),
+    today = dayKey(new Date());
+  const selA = CAL.sel?.[0],
+    selB = CAL.sel?.[1];
+  const draw = () => {
+    const ms = calSum(first, last),
+      lead = (first.getDay() + 6) % 7,
+      cells = [];
+    const maxAbs = Math.max(1e-9, ...Object.entries(CAL.days).filter(([k]) => k.startsWith(`${CAL.y}-${String(CAL.m + 1).padStart(2, "0")}`)).map(([, v]) => Math.abs(v.net)));
+    for (let k = 0; k < lead; k++) cells.push('<div class="cal-c pad"></div>');
+    for (let d = 1; d <= last.getDate(); d++) {
+      const dt = new Date(CAL.y, CAL.m, d),
+        key = dayKey(dt),
+        v = CAL.days[key],
+        inSel = selA && dt >= selA && dt <= (selB || selA),
+        edge = selA && (key === dayKey(selA) || (selB && key === dayKey(selB))),
+        fut = key > today,
+        a = v ? Math.min(1, Math.abs(v.net) / maxAbs) : 0;
+      cells.push(
+        `<button type="button" class="cal-c${v ? (v.net >= 0 ? " up" : " down") : ""}${inSel ? " sel" : ""}${edge ? " edge" : ""}${key === today ? " today" : ""}${fut ? " fut" : ""}" data-day="${key}" style="--a:${(0.12 + a * 0.5).toFixed(2)}" ${fut ? "disabled" : ""}><span>${d}</span>${v ? `<b>${v.net >= 0 ? "+" : "−"}${compactUsd(Math.abs(v.net))}</b>` : ""}</button>`,
+      );
+    }
+    const ss = selA && CAL.pick !== "end" ? calSum(selA, selB || selA) : null,
+      selLbl = selA ? (selB && dayKey(selB) !== dayKey(selA) ? `${fmtDay(selA)} — ${fmtDay(selB)}` : fmtDay(selA)) : "";
+    box.innerHTML = `
+      <div class="cal-presets">${[["today", "Сегодня"], ["yday", "Вчера"], ["week", "Эта неделя"], ["pweek", "Прошлая неделя"], ["month", "Этот месяц"], ["pmonth", "Прошлый месяц"], ["custom", "Свой период"]]
+        .map(([k, l]) => `<button type="button" data-calp="${k}" class="${CAL.preset === k ? "on" : ""}">${l}</button>`)
+        .join("")}</div>
+      ${
+        ss
+          ? `<section class="cal-sum ${ss.net >= 0 ? "up" : "down"}">
+        <div class="cal-sum-h"><span>PnL · ${selLbl}</span><b>${ss.net >= 0 ? "+" : "−"}${usd(Math.abs(ss.net))}</b></div>
+        <div class="cal-sum-g">
+          <div><span>Сделки</span><b>${sgnUsd(ss.pnl)}</b></div>
+          <div><span>Комиссии</span><b>−${usd(ss.fee)}</b></div>
+          <div><span>Фандинг</span><b>${sgnUsd(ss.fund)}</b></div>
+          <div><span>Дни в плюс / минус</span><b>${ss.win} / ${ss.loss}</b></div>
+        </div></section>`
+          : `<section class="cal-sum pick"><b>${CAL.pick === "end" ? `Начало: ${fmtDay(selA)}. Теперь нажмите последний день периода` : "Нажмите первый день периода"}</b></section>`
+      }
+      <div class="cal-nav"><button type="button" data-calm="-1" aria-label="Предыдущий месяц">‹</button><b>${MONTHS[CAL.m]} ${CAL.y}</b><span class="${ms.net >= 0 ? "pos" : "neg"}">${ms.net >= 0 ? "+" : "−"}${usd(Math.abs(ms.net))}</span><button type="button" data-calm="1" aria-label="Следующий месяц" ${CAL.y === new Date().getFullYear() && CAL.m === new Date().getMonth() ? "disabled" : ""}>›</button></div>
+      <div class="cal-grid">${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((w) => `<div class="cal-w">${w}</div>`).join("")}${cells.join("")}</div>
+      ${CAL.busy ? '<p class="muted small cal-load">Загружаем сделки…</p>' : ""}
+      <div class="cal-best">${ms.best ? `<div><span>Лучший день месяца</span><b class="pos">${fmtDay(ms.best.d)} · ${sgnUsd(ms.best.v)}</b></div>` : ""}${ms.worst && ms.worst.v < 0 ? `<div><span>Худший день месяца</span><b class="neg">${fmtDay(ms.worst.d)} · ${sgnUsd(ms.worst.v)}</b></div>` : ""}</div>
+      <p class="inf-note">PnL дня — закрытые сделки, минус комиссии, плюс фандинг, по вашему местному времени. Открытые позиции не входят, пока не закрыты. Нажмите день, чтобы увидеть его итог, или выберите «Свой период».</p>`;
+    box.querySelectorAll("[data-calp]").forEach((b) => (b.onclick = () => calPreset(b.dataset.calp)));
+    box.querySelectorAll("[data-calm]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          const d = new Date(CAL.y, CAL.m + Number(b.dataset.calm), 1);
+          CAL.y = d.getFullYear();
+          CAL.m = d.getMonth();
+          renderCal();
+        }),
+    );
+    box.querySelectorAll("[data-day]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          const d = keyDate(b.dataset.day);
+          if (CAL.pick === "start") {
+            CAL.sel = [d, null];
+            CAL.pick = "end";
+          } else if (CAL.pick === "end") {
+            const a = CAL.sel[0];
+            CAL.sel = d < a ? [d, a] : [a, d];
+            CAL.pick = null;
+          } else {
+            CAL.sel = [d, d];
+            CAL.preset = "";
+          }
+          renderCal();
+        }),
+    );
+  };
+  draw();
+  const from = new Date(Math.min(first, selA || first)),
+    to = new Date(Math.max(last, selB || selA || last));
+  CAL.busy = !0;
+  try {
+    await calLoad(from, to);
+  } catch (e) {
+    toast("Не удалось загрузить историю сделок. Попробуйте ещё раз.", "err");
+  }
+  CAL.busy = !1;
+  $("calDialog").open && draw();
+}
+const compactUsd = (v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e4 ? `${(v / 1e3).toFixed(0)}K` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : v >= 100 ? v.toFixed(0) : v.toFixed(2)).replace(".", ",");
 async function loadBuilderTab() {
   let i = await info.referral({
       user: S.user,
@@ -5294,7 +5557,7 @@ function renderHome() {
   (($("pgHome").innerHTML = `
     <div class="hero-card">
       <div class="hc-top"><img src="brand/mark-128.webp" alt="" class="hc-mark"><span>${S.user ? "Ваши активы" : "Добро пожаловать в Totum"}</span>${CFG.isTestnet ? '<span class="badge">ТЕСТ</span>' : ""}</div>
-      ${S.user ? `<div class="hc-sum">${usd(i)}</div><div class="hc-sub">${equitySub()}</div><div class="hc-cta"><button class="hc-btn main" type="button" data-act="deposit"><i>${NAV_IC.plus}</i>Пополнить</button><button class="hc-btn" type="button" data-act="futures"><i>${NAV_IC.bolt}</i>Торговать</button></div>` : '<div class="hc-lead">Фьючерсы, спот и акции в одном приложении. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
+      ${S.user ? `<div class="hc-sum">${usd(i)}</div>${heroPnl()}<div class="hc-cta"><button class="hc-btn main" type="button" data-act="deposit"><i>${NAV_IC.plus}</i>Пополнить</button><button class="hc-btn" type="button" data-act="futures"><i>${NAV_IC.bolt}</i>Торговать</button></div>` : '<div class="hc-lead">Фьючерсы, спот и акции в одном приложении. Деньги под вашим контролем: доступ к счёту только у вашего кошелька.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button>'}
     </div>
     <div class="quick">
       <button type="button" data-act="futures"><i>${NAV_IC.futures}</i><span>Фьючерсы</span></button>
@@ -5358,7 +5621,7 @@ function renderAssets() {
       ? `
     <div class="hero-card">
       <div class="hc-top"><span>Всего</span></div>
-      <div class="hc-sum">${usd(totalEquity())}</div><div class="hc-sub">${equitySub()}</div>
+      <div class="hc-sum">${usd(totalEquity())}</div>${heroPnl()}
       <div class="hc-actions"><button class="btn" type="button" data-act="transfer">Перевести</button><button class="btn ghost" type="button" data-act="orders">История</button></div>
     </div>
     <div class="card-block">
@@ -5409,6 +5672,7 @@ function bindApp() {
           (o === "futures" || o === "trade") && setApp(o),
           o === "transfer" && openTransfer(),
           o === "assets" && setApp("assets"),
+          o === "calendar" && openCalendar(),
           /* Пополнение: в тестовой сети — кран тестовых USDC; в основной — раздел пополнения Hyperliquid тем же кошельком */
           o === "deposit" &&
             window.open(CFG.isTestnet ? "https://app.hyperliquid-testnet.xyz/drip" : "https://app.hyperliquid.xyz/portfolio", "_blank", "noopener"),
@@ -6166,6 +6430,8 @@ function bindSettings() {
     ($("pnlCopy").onclick = pnlCopy),
     ($("btnOrdersInfo").onclick = () => openOrdersPage()),
     ($("opBack").onclick = () => $("ordersPage").close()),
+    ($("opCalTab").onclick = () => openCalendar()),
+    ($("calBack").onclick = () => $("calDialog").close()),
     ($("opRefresh").onclick = async () => {
       (OP.tab === "open" && (await refreshAccount()), loadOpTab());
     }),
