@@ -1085,3 +1085,32 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 .cal-best b{font:700 13px var(--mono)}
 .cal-load{text-align:center;margin:0}
 @media (max-width:600px){.cal-sum-g{grid-template-columns:1fr 1fr}.cal-c{min-height:40px;border-radius:8px}.cal-c b{font-size:9.5px}}
+
+/* ═══ История счёта ═══ */
+.ah-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ah-head>div:first-child{display:flex;flex-direction:column;gap:2px}
+.ah-head span{font-size:12.5px;color:var(--muted);font-weight:600}
+.ah-head b{font:700 28px var(--mono);letter-spacing:-.02em}
+.ah-head i{font:700 13px var(--mono);font-style:normal}
+.ah-wins{background:var(--panel2)} .ah-wins button{color:var(--muted)} .ah-wins button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+.ah-chart{position:relative;height:230px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 10px 24px}
+.ah-chart svg{width:100%;height:100%;display:block;overflow:visible}
+.ah-line{stroke-dasharray:1000;stroke-dashoffset:1000;animation:ah-draw 1.8s cubic-bezier(.65,0,.35,1) forwards}
+.ah-area{opacity:0;animation:ah-fade .8s ease 1.1s forwards}
+.ah-dot{opacity:0;transform-box:fill-box;transform-origin:center;animation:ah-pop .45s ease 1.75s forwards}
+@keyframes ah-draw{to{stroke-dashoffset:0}}
+@keyframes ah-fade{to{opacity:1}}
+@keyframes ah-pop{0%{opacity:0;transform:scale(.2)}70%{opacity:1;transform:scale(1.4)}100%{opacity:1;transform:scale(1)}}
+.ah-y{position:absolute;top:8px;bottom:26px;right:12px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}
+.ah-y span{font:600 11px var(--mono);color:var(--muted);background:color-mix(in srgb,var(--panel) 80%,transparent);padding:0 4px;border-radius:4px}
+.ah-x{position:absolute;left:12px;right:12px;bottom:4px;display:flex;justify-content:space-between;font:600 11px var(--mono);color:var(--muted)}
+.ah-empty{height:160px;display:grid;place-items:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:14px;font-weight:600}
+.ah-list{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ah-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-top:1px solid var(--line)}
+.ah-row:first-child{border-top:0}
+.ah-row div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ah-row b{font:700 13.5px "Manrope",var(--font)}
+.ah-row span{font-size:12px;color:var(--muted);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ah-row em{font:700 14px var(--mono);font-style:normal;white-space:nowrap}
+.ah-row em.pos{color:var(--buy)} .ah-row em.neg{color:var(--sell)}
+@media (prefers-reduced-motion:reduce){.ah-line{animation:none;stroke-dashoffset:0}.ah-area,.ah-dot{animation:none;opacity:1}}

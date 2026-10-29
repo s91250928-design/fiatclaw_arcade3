@@ -3583,7 +3583,7 @@ function heroPnl() {
     pc = base ? (pnl / base) * 100 : 0,
     lbl = PF_WIN.find((x) => x[0] === S.pfWin)?.[2] || "";
   return `<div class="hc-pnl ${pnl >= 0 ? "up" : "down"}">PnL ${lbl} <b>${w ? `${pnl >= 0 ? "+" : "−"}${usd(Math.abs(pnl))}` : "…"}</b>${base ? `<i>${pnl >= 0 ? "+" : "−"}${Math.abs(pc).toFixed(2)}%</i>` : ""}</div>
-    ${w ? heroSpark(av, pnl >= 0) : '<div class="hc-spark empty"></div>'}
+    ${w ? heroSpark(ph.map(([t, v]) => [t, Number(v)]), pnl >= 0) : '<div class="hc-spark empty"></div>'}
     <div class="hc-row"><div class="hc-wins">${PF_WIN.map(([k, l]) => `<button type="button" data-pfwin="${k}" class="${k === S.pfWin ? "on" : ""}">${l}</button>`).join("")}</div>
     <button type="button" class="hc-cal" data-act="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Календарь PnL</button></div>`;
 }
@@ -3899,6 +3899,107 @@ async function loadSpotTab(tab) {
       })
       .join("") || opEmpty("Ордеров по споту пока нет");
   fixIcons(t);
+}
+/* ═══════════ История счёта ═══════════
+   Анимированная линия стоимости счёта (рисуется слева направо) и список
+   пополнений, выводов, переводов и наград из журнала Hyperliquid. */
+const AH = { win: "month" };
+function openAccHist() {
+  if (!S.user) return toast("Подключите кошелёк", "info");
+  $("histDialog").open || $("histDialog").showModal();
+  renderAccHist();
+}
+function ledgerRow(x) {
+  const d = x.delta || {},
+    me = S.user?.toLowerCase();
+  let title = "",
+    amt = 0,
+    note = "";
+  switch (d.type) {
+    case "deposit":
+      (title = "Пополнение"), (amt = Number(d.usdc));
+      break;
+    case "withdraw":
+      (title = "Вывод"), (amt = -Number(d.usdc)), (note = d.fee ? `комиссия ${usd(Number(d.fee))}` : "");
+      break;
+    case "rewardsClaim":
+      (title = "Награды Hyperliquid"), (amt = Number(d.amount));
+      break;
+    case "accountClassTransfer":
+      (title = d.toPerp ? "Перевод: спот → фьючерсы" : "Перевод: фьючерсы → спот"), (note = usd(Number(d.usdc)));
+      break;
+    case "send":
+    case "spotTransfer": {
+      const from = String(d.user || "").toLowerCase(),
+        to = String(d.destination || "").toLowerCase(),
+        v = Number(d.usdcValue || d.amount || 0);
+      if (from === me && to === me) (title = "Перевод между счетами"), (note = `${num(Number(d.amount), 4)} ${esc(d.token || "")}`);
+      else if (from === me) (title = "Отправка"), (amt = -v), (note = `на ${short(d.destination)}`);
+      else (title = "Получено"), (amt = v), (note = `от ${short(d.user)}`);
+      break;
+    }
+    case "internalTransfer":
+      title = String(d.destination || "").toLowerCase() === me ? "Получено" : "Отправка";
+      amt = (title === "Получено" ? 1 : -1) * Number(d.usdc);
+      break;
+    default:
+      title = d.type || "Операция";
+  }
+  return { time: x.time, title, amt, note };
+}
+async function renderAccHist() {
+  const box = $("accHistBody");
+  S.portfolio || (await loadPortfolio(!0));
+  const w = S.portfolio?.[AH.win],
+    av = (w?.accountValueHistory || []).map(([t, v]) => [t, Number(v)]).filter((p) => p[1] > 0 || w.accountValueHistory.length < 3);
+  const first = av[0]?.[1] || 0,
+    last = av.at(-1)?.[1] || totalEquity(),
+    ch = last - first;
+  const W = 640,
+    H = 220,
+    P = 8;
+  let svg = '<div class="ah-empty">История появится после первых операций</div>';
+  if (av.length > 1) {
+    const xs = av.map((p) => p[0]),
+      ys = av.map((p) => p[1]),
+      x0 = Math.min(...xs),
+      x1 = Math.max(...xs),
+      y0 = Math.min(...ys),
+      y1 = Math.max(...ys),
+      sx = (x) => P + ((x - x0) / (x1 - x0 || 1)) * (W - 2 * P),
+      sy = (y) => H - P - ((y - y0) / (y1 - y0 || 1)) * (H - 2 * P),
+      line = av.map((p, k) => `${k ? "L" : "M"}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(""),
+      d0 = (t) => new Date(t).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+    svg = `<div class="ah-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <defs><linearGradient id="ahg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+      <path class="ah-area" d="${line}L${sx(x1)},${H}L${sx(x0)},${H}Z" fill="url(#ahg)"/>
+      <path class="ah-line" d="${line}" pathLength="1000" fill="none" stroke="var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle class="ah-dot" cx="${sx(x1)}" cy="${sy(av.at(-1)[1])}" r="5" fill="var(--accent)"/></svg>
+      <div class="ah-y"><span>${usd(y1)}</span><span>${usd(y0)}</span></div>
+      <div class="ah-x"><span>${d0(x0)}</span><span>${d0((x0 + x1) / 2)}</span><span>${d0(x1)}</span></div></div>`;
+  }
+  box.innerHTML = `
+    <div class="ah-head"><div><span>Стоимость счёта</span><b>${usd(last)}</b><i class="${clsOf(ch)}">${ch >= 0 ? "+" : "−"}${usd(Math.abs(ch))} за период</i></div>
+      <div class="hc-wins ah-wins">${[["week", "7Д"], ["month", "30Д"], ["allTime", "Всё"]].map(([k, l]) => `<button type="button" data-ahw="${k}" class="${k === AH.win ? "on" : ""}">${l}</button>`).join("")}</div></div>
+    ${svg}
+    <p class="inf-note">Линия — сколько всего было на счёте: пополнения и выводы тоже её двигают. Результат торговли — в календаре PnL.</p>
+    <div class="ah-list" id="ahList"><p class="muted small">Загружаем операции…</p></div>`;
+  box.querySelectorAll("[data-ahw]").forEach((b) => (b.onclick = () => ((AH.win = b.dataset.ahw), renderAccHist())));
+  try {
+    const rows = ((await info.userNonFundingLedgerUpdates({ user: S.user, startTime: 0 })) || []).map(ledgerRow).sort((a, b) => b.time - a.time);
+    const el = $("ahList");
+    el &&
+      (el.innerHTML =
+        rows
+          .slice(0, 200)
+          .map(
+            (r) =>
+              `<div class="ah-row"><div><b>${r.title}</b><span>${fmtTime(r.time)}${r.note ? ` · ${r.note}` : ""}</span></div>${r.amt ? `<em class="${clsOf(r.amt)}">${r.amt >= 0 ? "+" : "−"}${usd(Math.abs(r.amt))}</em>` : ""}</div>`,
+          )
+          .join("") || '<p class="muted small">Пополнений и выводов пока не было</p>');
+  } catch {
+    $("ahList") && ($("ahList").innerHTML = '<p class="muted small">Не удалось загрузить операции</p>');
+  }
 }
 async function loadBuilderTab() {
   let i = await info.referral({
@@ -5807,7 +5908,7 @@ function renderAssets() {
     <div class="hero-card">
       <div class="hc-top"><span>Всего</span></div>
       <div class="hc-sum">${usd(totalEquity())}</div>${heroPnl()}
-      <div class="hc-actions"><button class="btn" type="button" data-act="transfer">Перевести</button><button class="btn ghost" type="button" data-act="orders">История</button></div>
+      <div class="hc-actions"><button class="btn" type="button" data-act="transfer">Перевести</button><button class="btn ghost" type="button" data-act="acchist">История счёта</button></div>
     </div>
     <div class="card-block">
       <div class="cb-head"><b>Фьючерсный счёт</b><button class="link-btn" type="button" data-act="futures">Торговать →</button></div>
@@ -5858,6 +5959,7 @@ function bindApp() {
           o === "transfer" && openTransfer(),
           o === "assets" && setApp("assets"),
           o === "calendar" && openCalendar(),
+          o === "acchist" && openAccHist(),
           /* Пополнение: в тестовой сети — кран тестовых USDC; в основной — раздел пополнения Hyperliquid тем же кошельком */
           o === "deposit" &&
             window.open(CFG.isTestnet ? "https://app.hyperliquid-testnet.xyz/drip" : "https://app.hyperliquid.xyz/portfolio", "_blank", "noopener"),
@@ -6617,6 +6719,7 @@ function bindSettings() {
     ($("btnCalendar").onclick = () => openCalendar()),
     ($("opBack").onclick = () => $("ordersPage").close()),
     ($("calBack").onclick = () => $("calDialog").close()),
+    ($("histBack").onclick = () => $("histDialog").close()),
     ($("opRefresh").onclick = async () => {
       (OP.tab === "open" && (await refreshAccount()), loadOpTab());
     }),

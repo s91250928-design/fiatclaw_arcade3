@@ -20,6 +20,11 @@ const state = { exchange: [], onExchange: (b) => { if (b.action.type === "approv
     case "userAbstraction": return "unifiedAccount"; case "clearinghouseState": return { marginSummary: { accountValue: "0", totalMarginUsed: "0" }, crossMarginSummary: { accountValue: "0" }, crossMaintenanceMarginUsed: "0", withdrawable: "0", assetPositions: [] };
     case "spotClearinghouseState": return { balances: [{ coin: "USDC", token: 0, total: "722", hold: "0", entryNtl: "0" }] };
     case "portfolio": return pf;
+    case "userNonFundingLedgerUpdates": return [
+      { time: now - 5 * 864e5, hash: "0x", delta: { type: "deposit", usdc: "800" } },
+      { time: now - 2 * 864e5, hash: "0x", delta: { type: "rewardsClaim", amount: "36.26", token: "USDC" } },
+      { time: now - 1 * 864e5, hash: "0x", delta: { type: "withdraw", usdc: "50", nonce: 1, fee: "1" } },
+      { time: now - 36e5, hash: "0x", delta: { type: "accountClassTransfer", usdc: "100", toPerp: false } } ];
     case "userFillsByTime": return fills.filter((f) => f.time >= b.startTime && f.time <= (b.endTime || 9e15));
     case "userFunding": return funding.filter((f) => f.time >= b.startTime && f.time <= (b.endTime || 9e15));
     case "frontendOpenOrders": case "openOrders": case "historicalOrders": case "userFills": return []; } } };
@@ -52,5 +57,15 @@ if (sameMonth(2) && sameMonth(1)) {
 }
 await page.click('[data-calp="month"]'); await page.waitForTimeout(1500);
 await page.screenshot({ path: "tests/out-calendar.png" });
+await page.keyboard.press("Escape"); await page.waitForTimeout(400);
+// линия на карточке — PnL: за неделю PnL падает → линия идёт вниз (последняя точка ниже первой)
+await page.click("#mnav [data-app=assets]"); await page.waitForTimeout(1500);
+const dir = await page.evaluate(() => { const d = document.querySelector("#pgAssets svg.hc-spark path:last-child").getAttribute("d"); const pts = d.match(/[\d.]+,[\d.]+/g).map((p) => Number(p.split(",")[1])); return pts.at(-1) - pts[0]; });
+R.ok("линия PnL за неделю идёт вниз (убыток)", dir > 0, String(dir));
+await page.click('#pgAssets [data-act="acchist"]'); await page.waitForTimeout(2600);
+R.ok("«История счёта»: анимированная линия и 4 операции", await page.isVisible("#histDialog .ah-line") && (await page.locator("#ahList .ah-row").count()) === 4);
+const txt = await page.textContent("#ahList");
+R.ok("пополнение +800, вывод −50, награды +36,26, перевод без суммы", /Пополнение[\s\S]*\+800/.test(txt) && /Вывод[\s\S]*−50/.test(txt) && /Награды/.test(txt) && /спот/.test(txt), txt.slice(0, 200));
+await page.screenshot({ path: "tests/out-acchist.png" });
 R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();
