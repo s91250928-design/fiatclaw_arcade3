@@ -246,7 +246,7 @@ export default async function handler(req, res) {
   });
   const body = { t: Date.now(), venues, rows };
   rows.length && (CACHE = body);
-  send(res, debug ? { t: body.t, venues, bundle: await selftest(rows).catch((e) => String(e)) } : body);
+  send(res, debug ? { bundle: await selftest(rows).catch((e) => String(e)), t: body.t, venues: venues.map((v) => ({ id: v.id, ok: v.ok, n: v.n, err: v.err })) } : body);
 }
 function send(res, body) {
   res.setHeader("cache-control", "public, s-maxage=30, stale-while-revalidate=60");
