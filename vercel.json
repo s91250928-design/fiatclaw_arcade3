@@ -87,5 +87,13 @@
     "deploymentEnabled": {
       "source": false
     }
+  },
+  "regions": [
+    "fra1"
+  ],
+  "functions": {
+    "api/*.mjs": {
+      "maxDuration": 20
+    }
   }
 }
