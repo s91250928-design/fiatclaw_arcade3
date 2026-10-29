@@ -4037,17 +4037,18 @@ async function renderAccHist() {
    Показываем только связки с Totum: у монеты на Totum и на другой бирже —
    цены (и индекс), ставки фандинга, спред цены и спред ставки. По кнопке
    графика — история спреда и ставок обеих сторон (/api/pair). Годовых нет. */
-const TL = { sk: null, sd: -1, tab: "funding", data: null, at: 0, busy: !1, norm: 1, q: "", minVol: 1e6, off: new Set(), timer: null, open: null, days: 2, hist: {} };
+const TL = { page: 0, ps: 50, sk: null, sd: -1, tab: "funding", data: null, at: 0, busy: !1, norm: 1, q: "", minVol: 0, off: new Set(), timer: null, open: null, days: 2, hist: {} };
 try {
   const z = JSON.parse(localStorage.getItem("totum.tools") || "{}");
   z.norm && (TL.norm = z.norm);
-  z.minVol != null && (TL.minVol = z.minVol);
+  z.v === 2 && z.minVol != null && (TL.minVol = z.minVol); /* раньше по умолчанию был фильтр $1M — он прятал связки */
+  z.ps && (TL.ps = z.ps);
   z.off && (TL.off = new Set(z.off));
   z.tab && (TL.tab = z.tab);
 } catch {}
 const tlSave = () => {
   try {
-    localStorage.setItem("totum.tools", JSON.stringify({ norm: TL.norm, minVol: TL.minVol, off: [...TL.off], tab: TL.tab }));
+    localStorage.setItem("totum.tools", JSON.stringify({ v: 2, norm: TL.norm, minVol: TL.minVol, off: [...TL.off], tab: TL.tab, ps: TL.ps }));
   } catch {}
 };
 async function loadTools(force) {
@@ -4128,7 +4129,10 @@ function renderTools(open) {
     const f = SV[TL.sk];
     rows.sort((a, c) => (TL.sk === "coin" ? a.base.localeCompare(c.base) * TL.sd : (f(c) - f(a)) * -TL.sd));
   } else rows.sort((a, c) => (TL.tab === "arb" ? Math.abs(c.ps) - Math.abs(a.ps) : Math.abs(c.fs) - Math.abs(a.fs)));
-  rows = rows.slice(0, 120);
+  const total = rows.length,
+    pages = Math.max(1, Math.ceil(total / TL.ps));
+  TL.page = Math.min(TL.page, pages - 1);
+  rows = rows.slice(TL.page * TL.ps, (TL.page + 1) * TL.ps);
   const ctrl = `<div class="tl-ctrl">
       <input class="tl-q" type="search" placeholder="Монета, например BTC" value="${esc(TL.q)}" id="tlQ">
       <div class="tl-seg"><button type="button" data-tlnorm="1" class="${TL.norm === 1 ? "on" : ""}">ставка за 1 ч</button><button type="button" data-tlnorm="8" class="${TL.norm === 8 ? "on" : ""}">за 8 ч</button></div>
@@ -4160,6 +4164,9 @@ function renderTools(open) {
     dflt = !TL.sk;
   const html = `<div class="tl-wrap"><table class="tl-table bundles"><thead><tr><th>${th("coin", "Монета")}</th><th>Связка</th><th>Цена</th><th class="${dflt && TL.tab === "arb" ? "on" : ""}">${th("ps", "Спред цены")}</th><th>Фандинг за ${N}<div class="tl-sub">${th("tr", "Totum")}${th("xr", "биржа")}</div></th><th class="${dflt && TL.tab === "funding" ? "on" : ""}">${th("fs", "Спред фандинга")}</th><th>${th("vol", "Объём биржи")}</th><th>Идея</th><th>${TL.sk ? '<button type="button" class="tl-sort reset" data-tlsk="" title="Сбросить сортировку">✕</button>' : ""}</th></tr></thead><tbody>
       ${rows.map(line).join("") || '<tr><td colspan="9" class="na">Ничего не нашли</td></tr>'}</tbody></table></div>
+    <div class="tl-pager"><span>Показано ${total ? TL.page * TL.ps + 1 : 0}–${Math.min(total, (TL.page + 1) * TL.ps)} из ${total} связок</span>
+      <span class="tl-pg"><button type="button" data-tlpg="-1" ${TL.page ? "" : "disabled"}>‹</button><b>${TL.page + 1} / ${pages}</b><button type="button" data-tlpg="1" ${TL.page < pages - 1 ? "" : "disabled"}>›</button></span>
+      <label class="tl-sel">На странице <select id="tlPs">${[25, 50, 100, 200].map((n) => `<option value="${n}" ${TL.ps === n ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
     <p class="inf-note">${
       TL.tab === "funding"
         ? `Связки Totum с другими биржами по разнице ставок. Ставка приведена к ${N}; под ней — период выплаты биржи и время до выплаты. Идея: на одной бирже лонг, на другой шорт на ту же сумму — получаете разницу ставок. Знак «!» — разница в цене больше, чем фандинг принесёт за сутки: можно потерять на цене.`
@@ -4178,13 +4185,16 @@ function renderTools(open) {
   }
   const w = body.querySelector(".tl-wrap");
   w && ((w.scrollLeft = sx), (w.scrollTop = sy));
-  $("tlQ").oninput = (e) => ((TL.q = e.target.value), renderTools());
-  $("tlVol").onchange = (e) => ((TL.minVol = Number(e.target.value)), tlSave(), renderTools());
+  $("tlQ").oninput = (e) => ((TL.q = e.target.value), (TL.page = 0), renderTools());
+  $("tlVol").onchange = (e) => ((TL.minVol = Number(e.target.value)), (TL.page = 0), tlSave(), renderTools());
+  $("tlPs").onchange = (e) => ((TL.ps = Number(e.target.value)), (TL.page = 0), tlSave(), renderTools());
+  body.querySelectorAll("[data-tlpg]").forEach((b) => (b.onclick = () => ((TL.page += Number(b.dataset.tlpg)), (TL.open = null), renderTools(), body.querySelector(".tl-wrap") && (body.querySelector(".tl-wrap").scrollTop = 0))));
   body.querySelectorAll("[data-tlnorm]").forEach((b) => (b.onclick = () => ((TL.norm = Number(b.dataset.tlnorm)), tlSave(), renderTools())));
   body.querySelectorAll("[data-tlv]").forEach(
     (b) =>
       (b.onclick = () => {
         const id = b.dataset.tlv;
+        TL.page = 0;
         TL.off.has(id) ? TL.off.delete(id) : TL.off.add(id);
         tlSave();
         renderTools();
@@ -4197,6 +4207,7 @@ function renderTools(open) {
         if (!k) TL.sk = null;
         else if (TL.sk === k) TL.sd = -TL.sd;
         else ((TL.sk = k), (TL.sd = k === "coin" ? 1 : -1));
+        TL.page = 0;
         renderTools();
       }),
   );

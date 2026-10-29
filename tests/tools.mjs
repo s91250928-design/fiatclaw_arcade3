@@ -1,12 +1,14 @@
 // Инструменты: связки Totum ↔ биржа, графики связки, предупреждение ADL.
 import { chromium, setupPage, makeResults, URL0 } from "./harness.mjs";
 const R = makeResults(); const browser = await chromium.launch(); const now = Date.now();
-const venues = [["hyperliquid", "Totum", "dex"], ["binance", "Binance", "cex"], ["bybit", "Bybit", "cex"], ["kucoin", "KuCoin", "cex"], ["weex", "WEEX", "cex", false]].map(([id, name, type, ok = true]) => ({ id, name, type, ok, n: ok ? 3 : 0, err: ok ? undefined : "503" }));
+const venues = [["hyperliquid", "Totum", "dex"], ["binance", "Binance", "cex"], ["bybit", "Bybit", "cex"], ["kucoin", "KuCoin", "cex"], ["weex", "WEEX", "cex", false], ["kraken", "Kraken", "cex"], ["okx", "OKX", "cex"], ["aster", "Aster", "dex"]].map(([id, name, type, ok = true]) => ({ id, name, type, ok, n: ok ? 3 : 0, err: ok ? undefined : "503" }));
 const row = (v, base, rate, ih, mark, idx, vol = 5e7, mult = 1, sym = base) => ({ v, sym, base, rate, ih, next: now + 36e5, mark, idx, vol, oi: null, mult });
 const data = { t: now, venues, rows: [
   row("hyperliquid", "BTC", 0.0000125, 1, 80000, 80010), row("binance", "BTC", 0.0001, 8, 80040, 80020, 5e7, 1, "BTCUSDT"), row("bybit", "BTC", 0.00005, 8, 80010, 80015, 5e7, 1, "BTCUSDT"), row("kucoin", "BTC", 0.0002, 8, 80100, 80050, 5e7, 1, "XBTUSDTM"),
   row("hyperliquid", "BLUR", -0.0025, 1, 0.0078, 0.0079), row("binance", "BLUR", -0.0096, 4, 0.00779, 0.0079, 6e7, 1, "BLURUSDT"), row("bybit", "BLUR", -0.004, 1, 0.0080, 0.0079, 2e7, 1, "BLURUSDT"),
   row("binance", "NOTONTOTUM", 0.01, 8, 1, 1),
+  row("hyperliquid", "NEIRO", 0.0000125, 1, 0.06761, 0.06775, 9e4, 1000, "kNEIRO"), row("kraken", "NEIRO", 0.00143, 1, 0.00006819, 0.00006766, 7e3, 1, "PF_NEIROUSD"),
+  row("okx", "NEIRO", -0.0000815, 4, 0.00006758, 0.00006769, 6e5, 1, "NEIRO-USDT-SWAP"), row("aster", "NEIRO", 0.0000366, 4, 0.00006762, 0.00006772, 1.1e4, 1, "NEIROUSDT"),
 ] };
 const hist = { t: now, hl: { f: Array.from({ length: 48 }, (_, k) => [now - (48 - k) * 36e5, -0.002 + k * 1e-5]), p: Array.from({ length: 48 }, (_, k) => [Math.floor((now - (48 - k) * 36e5) / 36e5) * 36e5, 0.0078 + k * 1e-6]) },
   x: { f: Array.from({ length: 12 }, (_, k) => [now - (48 - k * 4) * 36e5, -0.009 + k * 1e-4]), p: Array.from({ length: 48 }, (_, k) => [Math.floor((now - (48 - k) * 36e5) / 36e5) * 36e5, 0.00785 + k * 1e-6]), err: [] } };
@@ -17,7 +19,7 @@ let pairReq = ""; await page.route("**/api/pair**", (r) => { pairReq = r.request
 await page.goto(URL0 + "/#trade"); await page.waitForTimeout(4500);
 await page.click('[data-cp="tools"]'); await page.waitForTimeout(1500);
 const rows = await page.locator(".tl-table.bundles tbody tr").allTextContents();
-R.ok("только связки с Totum (монеты без Totum не показываются)", rows.length === 5 && !rows.join().includes("NOTONTOTUM"), String(rows.length));
+R.ok("только связки с Totum (монеты без Totum не показываются)", rows.length === 8 && !rows.join().includes("NOTONTOTUM"), String(rows.length));
 R.ok("Hyperliquid подписан как Totum", rows.every((r) => r.includes("Totum")) && !(await page.textContent("#paneTools")).includes("Hyperliquid"));
 R.ok("сортировка по спреду фандинга: первой BLUR Bybit (−0,40% против −0,25% за 1 ч)", /BLUR[\s\S]*Bybit/.test(rows[0]), rows[0].slice(0, 120));
 R.ok("в строке есть цены обеих бирж и индексы", /инд\./.test(rows[0]));
@@ -45,5 +47,10 @@ R.ok("по монете — по алфавиту", coins.join() === [...coins].
 await page.click('[data-tlsk="xr"]'); await page.waitForTimeout(300);
 R.ok("стрелка показывает направление", (await page.textContent('[data-tlsk="xr"]')).includes("↓"));
 await page.screenshot({ path: "tests/out-tools-sort.png" });
+// мелкие биржи и малый объём тоже видны: у NEIRO (на Totum это kNEIRO) три связки
+await page.click('[data-tlsk=""]').catch(() => {}); await page.fill("#tlQ", "NEIRO"); await page.waitForTimeout(400);
+const nr = await page.locator(".tl-table.bundles tbody tr:not(.tl-exp)").allTextContents();
+R.ok("NEIRO: связки с Kraken, OKX и Aster (объём ниже $1M не прячется)", nr.length === 3 && /Kraken/.test(nr.join()) && /Aster/.test(nr.join()), nr.map((r) => r.slice(0, 40)).join(" | "));
+R.ok("пагинация: «Показано 1–3 из 3»", /Показано 1–3 из 3/.test(await page.textContent(".tl-pager")));
 R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();
