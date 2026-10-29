@@ -4001,6 +4001,168 @@ async function renderAccHist() {
     $("ahList") && ($("ahList").innerHTML = '<p class="muted small">Не удалось загрузить операции</p>');
   }
 }
+/* ═══════════ Инструменты: сканер фандинга и арбитраж фьючерсов ═══════════
+   Данные основной сети с 8 площадок собирает наш сервер (/api/funding):
+   Hyperliquid, dYdX, Binance, Bybit, OKX, Bitget, Gate, MEXC. Ставки приводим к
+   одному периоду (за 1 ч или за 8 ч), годовые не показываем. */
+const TL = { tab: "funding", data: null, at: 0, busy: !1, norm: 1, q: "", minVol: 1e6, sort: "spread", off: new Set(), timer: null };
+try {
+  const z = JSON.parse(localStorage.getItem("totum.tools") || "{}");
+  z.norm && (TL.norm = z.norm);
+  z.minVol != null && (TL.minVol = z.minVol);
+  z.off && (TL.off = new Set(z.off));
+  z.tab && (TL.tab = z.tab);
+} catch {}
+const tlSave = () => {
+  try {
+    localStorage.setItem("totum.tools", JSON.stringify({ norm: TL.norm, minVol: TL.minVol, off: [...TL.off], tab: TL.tab }));
+  } catch {}
+};
+async function loadTools(force) {
+  if (TL.busy || (!force && TL.data && Date.now() - TL.at < 3e4)) return;
+  TL.busy = !0;
+  try {
+    const r = await fetch("/api/funding", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    TL.data = await r.json();
+    TL.at = Date.now();
+  } catch (e) {
+    TL.err = "Не удалось загрузить данные бирж. Попробуем ещё раз через минуту.";
+  }
+  TL.busy = !1;
+  document.body.dataset.cp === "tools" && renderTools();
+}
+function tlGroups() {
+  const by = new Map();
+  for (const r of TL.data?.rows || []) {
+    if (TL.off.has(r.v)) continue;
+    if (TL.minVol && r.vol != null && r.vol < TL.minVol) continue;
+    const g = by.get(r.base) || {};
+    (!g[r.v] || (r.vol || 0) > (g[r.v].vol || 0)) && (g[r.v] = r);
+    by.set(r.base, g);
+  }
+  return by;
+}
+const tlRate = (r) => (r.rate / (r.ih || 1)) * TL.norm;
+const tlPx = (p) => Number(p.toPrecision(6)).toLocaleString("ru-RU", { maximumSignificantDigits: 6 });
+const tlPct = (x, d = 4) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x * 100).toFixed(d)}%`;
+const tlLeft = (t) => {
+  const s = Math.max(0, Math.floor((t - Date.now()) / 1e3));
+  return s ? `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}` : "—";
+};
+function renderTools(open) {
+  const body = $("tlBody");
+  if (!body) return;
+  open && (clearInterval(TL.timer), (TL.timer = setInterval(() => (document.body.dataset.cp === "tools" ? loadTools() : clearInterval(TL.timer)), 3e4)));
+  document.querySelectorAll("#tlTabs [data-tl]").forEach((b) => {
+    b.classList.toggle("on", b.dataset.tl === TL.tab);
+    b.onclick = () => ((TL.tab = b.dataset.tl), tlSave(), renderTools());
+  });
+  if (!TL.data) {
+    loadTools(!0);
+    body.innerHTML = `<div class="tl-empty">${TL.err || "Собираем данные с бирж…"}</div>`;
+    return;
+  }
+  loadTools();
+  const V = TL.data.venues || [],
+    on = V.filter((v) => v.ok && !TL.off.has(v.id)),
+    groups = tlGroups();
+  const ctrl = `<div class="tl-ctrl">
+      <input class="tl-q" type="search" placeholder="Монета, например BTC" value="${esc(TL.q)}" id="tlQ">
+      ${TL.tab === "funding" ? `<div class="tl-seg"><button type="button" data-tlnorm="1" class="${TL.norm === 1 ? "on" : ""}">за 1 ч</button><button type="button" data-tlnorm="8" class="${TL.norm === 8 ? "on" : ""}">за 8 ч</button></div>` : ""}
+      <label class="tl-sel">Объём от <select id="tlVol">${[[0, "любой"], [1e5, "$100K"], [1e6, "$1M"], [1e7, "$10M"]].map(([v, l]) => `<option value="${v}" ${TL.minVol === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <span class="tl-upd">${TL.busy ? "обновляем…" : `обновлено ${new Date(TL.at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`}</span>
+    </div>
+    <div class="tl-venues">${V.map((v) => `<button type="button" data-tlv="${v.id}" class="${TL.off.has(v.id) ? "" : "on"} ${v.ok ? "" : "bad"}" title="${v.ok ? `${v.n} рынков` : esc(v.err || "нет данных")}"><i class="${v.type}"></i>${esc(v.name)}</button>`).join("")}</div>`;
+  const q = TL.q.trim().toUpperCase();
+  let html = "";
+  if (TL.tab === "funding") {
+    let rows = [...groups.entries()]
+      .filter(([b, g]) => Object.keys(g).length >= 2 && (!q || b.includes(q)))
+      .map(([b, g]) => {
+        const xs = Object.values(g).map((r) => ({ r, x: tlRate(r) })),
+          mx = xs.reduce((a, c) => (c.x > a.x ? c : a)),
+          mn = xs.reduce((a, c) => (c.x < a.x ? c : a));
+        return { b, g, spread: mx.x - mn.x, mx, mn };
+      });
+    rows.sort((a, c) => (TL.sort === "coin" ? a.b.localeCompare(c.b) : TL.sort in Object.fromEntries(on.map((v) => [v.id, 1])) ? tlRate(c.g[TL.sort] || { rate: -1e9, ih: 1 }) - tlRate(a.g[TL.sort] || { rate: -1e9, ih: 1 }) : c.spread - a.spread));
+    rows = rows.slice(0, 150);
+    html = `<div class="tl-wrap"><table class="tl-table"><thead><tr><th data-tlsort="coin">Монета</th>${on.map((v) => `<th data-tlsort="${v.id}" class="${TL.sort === v.id ? "on" : ""}">${esc(v.name)}</th>`).join("")}<th data-tlsort="spread" class="${TL.sort === "spread" ? "on" : ""}">Разница</th><th>Как заработать</th></tr></thead><tbody>
+      ${rows
+        .map(
+          (r) => `<tr><td><button type="button" class="tl-coin" data-tlcoin="${esc(r.b)}">${esc(r.b)}</button></td>${on
+            .map((v) => {
+              const x = r.g[v.id];
+              if (!x) return '<td class="na">—</td>';
+              const y = tlRate(x);
+              return `<td class="${y > 0 ? "pos" : y < 0 ? "neg" : ""}${x === r.mx.r ? " hi" : x === r.mn.r ? " lo" : ""}" title="${esc(v.name)}: ${tlPct(x.rate)} за ${x.ih} ч · выплата через ${tlLeft(x.next)}">${tlPct(y)}<small>${x.ih} ч</small></td>`;
+            })
+            .join("")}<td class="spr">${tlPct(r.spread)}</td><td class="idea">Шорт <b>${esc(TL.data.venues.find((v) => v.id === r.mx.r.v)?.name || "")}</b> · лонг <b>${esc(TL.data.venues.find((v) => v.id === r.mn.r.v)?.name || "")}</b></td></tr>`,
+        )
+        .join("") || `<tr><td colspan="${on.length + 3}" class="na">Ничего не нашли</td></tr>`}
+      </tbody></table></div>
+      <p class="inf-note">Ставка за ${TL.norm === 1 ? "1 час" : "8 часов"} — приведена к одному периоду; под ставкой — как часто платит сама биржа. Плюс — лонги платят шортам. «Как заработать»: шорт там, где ставка выше, лонг там, где ниже, — получаете разницу, пока позиции открыты. Учитывайте комиссии и разницу цен.</p>`;
+  } else {
+    let rows = [];
+    for (const [b, g] of groups) {
+      if (q && !b.includes(q)) continue;
+      const xs = Object.values(g)
+        .map((r) => ({ r, p: r.mark / (r.mult || 1) }))
+        .filter((x) => x.p > 0);
+      if (xs.length < 2) continue;
+      const mn = xs.reduce((a, c) => (c.p < a.p ? c : a)),
+        mx = xs.reduce((a, c) => (c.p > a.p ? c : a)),
+        spread = mx.p / mn.p - 1;
+      if (spread > 0.3) continue; /* скорее всего разные монеты с одним названием */
+      rows.push({ b, mn, mx, spread, fd: tlRate(mx.r) - tlRate(mn.r), vol: Math.min(mn.r.vol || Infinity, mx.r.vol || Infinity) });
+    }
+    rows.sort((a, c) => c.spread - a.spread);
+    rows = rows.slice(0, 150);
+    const vn = (id) => esc(V.find((v) => v.id === id)?.name || id);
+    html = `<div class="tl-wrap"><table class="tl-table arb"><thead><tr><th>Монета</th><th>Дешевле</th><th>Дороже</th><th class="on">Спред</th><th>Фандинг (дороже − дешевле), за 1 ч</th><th>Объём</th><th>Идея</th></tr></thead><tbody>
+      ${rows
+        .map(
+          (r) => `<tr><td><button type="button" class="tl-coin" data-tlcoin="${esc(r.b)}">${esc(r.b)}</button></td>
+        <td><b>${vn(r.mn.r.v)}</b><small>${tlPx(r.mn.p)}</small></td><td><b>${vn(r.mx.r.v)}</b><small>${tlPx(r.mx.p)}</small></td>
+        <td class="spr">${(r.spread * 100).toFixed(2)}%</td><td class="${r.fd > 0 ? "pos" : r.fd < 0 ? "neg" : ""}">${tlPct((r.fd / TL.norm) * 1, 4)}</td>
+        <td>${Number.isFinite(r.vol) ? compact(r.vol) : "—"}</td><td class="idea">Лонг <b>${vn(r.mn.r.v)}</b> · шорт <b>${vn(r.mx.r.v)}</b></td></tr>`,
+        )
+        .join("") || '<tr><td colspan="7" class="na">Ничего не нашли</td></tr>'}
+      </tbody></table></div>
+      <p class="inf-note">Цена — маркировочная (справедливая) на каждой бирже, пересчитана на одну монету. Идея: купить фьючерс там, где дешевле, и продать там, где дороже, — закрыть обе позиции, когда цены сойдутся. Если у дорогой биржи фандинг выше (зелёный), он ещё и доплачивает вам за удержание. Учитывайте комиссии, проскальзывание и задержку переводов.</p>`;
+  }
+  const qFocus = document.activeElement?.id === "tlQ",
+    pos = qFocus ? document.activeElement.selectionStart : 0,
+    sx = body.querySelector(".tl-wrap")?.scrollLeft || 0;
+  body.innerHTML = ctrl + html;
+  if (qFocus) {
+    const qi = $("tlQ");
+    qi.focus();
+    qi.setSelectionRange(pos, pos);
+  }
+  body.querySelector(".tl-wrap") && (body.querySelector(".tl-wrap").scrollLeft = sx);
+  $("tlQ").oninput = (e) => ((TL.q = e.target.value), renderTools());
+  $("tlVol").onchange = (e) => ((TL.minVol = Number(e.target.value)), tlSave(), renderTools());
+  body.querySelectorAll("[data-tlnorm]").forEach((b) => (b.onclick = () => ((TL.norm = Number(b.dataset.tlnorm)), tlSave(), renderTools())));
+  body.querySelectorAll("[data-tlv]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const id = b.dataset.tlv;
+        TL.off.has(id) ? TL.off.delete(id) : TL.off.add(id);
+        tlSave();
+        renderTools();
+      }),
+  );
+  body.querySelectorAll("[data-tlsort]").forEach((b) => (b.onclick = () => ((TL.sort = b.dataset.tlsort), renderTools())));
+  body.querySelectorAll("[data-tlcoin]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const c = b.dataset.tlcoin,
+          m = S.meta.find((x) => !x.dex && (x.name === c || x.name === `k${c}`));
+        m ? (switchCoin(m.name), setCpTab("chart")) : toast(`${c} нет среди рынков Hyperliquid`, "info");
+      }),
+  );
+}
 async function loadBuilderTab() {
   let i = await info.referral({
       user: S.user,
@@ -5347,6 +5509,7 @@ function setCpTab(i) {
     document.querySelectorAll("#cpTabs [data-cp]").forEach((t) => t.classList.toggle("on", t.dataset.cp === i)),
     $("sidePanel").classList.toggle("show-trades", i === "trades"),
     i === "info" && renderInfo(),
+    i === "tools" && renderTools(!0),
     i === "book" && renderBook(),
     i === "chart" && S.chartView === "depth" && requestAnimationFrame(renderDepth));
 }

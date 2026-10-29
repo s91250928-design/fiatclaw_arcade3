@@ -356,7 +356,7 @@ dialog .row{margin-top:12px}
 .cp-tabs button.on{color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
 .cp-mob{display:none}
 .cp-pane{display:none;flex:1;min-height:0;overflow:auto;padding:14px}
-body[data-cp="info"] #paneInfo,body[data-cp="feed"] #paneFeed,body[data-cp="top"] #paneTop{display:block}
+body[data-cp="info"] #paneInfo,body[data-cp="feed"] #paneFeed,body[data-cp="top"] #paneTop,body[data-cp="tools"] #paneTools{display:block}
 body:not([data-cp="chart"]) #paneChart .chart-bar,body:not([data-cp="chart"]) #paneChart .chart-wrap{display:none}
 .info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0 24px}
 .info-grid div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}
@@ -1114,3 +1114,43 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 .ah-row em{font:700 14px var(--mono);font-style:normal;white-space:nowrap}
 .ah-row em.pos{color:var(--buy)} .ah-row em.neg{color:var(--sell)}
 @media (prefers-reduced-motion:reduce){.ah-line{animation:none;stroke-dashoffset:0}.ah-area,.ah-dot{animation:none;opacity:1}}
+
+/* ═══ Инструменты ═══ */
+.cp-tools{color:var(--accent)!important;font-weight:700!important}
+#paneTools{font-family:"Manrope",var(--font)}
+.tl-tabs{display:inline-flex;gap:2px;background:var(--panel2);border-radius:10px;padding:3px;margin-bottom:12px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.tl-tabs button{border:0;background:transparent;border-radius:8px;padding:6px 12px;font:700 12.5px "Manrope",var(--font);color:var(--muted);white-space:nowrap;cursor:pointer}
+.tl-tabs button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+.tl-ctrl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.tl-q{flex:1;min-width:160px;max-width:260px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:0 12px;font:500 13px "Manrope",var(--font)}
+.tl-seg{display:inline-flex;gap:2px;background:var(--panel2);border-radius:9px;padding:2px}
+.tl-seg button{border:0;background:transparent;border-radius:7px;padding:6px 10px;font:700 12px "Manrope",var(--font);color:var(--muted);cursor:pointer}
+.tl-seg button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(15,23,42,.12)}
+.tl-sel{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);font-weight:600}
+.tl-sel select{height:32px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:0 8px;font:600 12.5px "Manrope",var(--font)}
+.tl-upd{margin-left:auto;font-size:11.5px;color:var(--muted)}
+.tl-venues{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tl-venues button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:999px;padding:5px 11px;font:700 12px "Manrope",var(--font);cursor:pointer}
+.tl-venues button.on{color:var(--text);border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.tl-venues button.bad{opacity:.45;text-decoration:line-through}
+.tl-venues i{width:7px;height:7px;border-radius:50%;background:#f59e0b} .tl-venues i.dex{background:#22d3ee}
+.tl-wrap{overflow:auto;max-height:calc(100vh - 290px);border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.tl-table{width:100%;border-collapse:separate;border-spacing:0;font:600 12.5px var(--mono)}
+.tl-table th{position:sticky;top:0;z-index:1;background:var(--panel2);color:var(--muted);font:700 11.5px "Manrope",var(--font);text-align:right;padding:9px 10px;white-space:nowrap;cursor:pointer;border-bottom:1px solid var(--line)}
+.tl-table th:first-child,.tl-table td:first-child{text-align:left;position:sticky;left:0;background:inherit;z-index:2}
+.tl-table th:first-child{background:var(--panel2)} .tl-table td:first-child{background:var(--panel)}
+.tl-table th.on{color:var(--accent)}
+.tl-table td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.tl-table td small{display:block;font:500 10px "Manrope",var(--font);color:var(--muted)}
+.tl-table td.pos{color:var(--buy)} .tl-table td.neg{color:var(--sell)} .tl-table td.na{color:var(--muted);text-align:center}
+.tl-table td.hi{background:color-mix(in srgb,var(--buy) 12%,transparent)} .tl-table td.lo{background:color-mix(in srgb,var(--sell) 12%,transparent)}
+.tl-table td.spr{color:var(--accent);font-weight:700}
+.tl-table td.idea{font:600 12px "Manrope",var(--font);color:var(--muted);text-align:left}
+.tl-table td.idea b{color:var(--text)}
+.tl-table.arb td b{font:700 12.5px "Manrope",var(--font)}
+.tl-table tbody tr:hover td{background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
+.tl-coin{border:0;background:none;padding:0;font:700 13px "Manrope",var(--font);color:var(--text);cursor:pointer}
+.tl-coin:hover{color:var(--accent)}
+.tl-empty{padding:40px;text-align:center;color:var(--muted);font-weight:600}
+#paneTools .inf-note{margin-top:10px}
+@media (max-width:900px){.tl-wrap{max-height:none}.tl-upd{margin-left:0;width:100%}#paneTools{padding-bottom:110px}}
