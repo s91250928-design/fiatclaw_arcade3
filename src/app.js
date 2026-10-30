@@ -726,24 +726,8 @@ function drawChartLines() {
       n,
     );
   }
-  /* План сделки до входа: стоп и тейк из формы — их можно тянуть мышью */
-  if (!isSpot() && S.mode !== "close" && $("tpslOn")?.checked) {
-    const en = planEntry();
-    if (en > 0) {
-      const lg = planSide(en),
-        sz = riskActive() && !riskPlan().err ? riskPlan().sz : (Number($("size").value) || 0) / en,
-        pv = { entry: en, sz, long: lg },
-        slp = readTrig("sl", "ord", "sl", pv),
-        tpp = readTrig("tp", "ord", "tp", pv),
-        lbl = (k, px) => {
-          const v = sz > 0 ? pxPnl(en, px, sz, lg) : 0;
-          return `${k} · ${v >= 0 ? "+" : "−"}${usd(Math.abs(v))} · тяните`;
-        };
-      S.orderType === "limit" && Number($("px").value) > 0 && i(en, "#64748b", `Вход ${lg ? "лонг" : "шорт"}`, 1, "plan-entry");
-      slp > 0 && i(slp, "#e11d48", lbl("План SL", slp), 2, "plan-sl");
-      tpp > 0 && i(tpp, "#16a34a", lbl("План TP", tpp), 2, "plan-tp");
-    }
-  }
+  /* Стоп и тейк из формы на графике не рисуем, пока позиции нет: они появятся
+     линиями TP / SL после входа (биржа ставит их, когда ордер исполнится). */
 }
 var FEE_RATE = (i = S.coin) => (isSpot(i) ? HL_SPOT_TAKER : CFG.hlTakerFee) + CFG.feeTenthBps / 1e5;
 /* PnL как на Hyperliquid: только разница цен × размер. Комиссии
@@ -4229,7 +4213,7 @@ var SC_AGG = [
   ["×10", { nSigFigs: 4 }],
   ["×100", { nSigFigs: 3 }],
 ];
-var SC = { agg: 0, center: null, step: 0, vols: [50, 100, 250, 500], vi: 1, hot: !0, confirm: !1, auto: !0, book: null, sub: null, subKey: "", tape: [], tv: new Map(), coin: null, levKey: "", raf: 0, sideAt: 0, busy: 0 };
+var SC = { asl: 0, aslU: "pct", atp: 0, agg: 0, center: null, step: 0, vols: [50, 100, 250, 500], vi: 1, hot: !0, confirm: !1, auto: !0, book: null, sub: null, subKey: "", tape: [], tv: new Map(), coin: null, levKey: "", raf: 0, sideAt: 0, busy: 0 };
 try {
   const z = JSON.parse(localStorage.getItem("totum.scalp") || "{}");
   Array.isArray(z.vols) && z.vols.length === 4 && z.vols.every((v) => v > 0) && (SC.vols = z.vols);
@@ -4238,10 +4222,13 @@ try {
   z.confirm === !0 && (SC.confirm = !0);
   z.auto === !1 && (SC.auto = !1);
   z.agg >= 0 && z.agg < SC_AGG.length && (SC.agg = z.agg);
+  z.asl >= 0 && (SC.asl = z.asl);
+  z.atp >= 0 && (SC.atp = z.atp);
+  z.aslU === "usd" && (SC.aslU = "usd");
 } catch {}
 const scSave = () => {
   try {
-    localStorage.setItem("totum.scalp", JSON.stringify({ vols: SC.vols, vi: SC.vi, hot: SC.hot, confirm: SC.confirm, auto: SC.auto, agg: SC.agg }));
+    localStorage.setItem("totum.scalp", JSON.stringify({ vols: SC.vols, vi: SC.vi, hot: SC.hot, confirm: SC.confirm, auto: SC.auto, agg: SC.agg, asl: SC.asl, atp: SC.atp, aslU: SC.aslU }));
   } catch {}
 };
 function scOn() {
@@ -4260,9 +4247,9 @@ function scOpen() {
         <div class="sc-bar">
           <div class="tl-seg" id="scAgg">${SC_AGG.map(([l], k) => `<button type="button" data-scagg="${k}">${l}</button>`).join("")}</div>
           <button type="button" class="sc-center" id="scCenter" title="В центр (Пробел)">⦿ В центр</button>
-          <span class="sc-hint">Клик — лимит · Shift+клик — стоп · клик по заявке — снять</span>
+          <span class="sc-hint" id="scHint"></span>
         </div>
-        <div class="sc-head"><span>Сделки</span><span class="b">Покупка</span><span>Цена</span><span class="s">Продажа</span></div>
+        <div class="sc-head"><span>Сделки</span><span class="b">Покупки</span><span>Цена</span><span class="s">Продажи</span></div>
         <div class="sc-ladder" id="scLadder" tabindex="0"></div>
       </section>
       <aside class="sc-side">
@@ -4272,13 +4259,18 @@ function scOpen() {
           <div class="sc-lev" id="scLev"></div>
           <div class="sc-mk"><button type="button" class="btn buy" id="scBuyM">Купить по рынку <kbd>B</kbd></button><button type="button" class="btn sell" id="scSellM">Продать по рынку <kbd>S</kbd></button></div>
         </div>
+        <div class="sc-card"><b class="sc-t">Стоп и тейк при входе</b>
+          <p class="muted small sc-note">Ставятся на бирже сами, когда заявка исполнится и откроется позиция. До этого их нет. 0 — не ставить.</p>
+          <label class="sc-edit">Стоп-лосс <span class="sc-u"><input id="scAsl" type="number" min="0" step="0.1" inputmode="decimal"><span class="tl-seg"><button type="button" data-scu="pct">%</button><button type="button" data-scu="usd">$</button></span></span></label>
+          <label class="sc-edit">Тейк-профит, % <input id="scAtp" type="number" min="0" step="0.1" inputmode="decimal"></label>
+        </div>
         <div class="sc-card" id="scPos"></div>
         <div class="sc-card" id="scOrd"></div>
         <div class="sc-card sc-set">
           <label class="chk"><input type="checkbox" id="scHot"><span class="box"></span> Горячие клавиши</label>
           <label class="chk"><input type="checkbox" id="scConfirm"><span class="box"></span> Подтверждать сделки</label>
           <label class="chk"><input type="checkbox" id="scAuto"><span class="box"></span> Держать цену в центре</label>
-          <div class="sc-keys"><span><kbd>1</kbd>–<kbd>4</kbd> объём</span><span><kbd>B</kbd> / <kbd>S</kbd> по рынку</span><span><kbd>X</kbd> закрыть позицию</span><span><kbd>C</kbd> снять заявки</span><span><kbd>Пробел</kbd> в центр</span><span><kbd>колесо</kbd> листать цены</span></div>
+          <div class="sc-keys"><span><kbd>1</kbd>–<kbd>4</kbd> объём</span><span><kbd>B</kbd> / <kbd>S</kbd> по рынку</span><span><kbd>X</kbd> закрыть позицию</span><span><kbd>C</kbd> снять заявки</span><span><kbd>E</kbd> стоп в безубыток</span><span><kbd>Пробел</kbd> в центр</span><span><kbd>колесо</kbd> листать цены</span></div>
         </div>
       </aside></div>`;
     el.querySelectorAll("[data-scagg]").forEach((b) => (b.onclick = () => ((SC.agg = Number(b.dataset.scagg)), scSave(), scResetData(), scSubscribe())));
@@ -4293,8 +4285,18 @@ function scOpen() {
       $(id).checked = SC[k];
       $(id).onchange = (e) => ((SC[k] = e.target.checked), scSave(), k === "auto" && SC.auto && ((SC.center = null), scRender()));
     });
+    $("scAsl").value = SC.asl;
+    $("scAtp").value = SC.atp;
+    $("scAsl").onchange = (e) => ((SC.asl = Math.max(0, Number(e.target.value) || 0)), scSave());
+    $("scAtp").onchange = (e) => ((SC.atp = Math.max(0, Number(e.target.value) || 0)), scSave());
+    const scU = () => document.querySelectorAll("[data-scu]").forEach((b) => b.classList.toggle("on", b.dataset.scu === SC.aslU));
+    document.querySelectorAll("[data-scu]").forEach((b) => (b.onclick = (e) => (e.preventDefault(), (SC.aslU = b.dataset.scu), scSave(), scU())));
+    scU();
+    $("scHint").textContent = scTouch() ? "Нажмите в колонке «Покупки» — купить, «Продажи» — продать · нажмите на заявку — снять" : "ЛКМ — купить · ПКМ — продать (ниже/выше спреда — лимит, через спред — по рынку) · Shift — стоп · Alt — закрыть позицию · колесо по заявке — снять";
     const lad = $("scLadder");
-    lad.addEventListener("click", scClick);
+    lad.addEventListener("click", (e) => scTouch() && scClick(e));
+    lad.addEventListener("mousedown", (e) => !scTouch() && scMouse(e));
+    lad.addEventListener("contextmenu", (e) => e.preventDefault());
     lad.addEventListener(
       "wheel",
       (e) => {
@@ -4461,7 +4463,13 @@ function scDraw() {
       ms = mine.filter((o) => o.side !== "B"),
       zone = px >= ask - SC.step / 2 ? "a" : px <= bid + SC.step / 2 ? "b" : "sp",
       badge = (arr) =>
-        arr.map((o) => `<em class="sc-my${o.isTrigger ? " trg" : ""}" data-oid="${o.oid}" title="${o.isTrigger ? "Стоп-ордер" : "Ваша заявка"} — нажмите, чтобы снять">${o.isTrigger ? "⚡" : ""}${num(Number(o.sz), szD)} ✕</em>`).join(""),
+        arr
+          .map((o) => {
+            const tp = /take/i.test(o.orderType || ""),
+              lbl = o.isTrigger ? (o.reduceOnly ? (tp ? "TP " : "SL ") : "⚡") : "";
+            return `<em class="sc-my${o.isTrigger ? (o.reduceOnly ? (tp ? " tp" : " sl") : " trg") : ""}" data-oid="${o.oid}" title="${o.isTrigger ? (o.reduceOnly ? (tp ? "Тейк-профит" : "Стоп-лосс") : "Стоп-ордер") : "Ваша заявка"} — нажмите, чтобы снять">${lbl}${num(Number(o.sz), szD)} ✕</em>`;
+          })
+          .join(""),
       bar = (v, cls) => (v ? `<i class="${cls}" style="width:${Math.min(100, (v / mx) * 100).toFixed(1)}%"></i>` : ""),
       big = (v) => (v && v >= avg * 3 ? " big" : "");
     html += `<div class="sc-row z-${zone}${k === entK ? " ent" : ""}${k === liqK ? " liq" : ""}${k === lastK ? " last" : ""}" data-px="${px}">
@@ -4504,6 +4512,25 @@ function scSideRender(force) {
   O.querySelectorAll("[data-sccancel]").forEach((b) => (b.onclick = () => scCancel([Number(b.dataset.sccancel)])));
   $("scCancelAll") && ($("scCancelAll").onclick = () => scCancel(ords.map((o) => o.oid)));
 }
+const scTouch = () => matchMedia("(pointer: coarse)").matches;
+/* как в MetaScalp: левая кнопка — покупка, правая — продажа. Ниже спреда покупка —
+   лимит, выше — по рынку; у продажи наоборот. Shift — стоп-ордер, Alt — заявка на
+   закрытие всей позиции по этой цене, колесо (или клик) по своей заявке — снять. */
+function scMouse(e) {
+  const my = e.target.closest(".sc-my");
+  if (my && (e.button === 1 || e.button === 0)) return e.preventDefault(), scCancel([Number(my.dataset.oid)]);
+  const row = e.target.closest(".sc-row");
+  if (!row || (e.button !== 0 && e.button !== 2)) return;
+  e.preventDefault();
+  const px = Number(row.dataset.px),
+    buy = e.button === 0;
+  if (e.altKey) return scCloseAt(px);
+  if (e.shiftKey) return scOrder(buy, px, "stop");
+  const ask = SC.book?.asks?.[0]?.px,
+    bid = SC.book?.bids?.[0]?.px,
+    through = buy ? ask && px >= ask : bid && px <= bid;
+  scOrder(buy, px, through ? "market" : "limit");
+}
 function scClick(e) {
   const my = e.target.closest(".sc-my");
   if (my) return scCancel([Number(my.dataset.oid)]);
@@ -4524,6 +4551,7 @@ function scKeys(e) {
   else if (k === "b" || k === "и") scOrder(!0, 0, "market");
   else if (k === "s" || k === "ы") scOrder(!1, 0, "market");
   else if (k === "x" || k === "ч") scClosePos();
+  else if (k === "e" || k === "у") scBreakeven();
   else if (k === "c" || k === "с") scCancel((S.orders || []).filter((o) => o.coin === S.coin).map((o) => o.oid));
   else if (k === " ") ((SC.auto = !0), ($("scAuto").checked = !0), (SC.center = null), scRender());
   else return;
@@ -4566,12 +4594,26 @@ async function scOrder(buy, px, kind) {
       logLeverage(S.coin, lev);
       SC.levKey = lk;
     }
-    const st = (await S.agentExchange.order({ orders: [o], grouping: "na", builder: builderParam() })).response.data.statuses[0];
+    /* стоп и тейк при входе: «дочерние» заявки, биржа включает их, только когда
+       заявка исполнится (позиции до этого нет — и стопа с тейком тоже) */
+    const orders = [o],
+      pos0 = curPosition(),
+      opening = !pos0 || Number(pos0.szi) > 0 === buy,
+      ent = kind === "market" ? price : px,
+      szN = Number(o.s);
+    if (opening && !pos0 && (SC.asl > 0 || SC.atp > 0)) {
+      const dSl = SC.asl > 0 ? (SC.aslU === "usd" ? SC.asl / szN : (ent * SC.asl) / 100) : 0,
+        dTp = SC.atp > 0 ? (ent * SC.atp) / 100 : 0,
+        child = (trig, tpsl) => ({ a: m.index, b: !buy, p: fmtP(trig * (buy ? 1 - slip * 3 : 1 + slip * 3), m), s: o.s, r: !0, t: { trigger: { isMarket: !0, triggerPx: fmtP(trig, m), tpsl } } });
+      dSl > 0 && dSl < ent && orders.push(child(buy ? ent - dSl : ent + dSl, "sl"));
+      dTp > 0 && orders.push(child(buy ? ent + dTp : ent - dTp, "tp"));
+    }
+    const st = (await S.agentExchange.order({ orders, grouping: orders.length > 1 ? "normalTpsl" : "na", builder: builderParam() })).response.data.statuses[0];
     if (st?.error) throw new Error(st.error);
     (st?.filled || st?.resting) && tradeSound(buy);
     st?.filled ? toast(`${buy ? "Куплено" : "Продано"}: ${st.filled.totalSz} ${baseOf()} по ${st.filled.avgPx}`, "ok") : toast(`${buy ? "Покупка" : "Продажа"}: ${what}`, "ok");
     fundingAt = 0;
-    refreshAccount().then(() => scRender());
+    refreshAccount().then(() => (scRender(), scSideRender()));
   } catch (err) {
     toast(humanError(err), "err");
   }
@@ -4582,6 +4624,46 @@ async function scCancel(oids) {
   try {
     await safeCancel(S.coin, oids.map((oid) => ({ oid })));
     toast(oids.length > 1 ? `Снято заявок: ${oids.length}` : "Заявка снята", "ok");
+  } catch (err) {
+    toast(humanError(err), "err");
+  }
+  refreshAccount().then(() => (scRender(), scSideRender()));
+}
+/* Alt+клик: заявка на закрытие всей позиции по цене клика (только уменьшает позицию) */
+async function scCloseAt(px) {
+  const pos = curPosition();
+  if (!pos) return toast(`Позиции по ${S.coin} нет — закрывать нечего`, "info");
+  if (!(await scReady())) return;
+  const m = mkt(S.coin),
+    long = Number(pos.szi) > 0,
+    o = { a: m.index, b: !long, p: fmtP(px, m), s: formatSize(Math.abs(Number(pos.szi)), m.szDecimals), r: !0, t: { limit: { tif: "Gtc" } } };
+  try {
+    const st = (await S.agentExchange.order({ orders: [o], grouping: "na", builder: builderParam() })).response.data.statuses[0];
+    if (st?.error) throw new Error(st.error);
+    toast(st?.filled ? `Позиция закрыта по ${st.filled.avgPx}` : `Заявка на закрытие позиции по ${fmtPx(px)}`, "ok");
+    refreshAccount().then(() => (scRender(), scSideRender()));
+  } catch (err) {
+    toast(humanError(err), "err");
+  }
+}
+/* E: стоп в безубыток — убираем прежний стоп и ставим новый на цену входа */
+async function scBreakeven() {
+  const pos = curPosition();
+  if (!pos) return toast(`Позиции по ${S.coin} нет`, "info");
+  if (!(await scReady())) return;
+  const m = mkt(S.coin),
+    long = Number(pos.szi) > 0,
+    ent = Number(pos.entryPx),
+    mid = Number(S.ctx[S.coin]?.midPx || 0);
+  if (long ? mid <= ent : mid >= ent) return toast("Позиция пока в минусе — стоп в безубыток можно поставить, когда цена уйдёт в плюс", "info");
+  const slip = Number(SET.slippage) || CFG.slippage,
+    old = (S.orders || []).filter((o) => o.coin === S.coin && o.isTrigger && /stop/i.test(o.orderType || ""));
+  try {
+    old.length && (await safeCancel(S.coin, old));
+    const o = { a: m.index, b: !long, p: fmtP(ent * (long ? 1 - slip * 3 : 1 + slip * 3), m), s: formatSize(Math.abs(Number(pos.szi)), m.szDecimals), r: !0, t: { trigger: { isMarket: !0, triggerPx: fmtP(ent, m), tpsl: "sl" } } };
+    const st = (await S.agentExchange.order({ orders: [o], grouping: "positionTpsl", builder: builderParam() })).response.data.statuses[0];
+    if (st?.error) throw new Error(st.error);
+    toast(`Стоп перенесён в безубыток: ${fmtPx(ent)}`, "ok");
   } catch (err) {
     toast(humanError(err), "err");
   }

@@ -1375,3 +1375,8 @@ body.bx-on{overflow:hidden}
   .sc-hint{display:none}
   .sc-keys{display:none}
 }
+.sc-my.tp{background:var(--buy)} .sc-my.sl{background:var(--sell)}
+.sc-note{margin:0 0 6px;line-height:1.35}
+.sc-u{display:flex;align-items:center;gap:6px}
+.sc-u .tl-seg button{padding:4px 8px;font-size:11px}
+.sc-ladder{cursor:crosshair}

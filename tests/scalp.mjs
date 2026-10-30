@@ -53,12 +53,34 @@ R.ok("и в списке заявок справа", /Покупка/.test(await
 await page.screenshot({ path: "tests/out-scalp-order.png" });
 await page.locator(".sc-my").first().click(); await page.waitForTimeout(1500);
 R.ok("клик по заявке → снята", state.exchange.some((e) => e.action.type === "cancel" && e.action.cancels[0].o === 777));
-// Shift+клик в «Продажа» ниже рынка → стоп на продажу
+// Shift + правая кнопка ниже рынка → стоп на продажу
 const sr = page.locator("#scLadder .sc-row.z-b").nth(8);
 const spx = Number(await sr.getAttribute("data-px"));
-await sr.locator(".ac").click({ modifiers: ["Shift"] }); await page.waitForTimeout(1500);
+await sr.locator(".pc").click({ button: "right", modifiers: ["Shift"] }); await page.waitForTimeout(1500);
 o = state.exchange.filter((e) => e.action.type === "order").at(-1)?.action.orders[0];
-R.ok("Shift+клик → стоп-ордер на продажу (sl)", o && o.b === false && o.t.trigger?.tpsl === "sl" && Math.abs(Number(o.t.trigger.triggerPx) / spx - 1) < 1e-4, JSON.stringify(o?.t));
+R.ok("Shift+ПКМ → стоп-ордер на продажу (sl)", o && o.b === false && o.t.trigger?.tpsl === "sl" && Math.abs(Number(o.t.trigger.triggerPx) / spx - 1) < 1e-4, JSON.stringify(o?.t));
+// правая кнопка выше рынка → лимитная продажа
+const ar = page.locator("#scLadder .sc-row.z-a").nth(3);
+const apx = Number(await ar.getAttribute("data-px"));
+await ar.locator(".bc").click({ button: "right" }); await page.waitForTimeout(1500);
+o = state.exchange.filter((e) => e.action.type === "order").at(-1)?.action.orders[0];
+R.ok("ПКМ выше спреда → лимитная продажа (в любой колонке)", o && o.b === false && o.t.limit?.tif === "Gtc" && Math.abs(Number(o.p) / apx - 1) < 1e-4, JSON.stringify(o));
+await page.waitForTimeout(1200);
+await page.locator(".sc-my").first().click({ button: "middle" }); await page.waitForTimeout(1200);
+R.ok("колесо по заявке → снята", state.exchange.filter((e) => e.action.type === "cancel").length === 2);
+// левая кнопка выше спреда → покупка по рынку
+await page.locator("#scLadder .sc-row.z-a").nth(2).locator(".ac").click(); await page.waitForTimeout(1500);
+o = state.exchange.filter((e) => e.action.type === "order").at(-1)?.action.orders[0];
+R.ok("ЛКМ выше спреда → покупка по рынку", o && o.b === true && o.t.limit?.tif === "Ioc", JSON.stringify(o));
+// стоп и тейк при входе: 1% и 2% — дочерние заявки, включаются после исполнения
+await page.fill("#scAsl", "1"); await page.dispatchEvent("#scAsl", "change");
+await page.fill("#scAtp", "2"); await page.dispatchEvent("#scAtp", "change");
+const br = page.locator("#scLadder .sc-row.z-b").nth(4); const brp = Number(await br.getAttribute("data-px"));
+await br.locator(".bc").click(); await page.waitForTimeout(1500);
+const act = state.exchange.filter((e) => e.action.type === "order").at(-1)?.action;
+const sl = act?.orders.find((x) => x.t.trigger?.tpsl === "sl"), tp = act?.orders.find((x) => x.t.trigger?.tpsl === "tp");
+R.ok("вход с авто-стопом −1% и авто-тейком +2% (ставятся после исполнения)", act?.grouping === "normalTpsl" && sl?.r && tp?.r && Math.abs(Number(sl.t.trigger.triggerPx) / (brp * 0.99) - 1) < 2e-4 && Math.abs(Number(tp.t.trigger.triggerPx) / (brp * 1.02) - 1) < 2e-4, JSON.stringify(act?.orders.map((x) => x.t)));
+await page.fill("#scAsl", "0"); await page.dispatchEvent("#scAsl", "change"); await page.fill("#scAtp", "0"); await page.dispatchEvent("#scAtp", "change");
 // горячие клавиши: 3 → $250, S → продажа по рынку
 await page.locator("#scLadder").focus();
 await page.keyboard.press("3"); await page.keyboard.press("s"); await page.waitForTimeout(1500);
@@ -84,7 +106,7 @@ R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300
 const m = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const merr = []; m.on("pageerror", (e) => merr.push(String(e)));
 await m.goto(URL0 + "/#trade"); await m.waitForTimeout(4500);
-await m.evaluate(() => { document.body.dataset.mv = "full"; document.querySelector('[data-cp="scalp"]').click(); }); await m.waitForTimeout(3000);
+await m.evaluate(() => { document.body.dataset.mv = "full"; document.querySelector('[data-cp="scalp"]').click(); }); await m.waitForTimeout(8000);
 R.ok("телефон: лестница видна", (await m.locator("#scLadder .sc-row").count()) > 15);
 await m.screenshot({ path: "tests/out-scalp-mobile.png" });
 R.ok("телефон: без ошибок", merr.length === 0, merr.join(" | "));

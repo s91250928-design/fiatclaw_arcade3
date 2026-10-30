@@ -55,8 +55,7 @@ R.ok("подсказка: стоп −$10, тейк ≈ +$30, 1 : 3.0", /−10/.
 await page.click('[data-rside="short"]'); await page.waitForTimeout(400);
 R.ok("Шорт: проценты те же, приглушён лонг", (await val("#tp")) === 5 && (await page.evaluate(() => document.getElementById("btnBuy").classList.contains("risk-dim"))));
 const lines = await page.evaluate(() => window.__totum.lines().filter((l) => l.kind.startsWith("plan")));
-m = await mid();
-R.ok("на графике план шорта: стоп выше, тейк ниже", lines.find((l) => l.kind === "plan-sl")?.price > m && lines.find((l) => l.kind === "plan-tp")?.price < m, JSON.stringify(lines.map((l) => [l.kind, l.price])));
+R.ok("до входа линий стопа и тейка на графике нет", lines.length === 0, JSON.stringify(lines.map((l) => [l.kind, l.price])));
 
 // цена с графика: ⌖ у стопа → клик по графику на −2% → лонг, тейк сам (1 : 3)
 await page.click('[data-unit-for="ord"] [data-unit="px"]'); await page.waitForTimeout(200);
@@ -66,7 +65,7 @@ const y = await page.evaluate((p) => window.__totum.priceToY(p), m * 0.98);
 const box = await page.locator("#chart").boundingBox();
 await page.mouse.click(box.x + box.width * 0.4, box.y + y); await page.waitForTimeout(500);
 sl = await val("#sl"); tp = await val("#tp");
-R.ok("клик по графику поставил стоп ≈ −2%", near(sl, m * 0.98, 0.003), `${sl}`);
+R.ok("клик по графику поставил стоп ≈ −2%", near(sl, m * 0.98, 0.003), `${sl} m=${m} tp=${tp}`);
 R.ok("направление стало лонг, тейк сам ≈ +6%", !(await page.evaluate(() => document.getElementById("btnSell").classList.contains("risk-dim"))) === false && near(tp, m * 1.06, 0.004), `${tp}`);
 await page.locator("#paneChart").screenshot({ path: "tests/out-risk-chart.png" });
 await page.locator("#tpslRow").screenshot({ path: "tests/out-risk-form.png" });
