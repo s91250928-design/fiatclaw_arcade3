@@ -35,8 +35,11 @@ var USER_CFG = window.TERM_CONFIG || {},
   },
   feePercentStr = (i) => `${(i / 1e3).toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}%`,
   FEE_PCT = feePercentStr(CFG.feeTenthBps),
+  /* на основной сети биржа иногда отвечает дольше 10 с (особенно с телефона) —
+     ждём до 20 с, иначе подключение и подписи срывались «через раз» */
   transport = new HttpTransport({
     isTestnet: CFG.isTestnet,
+    timeout: 2e4,
   }),
   info = new InfoClient({
     transport: transport,
@@ -1550,8 +1553,9 @@ async function restoreAgent() {
       wallet: S.agent,
     })));
 }
-async function refreshStatus() {
+async function refreshStatus(retry = 1) {
   if (S.user) {
+    S.statusOk = !1;
     try {
       let i = isAddress(CFG.builder),
         [t, e, _abs] = await Promise.all([
@@ -1576,8 +1580,11 @@ async function refreshStatus() {
             s.address.toLowerCase() === S.agent.address.toLowerCase() && (s.validUntil === null || s.validUntil > n),
         )
       );
+      S.statusOk = !0;
     } catch (i) {
       netBad(i);
+      /* не узнали состояние — пробуем ещё раз, а не просим лишние подписи */
+      if (retry > 0) return (await new Promise((r) => setTimeout(r, 1500)), refreshStatus(retry - 1));
     }
     (updateSetupUI(), document.body.classList.toggle("unified", isUnified()), await refreshAccount(), ensureUnified());
   }
@@ -1585,6 +1592,9 @@ async function refreshStatus() {
 /* Единый счёт: один баланс USDC на фьючерсы, все площадки HIP-3 и спот.
    Включаем сами ключом агента (без подписи в кошельке). Если не вышло — кнопка с одной подписью. */
 async function ensureUnified(viaWallet = !1) {
+  /* кошелёк кассы Totum держим в обычном режиме: Hyperliquid засчитывает строителю
+     только фьючерсный счёт (≥ 100 USDC), единый счёт ломает приём комиссии */
+  if (isBuilderUser()) return void document.body.classList.remove("need-unified");
   if (!S.user || isUnified() || S.unifiedBusy) return;
   if (!viaWallet && (!S.agentExchange || !S.agentOk || S.unifiedTried)) return;
   S.unifiedBusy = !0;
@@ -1656,9 +1666,10 @@ async function enableTrading() {
     if (
       (S.approvedFee < CFG.feeTenthBps &&
         (setBusy(i, !0, "Подпись 1 из 2 в кошельке…"),
-        await S.userExchange.approveBuilderFee({
-          maxFeeRate: FEE_PCT,
-          builder: CFG.builder,
+        await S.userExchange.approveBuilderFee({ maxFeeRate: FEE_PCT, builder: CFG.builder }).catch(async (err) => {
+          await new Promise((r) => setTimeout(r, 2e3));
+          const f = Number(await info.maxBuilderFee({ user: S.user, builder: CFG.builder }).catch(() => 0));
+          if (f < CFG.feeTenthBps) throw err;
         }),
         (S.approvedFee = CFG.feeTenthBps),
         setBusy(i, !1)),
@@ -1668,11 +1679,17 @@ async function enableTrading() {
       let t = generatePrivateKey(),
         e = privateKeyToAccount(t),
         n = Date.now() + AGENT_DAYS * 864e5;
-      (await S.userExchange.approveAgent({
-        agentAddress: e.address,
-        agentName: `${await agentNameFor()} valid_until ${n}`,
-      }),
-        await saveAgent(t, n),
+      const nm = `${await agentNameFor()} valid_until ${n}`;
+      try {
+        await S.userExchange.approveAgent({ agentAddress: e.address, agentName: nm });
+      } catch (err) {
+        /* кошелёк подписал, но ответ биржи не дошёл (медленная связь) — проверяем,
+           принят ли ключ на самом деле, прежде чем показывать ошибку */
+        await new Promise((r) => setTimeout(r, 2e3));
+        const list = (await info.extraAgents({ user: S.user }).catch(() => [])) || [];
+        if (!list.some((a) => a.address?.toLowerCase() === e.address.toLowerCase())) throw err;
+      }
+      (await saveAgent(t, n),
         (S.agent = e),
         (S.agentExchange = new ExchangeClient({
           transport: transport,
@@ -1690,6 +1707,7 @@ async function enableTrading() {
    без отдельной кнопки и галочки */
 function autoEnable() {
   if (!S.user || !isAddress(CFG.builder) || S.enabling) return;
+  if (!S.statusOk) return void toast("Биржа отвечает медленно. Нажмите «Включить торговлю», когда связь наладится.", "info");
   if (S.approvedFee >= CFG.feeTenthBps && S.agentOk) return;
   toast("Подтвердите в кошельке доступ к сделкам — это один раз, дальше без подписей", "info");
   enableTrading();
@@ -2150,7 +2168,9 @@ function renderIndicators() {
     chart
       .panes()
       .slice(1)
-      .forEach((s) => s.setHeight(IND.vol && s === chart.panes()[1] ? 80 : 100));
+      .forEach((s) => s.setStretchFactor(IND.vol && s === chart.panes()[1] ? 0.22 : 0.3));
+    /* доли, а не пиксели: на телефоне график маленький, и объём на 80 px съедал свечи целиком */
+    chart.panes()[0]?.setStretchFactor(1);
   } catch {}
 }
 function bindIndicators() {
