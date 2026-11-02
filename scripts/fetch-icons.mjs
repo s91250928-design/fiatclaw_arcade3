@@ -40,7 +40,13 @@ async function main() {
     const spot = await post(api, { type: "spotMeta" });
     (spot?.tokens || []).forEach((t) => t?.name && names.add(t.name));
   }
-  const list = [...names].filter((n) => /^[A-Za-z0-9._-]{1,30}$/.test(n)).slice(0, MAX_NAMES);
+  /* рынки HIP-3 (xyz:GOLD, io:ANTH…): иконка на Hyperliquid лежит под полным именем «биржа:монета» */
+  const hip3 = new Set();
+  for (const api of APIS) {
+    const all = await post(api, { type: "allPerpMetas" });
+    (Array.isArray(all) ? all.slice(1) : []).forEach((m) => (m?.universe || []).forEach((u) => u?.name && !u.isDelisted && hip3.add(u.name)));
+  }
+  const list = [...[...names].filter((n) => /^[A-Za-z0-9._-]{1,30}$/.test(n)), ...[...hip3].filter((n) => /^[A-Za-z0-9._-]{1,20}:[A-Za-z0-9._-]{1,30}$/.test(n))].slice(0, MAX_NAMES);
   console.log(`[icons] монет в списках: ${list.length}`);
   await mkdir("icons", { recursive: true });
   const have = [];
@@ -48,8 +54,10 @@ async function main() {
   async function worker() {
     while (i < list.length && Date.now() - started < BUDGET_MS) {
       const name = list[i++];
-      const svg = (await get(`${CDN}${encodeURIComponent(name)}.svg`)) || (await get(`${CDN}${encodeURIComponent(name)}_spot.svg`));
-      if (svg) { await writeFile(`icons/${name}.svg`, svg); have.push(name); }
+      const hip = name.includes(":");
+      const svg = (await get(`${CDN}${encodeURIComponent(name)}.svg`)) || (hip ? null : await get(`${CDN}${encodeURIComponent(name)}_spot.svg`));
+      /* в имени файла двоеточие заменяем на «__» (сайт ищет icons/xyz__GOLD.svg) */
+      if (svg) { await writeFile(`icons/${name.replace(":", "__")}.svg`, svg); have.push(name); }
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));

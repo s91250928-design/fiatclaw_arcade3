@@ -7,7 +7,7 @@
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=1793350385">
+<link rel="stylesheet" href="style.css?v=1793634671">
 </head>
 <body data-mv="trade" data-cp="chart">
 <!-- Лендинг (только на компьютере). Терминал открывается по адресу /trade -->
@@ -165,7 +165,7 @@
       </div>
       <div id="chart" class="chart"></div>
       <canvas id="depth" class="depth" aria-label="График глубины рынка"></canvas>
-      <div id="chartLoader" class="chart-loader" aria-label="Загрузка графика"><div class="logo-anim"><div class="spin-logo"></div><i class="spin-glow"></i></div></div>
+      <div id="chartEmpty" class="chart-empty" hidden>Торгов сейчас нет</div><div id="chartLoader" class="chart-loader" aria-label="Загрузка графика"><div class="logo-anim"><div class="spin-logo"></div><i class="spin-glow"></i></div></div>
     </div>
     <div class="cp-pane" id="paneScalp"></div>
     <div class="cp-pane" id="paneTools"><div class="tl-tabs" id="tlTabs"><button type="button" data-tl="funding" class="on">Сканер фандинга</button><button type="button" data-tl="arb">Арбитраж фьючерсов</button></div><div id="tlBody"></div></div>
@@ -464,6 +464,6 @@
 </dialog>
 
 <script src="config.js"></script>
-<script type="module" src="app.js?v=1793350385"></script>
+<script type="module" src="app.js?v=1793634671"></script>
 </body>
 </html>
