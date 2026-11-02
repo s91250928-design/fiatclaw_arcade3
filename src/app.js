@@ -8378,7 +8378,7 @@ function bindSettings() {
     }),
     ($("netBadge").textContent = isMobile() ? "ТЕСТ" : "ТЕСТОВАЯ СЕТЬ"),
     ($("setThemeBtn").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark")),
-    ($("netBadge").hidden = !CFG.isTestnet),
+    ($("netBadge").hidden = !CFG.isTestnet), $("faucetHelp") && ($("faucetHelp").hidden = !CFG.isTestnet),
     ($("feeLabel").textContent = FEE_PCT),
     ($("termsFee").textContent = FEE_PCT),
     paintRange($("pct")),
