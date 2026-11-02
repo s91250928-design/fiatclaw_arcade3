@@ -1548,10 +1548,12 @@ async function restoreAgent() {
   let i = await loadAgent();
   i &&
     ((S.agent = privateKeyToAccount(i)),
-    (S.agentExchange = new ExchangeClient({
-      transport: transport,
-      wallet: S.agent,
-    })));
+    (S.agentExchange = safeOrders(
+      new ExchangeClient({
+        transport: transport,
+        wallet: S.agent,
+      }),
+    )));
 }
 async function refreshStatus(retry = 1) {
   if (S.user) {
@@ -1691,10 +1693,12 @@ async function enableTrading() {
       }
       (await saveAgent(t, n),
         (S.agent = e),
-        (S.agentExchange = new ExchangeClient({
-          transport: transport,
-          wallet: e,
-        })));
+        (S.agentExchange = safeOrders(
+          new ExchangeClient({
+            transport: transport,
+            wallet: e,
+          }),
+        )));
     }
     (toast("Готово — можно торговать. Следующие сделки без подписей в кошельке", "ok"), await refreshStatus());
   } catch (t) {
@@ -6123,6 +6127,35 @@ function tradeSound(buy) {
 const TOTUM_CLOID = "0x746f74756d"; /* «totum» в начале идентификатора ордера */
 const totumCloid = () =>
   TOTUM_CLOID + [...crypto.getRandomValues(new Uint8Array(11))].map((b) => b.toString(16).padStart(2, "0")).join("");
+/* Ордер не теряется и не дублируется при плохой связи. Каждой заявке — свой
+   идентификатор (cloid). Если ответ биржи не дошёл, через 1,5 с спрашиваем биржу,
+   есть ли заявка с этим cloid: есть — считаем отправленной, нет — шлём ещё раз
+   с тем же cloid (биржа не примет второй ордер с тем же номером). */
+function safeOrders(ex) {
+  const orig = ex.order.bind(ex);
+  ex.order = async (params, ...rest) => {
+    const orders = (params.orders || []).map((o) => (o.c ? o : { ...o, c: totumCloid() }));
+    params = { ...params, orders };
+    const net = (e) => /Failed to fetch|timed out|timeout|NetworkError|network|Load failed/i.test(String(e?.message || e));
+    for (let k = 0; ; k++) {
+      try {
+        return await orig(params, ...rest);
+      } catch (err) {
+        if (!net(err) || k >= 2 || !S.user) throw err;
+        await new Promise((r) => setTimeout(r, 1500));
+        const st = await info.orderStatus({ user: S.user, oid: orders[0].c }).catch(() => null);
+        if (st?.status === "order" && st.order?.order) {
+          const o = st.order.order;
+          const filled = st.order.status === "filled";
+          console.warn("[связь] ответ не дошёл, но ордер на бирже есть:", st.order.status);
+          return { status: "ok", response: { type: "order", data: { statuses: [filled ? { filled: { totalSz: o.origSz, avgPx: o.limitPx, oid: o.oid } } : { resting: { oid: o.oid } }] } } };
+        }
+        console.warn("[связь] ордер не дошёл до биржи — отправляем ещё раз");
+      }
+    }
+  };
+  return ex;
+}
 const viaTotum = (f) => Number(f.builderFee || 0) > 0 || String(f.cloid || "").toLowerCase().startsWith(TOTUM_CLOID);
 async function placeSpotOrder(i, t) {
   let e = baseOf(),
@@ -8049,7 +8082,10 @@ function startLoop() {
         (S.live.book || pollBook(),
           (S.tick = (S.tick || 0) + 1),
           !S.live.trades && S.tick % 3 === 0 && pollTrades(),
+          /* счёт — раз в 10 с (после своих сделок обновляем сразу); меньше запросов —
+             меньше шансов упереться в лимит Hyperliquid на один IP */
           S.user &&
+            S.tick % 2 === 0 &&
             (await refreshAccount({
               light: !0,
             })));
