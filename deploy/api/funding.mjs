@@ -36,15 +36,33 @@ async function binLike(host) {
     });
   }
 
+/* Hyperliquid (основная сеть) */
+const hlInfo = (body) => j("https://api.hyperliquid.xyz/info", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+/* У рынков HIP-3 свои тикеры. Приводим к названиям, под которыми тот же актив торгуется
+   на других биржах. Неверную пару всё равно отсечёт проверка цены на сайте (разница > 30%). */
+const HIP3_ALIAS = { GOLD: "XAU", SILVER: "XAG", PLATINUM: "XPT", PALLADIUM: "XPD", ANTH: "ANTHROPIC", OAI: "OPENAI", TCNT: "TENCENT", XYZ100: "NAS100" };
+const hlRows = (meta, ctx) =>
+  (meta?.universe || []).map((u, k) => {
+    const c = ctx?.[k] || {};
+    if (!u?.name || u.isDelisted) return null;
+    const mark = num(c.markPx);
+    if (!(mark > 0)) return null;
+    const hip3 = u.name.includes(":"),
+      raw = hip3 ? u.name.slice(u.name.indexOf(":") + 1) : u.name;
+    return { sym: u.name, base: hip3 ? HIP3_ALIAS[raw] || baseOf(raw) : baseOf(u.name), rate: num(c.funding), ih: 1, next: nextHour(), mark, idx: num(c.oraclePx), vol: num(c.dayNtlVlm), oi: num(c.openInterest) * mark };
+  });
+
 const VENUES = {
   hyperliquid: { name: "Totum", type: "dex", async load() {
-    const [meta, ctx] = await j("https://api.hyperliquid.xyz/info", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "metaAndAssetCtxs" }) });
-    return meta.universe.map((u, k) => {
-      const c = ctx[k] || {};
-      if (u.isDelisted) return null;
-      const mark = num(c.markPx);
-      return { sym: u.name, base: baseOf(u.name), rate: num(c.funding), ih: 1, next: nextHour(), mark, idx: num(c.oraclePx), vol: num(c.dayNtlVlm), oi: num(c.openInterest) * mark };
-    });
+    /* основные рынки + рынки HIP-3 (xyz:GOLD, io:ANTH…): каждый — отдельная строка со своим sym */
+    const [main, dexs, spot] = await Promise.all([hlInfo({ type: "metaAndAssetCtxs" }), hlInfo({ type: "perpDexs" }).catch(() => []), hlInfo({ type: "spotMeta" }).catch(() => null)]);
+    const names = (dexs || []).map((d) => d?.name).filter((n) => typeof n === "string" && /^[\w.-]{1,20}$/.test(n));
+    const extra = await Promise.allSettled(names.map((dex) => hlInfo({ type: "metaAndAssetCtxs", dex })));
+    const tok = Object.fromEntries((spot?.tokens || []).map((t) => [t.index, t.name]));
+    const rows = hlRows(main[0], main[1]);
+    /* площадки с залогом USDe повторяют обычные рынки (тот же BTC, ETH) — пропускаем */
+    extra.forEach((r) => r.status === "fulfilled" && Array.isArray(r.value) && !/^USDE/i.test(tok[r.value[0]?.collateralToken] || "") && rows.push(...hlRows(r.value[0], r.value[1])));
+    return rows;
   } },
   binance: { name: "Binance", type: "cex", load: () => binLike("https://fapi.binance.com") },
   aster: { name: "Aster", type: "dex", load: () => binLike("https://fapi.asterdex.com") },

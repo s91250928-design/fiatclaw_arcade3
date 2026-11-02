@@ -1380,3 +1380,11 @@ body.bx-on{overflow:hidden}
 .sc-u{display:flex;align-items:center;gap:6px}
 .sc-u .tl-seg button{padding:4px 8px;font-size:11px}
 .sc-ladder{cursor:crosshair}
+.chart-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;z-index:2;pointer-events:none}.chart-empty[hidden]{display:none}
+.sc-body{flex:1;min-height:0;display:flex}
+.sc-tk{flex:1;min-width:200px;display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0}
+.sc-tk-h{font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--line);padding:3px 8px;white-space:nowrap;overflow:hidden}
+.sc-tk-h small{text-transform:none;font-weight:500;letter-spacing:0}
+#scTicks{display:block;width:100%;flex:1;min-height:0}
+.sc-col{flex:0 0 min(460px,58%);display:flex;flex-direction:column;min-height:0}
+@media (max-width:900px){.sc-tk{display:none}.sc-col{flex:1}}

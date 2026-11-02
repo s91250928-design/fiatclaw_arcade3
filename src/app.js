@@ -346,7 +346,24 @@ async function loadPerpMarkets() {
     t[n] && (S.ctx[e.name] = perpCtxLite(t[n]));
   });
   S.loadedAt.perp = Date.now();
+  loadHip3Ctx(S.coin);
   netGood("markets");
+}
+/* рынки HIP-3 (io:ANTH, xyz:GOLD…): данные выбранного рынка обычным запросом,
+   а не только через WebSocket — иначе без сделок в шапке была цена 0 */
+function loadHip3Ctx(c) {
+  const d = dexOf(c);
+  d &&
+    info
+      .metaAndAssetCtxs({ dex: d })
+      .then((r) => {
+        const [o, a] = r || [];
+        (o?.universe || []).forEach((l, u) => {
+          a?.[u] && (S.ctx[l.name] = { ...S.ctx[l.name], ...perpCtxLite(a[u]) });
+        });
+        c === S.coin && renderTicker();
+      })
+      .catch(() => {});
 }
 function saveMarketsCache() {
   try {
@@ -489,12 +506,14 @@ function renderTicker() {
   let i = S.ctx[S.coin],
     t = mkt(S.coin);
   if (!i || !t) return;
-  let e = Number(i.midPx),
-    n = i.prevDayPx ? e / Number(i.prevDayPx) - 1 : 0;
+  /* нет сделок за сутки — пишем «Торгов сейчас нет», цена — справедливая */
+  let nt = !Number(i.dayNtlVlm),
+    e = Number(i.midPx) || Number(i.markPx) || 0,
+    n = !nt && i.prevDayPx ? e / Number(i.prevDayPx) - 1 : 0;
   (($("mkPrice").textContent = fmtPx(e)),
-    ($("mkPrice").className = n >= 0 ? "pos" : "neg"),
-    ($("mkChange").textContent = `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`),
-    ($("mkChange").className = `small ${n >= 0 ? "pos" : "neg"}`),
+    ($("mkPrice").className = nt ? "" : n >= 0 ? "pos" : "neg"),
+    ($("mkChange").textContent = nt ? "Торгов сейчас нет" : `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`),
+    ($("mkChange").className = nt ? "small" : `small ${n >= 0 ? "pos" : "neg"}`),
     ($("mkMark").textContent = fmtPx(i.markPx)),
     ($("mkVol").textContent = i.dayNtlVlm ? compact(i.dayNtlVlm) : "—"),
     ($("mkOi").textContent = i.openInterest ? compact(Number(i.openInterest) * Number(i.markPx)) : "—"),
@@ -606,6 +625,7 @@ async function loadCandles() {
   let i = S.coin,
     t = S.interval;
   $("chartLoader").classList.remove("done");
+  $("chartEmpty") && ($("chartEmpty").hidden = !0);
   try {
     let e = Date.now(),
       n = await info.candleSnapshot({
@@ -616,6 +636,7 @@ async function loadCandles() {
       });
     if (i !== S.coin || t !== S.interval) return;
     let s = (n || []).filter((a) => a && a.t);
+    $("chartEmpty") && ($("chartEmpty").hidden = s.length > 0);
     ((S.bars = s.map(toBar)),
       (S.vols = s.map(toVol)),
       setSeriesData(),
@@ -784,12 +805,15 @@ function bindTpslDrag() {
         if (!["tp", "sl", "entry", "limit", "plan-sl", "plan-tp"].includes(r.kind)) continue;
         if (!S.agentExchange && !r.kind.startsWith("plan")) continue;
         let o = candleSeries.priceToCoordinate(r.price);
+        /* линии стоят вплотную — сначала берём заявку, потом TP/SL, линию позиции — последней
+           (раньше вместо лимитки можно было схватить позицию и случайно поставить тейк) */
+        const w = Math.abs(o - n) + (r.kind === "entry" ? 5 : r.kind === "tp" || r.kind === "sl" ? 2 : 0);
         o != null &&
           Math.abs(o - n) <= 6 &&
-          (!s || Math.abs(o - n) < s.d) &&
+          (!s || w < s.d) &&
           (s = {
             l: r,
-            d: Math.abs(o - n),
+            d: w,
           });
       }
       return s?.l || null;
@@ -804,6 +828,8 @@ function bindTpslDrag() {
         (n.preventDefault(),
         n.stopPropagation(),
         (DRAG.active = s),
+        (DRAG.y0 = e(n)),
+        (DRAG.moved = !1),
         chart.applyOptions({
           handleScroll: !1,
           handleScale: !1,
@@ -818,6 +844,9 @@ function bindTpslDrag() {
         i.classList.toggle("drag-hover", DRAW.tool === "cursor" && !!t(s));
         return;
       }
+      /* пока мышь сдвинулась меньше чем на 5 px — это клик, а не перетаскивание */
+      if (!DRAG.moved && Math.abs(s - DRAG.y0) < 5) return;
+      DRAG.moved = !0;
       let r = candleSeries.coordinateToPrice(s);
       if (r == null) return;
       if (DRAG.active.kind === "plan-sl" || DRAG.active.kind === "plan-tp") {
@@ -1703,6 +1732,13 @@ var ICON_LOCAL = null,
   coinIcon = (i) => {
     let t = baseOf(i),
       e = esc(t.replace(/^k/, "").slice(0, 1));
+    /* HIP-3: иконка лежит под полным именем «биржа:монета» (файл xyz__GOLD.svg) */
+    if (i && String(i).includes(":"))
+      return ICON_LOCAL && ICON_LOCAL.has(i)
+        ? `<span class="coin-ic" data-letter="${e}"><img alt="" decoding="async" src="icons/${encodeURIComponent(i.replace(":", "__"))}.svg"></span>`
+        : ICON_FAIL.has(i)
+          ? `<span class="coin-ic">${e}</span>`
+          : `<span class="coin-ic" data-letter="${e}" data-name="${esc(i)}"><img alt="" loading="lazy" decoding="async" src="${ICON_CDN}${encodeURIComponent(i)}.svg"></span>`;
     return ICON_LOCAL
       ? ICON_LOCAL.has(t)
         ? `<span class="coin-ic" data-letter="${e}"><img alt="" decoding="async" src="icons/${encodeURIComponent(t)}.svg"></span>`
@@ -1733,18 +1769,36 @@ function setPairLabel() {
 }
 /* Разделы рынков: Все · Фьючерсы · Спот · Крипто · Традфи (RWA) · HIP-3 · В тренде */
 const MK_TABS = ["all", "perp", "spot", "crypto", "tradfi", "hip3", "trend"];
+/* площадки HIP-3 с залогом USDe повторяют обычные рынки (тот же BTC, ETH…) — не показываем */
+const isUsdeDex = (m) => !!m.dex && /^USDE/i.test(collName(m));
 function marketsFor(mk) {
+  const M = S.meta.filter((m) => !isUsdeDex(m));
   if (mk === "spot") return S.spot;
-  if (mk === "perp") return S.meta;
-  if (mk === "crypto") return S.meta.filter((m) => m.group === "crypto");
-  if (mk === "tradfi") return S.meta.filter((m) => m.group === "tradfi");
-  if (mk === "hip3") return S.meta.filter((m) => m.dex);
-  return [...S.meta, ...S.spot]; // all, trend
+  if (mk === "perp") return M;
+  if (mk === "crypto") return M.filter((m) => m.group === "crypto");
+  if (mk === "tradfi") return M.filter((m) => m.group === "tradfi");
+  if (mk === "hip3") return M.filter((m) => m.dex);
+  return [...M, ...S.spot]; // all, trend
 }
+/* поиск по-человечески: ANTH находит Anthropic, «золото» — GOLD/XAU и т. п. */
+const SEARCH_ALIAS = [
+  [/ANTH/, "ANTHROPIC АНТРОПИК"],
+  [/OAI|OPENAI/, "OPENAI ОПЕНАИ"],
+  [/GOLD|XAU/, "GOLD XAU ЗОЛОТО"],
+  [/SILVER|XAG/, "SILVER XAG СЕРЕБРО"],
+  [/OIL|WTI|BRENT/, "OIL НЕФТЬ"],
+  [/TSLA/, "TESLA ТЕСЛА"],
+  [/NVDA/, "NVIDIA"],
+  [/SPX|SP500/, "SP500 S&P"],
+];
+const searchText = (r) => {
+  const n = `${r.label} ${r.name}`.toUpperCase();
+  return n + " " + SEARCH_ALIAS.filter(([re]) => re.test(n)).map(([, a]) => a).join(" ");
+};
 function pairRows(i = PP) {
   let t = i,
     e = t.q.trim().toUpperCase(),
-    n = marketsFor(t.mk).map((r) => {
+    n = marketsFor(e ? "all" : t.mk).map((r) => {
       let o = S.ctx[r.name] || {},
         a = Number(o.midPx || o.markPx || 0),
         c = o.prevDayPx && Number(o.prevDayPx) ? a / Number(o.prevDayPx) - 1 : 0;
@@ -1761,7 +1815,7 @@ function pairRows(i = PP) {
     });
   // площадки HIP-3 без цены (пустые тестовые) не показываем
   n = n.filter((r) => r.mid > 0 || !r.dex);
-  (e && (n = n.filter((r) => r.label.toUpperCase().includes(e) || r.name.toUpperCase().includes(e))),
+  (e && (n = n.filter((r) => searchText(r).includes(e))),
     t.tab === "fav" && (n = n.filter((r) => FAVS.includes(r.name))),
     t.tab === "gain" && (n = n.filter((r) => r.ch > 0)),
     t.tab === "loss" && (n = n.filter((r) => r.ch < 0)));
@@ -3088,7 +3142,8 @@ function renderPositions() {
       <td><div class="pos-actions">
         <button class="btn small ghost" data-close="${esc(s.p.coin)}" data-szi="${esc(s.p.szi)}" title="Закрыть всю позицию по рынку">Маркет</button>
         <button class="btn small ghost" data-close-dlg ${t(s)} data-ct="limit">Лимит</button>
-        <button class="btn small ghost" data-reverse ${t(s)} title="Закрыть и открыть в обратную сторону">Разворот</button></div></td></tr>`,
+        <button class="btn small ghost" data-reverse ${t(s)} title="Закрыть и открыть в обратную сторону">Разворот</button>
+        <button class="btn small ghost" data-be="${esc(s.p.coin)}" title="Стоп в безубыток с учётом комиссий и проскальзывания">Б/У</button></div></td></tr>`,
         )
         .join("")
     : `<tr><td colspan="12" class="muted">${S.user ? "Открытых позиций нет" : "Подключите кошелёк"}</td></tr>`;
@@ -3116,6 +3171,7 @@ function renderPositions() {
       <div class="pc-actions">
         <button class="btn small ghost" data-tpsl="${esc(s.p.coin)}">TP/SL</button>
         <button class="btn small ghost" data-reverse ${t(s)}>Разворот</button>
+        <button class="btn small ghost" data-be="${esc(s.p.coin)}">Б/У</button>
         <button class="btn small ghost" data-close-dlg ${t(s)}>Закрыть</button>
         <button class="btn small flash" data-close="${esc(s.p.coin)}" data-szi="${esc(s.p.szi)}">Быстро закрыть</button>
       </div></article>`;
@@ -4067,7 +4123,7 @@ function tlPairs() {
   const T = new Map(),
     by = new Map();
   for (const r of TL.data?.rows || []) {
-    if (r.v === "hyperliquid") T.set(r.base, r);
+    if (r.v === "hyperliquid") T.has(r.base) ? T.get(r.base).push(r) : T.set(r.base, [r]); /* у монеты может быть несколько рынков Totum (основной и HIP-3) */
     else {
       if (TL.off.has(r.v)) continue;
       const k = `${r.base}|${r.v}`,
@@ -4078,18 +4134,20 @@ function tlPairs() {
   const cnt = {},
     out = [];
   for (const x of by.values()) {
-    const t = T.get(x.base);
-    if (!t) continue;
+    const ts = T.get(x.base);
+    if (!ts) continue;
     if (TL.minVol && x.vol != null && x.vol < TL.minVol) continue;
-    const tp = t.mark / (t.mult || 1),
-      xp = x.mark / (x.mult || 1);
-    if (!(tp > 0 && xp > 0)) continue;
-    const ps = xp / tp - 1;
-    if (Math.abs(ps) > 0.3) continue; /* скорее всего разные монеты с одним тикером */
-    cnt[x.base] = (cnt[x.base] || 0) + 1;
-    out.push({ coin: t.sym, base: x.base, t, x, tp, xp, ps, fs: tlRate(x) - tlRate(t) });
+    for (const t of ts) {
+      const tp = t.mark / (t.mult || 1),
+        xp = x.mark / (x.mult || 1);
+      if (!(tp > 0 && xp > 0)) continue;
+      const ps = xp / tp - 1;
+      if (Math.abs(ps) > 0.3) continue; /* скорее всего разные монеты или разная шкала цены */
+      cnt[t.sym] = (cnt[t.sym] || 0) + 1;
+      out.push({ coin: t.sym, base: x.base, t, x, tp, xp, ps, fs: tlRate(x) - tlRate(t) });
+    }
   }
-  out.forEach((r) => (r.n = cnt[r.base] + 1));
+  out.forEach((r) => (r.n = cnt[r.coin] + 1));
   return out;
 }
 function renderTools(open) {
@@ -4129,13 +4187,13 @@ function renderTools(open) {
     <div class="tl-venues">${V.map((v) => `<button type="button" data-tlv="${v.id}" class="${TL.off.has(v.id) ? "" : "on"} ${v.ok ? "" : "bad"}" title="${v.ok ? `${v.n} рынков` : `нет данных: ${esc(v.err || "")}`}"><i class="${v.type}"></i>${esc(v.name)}</button>`).join("")}</div>`;
   const N = TL.norm === 1 ? "1 ч" : "8 ч";
   const line = (r) => {
-    const key = `${r.base}|${r.x.v}`,
+    const key = `${r.coin}|${r.x.v}`,
       xn = esc(tlVName(r.x.v)),
       fIdea = r.fs > 0 ? `Лонг <b>Totum</b> · шорт <b>${xn}</b>` : `Шорт <b>Totum</b> · лонг <b>${xn}</b>`,
       pIdea = r.ps > 0 ? `Лонг <b>Totum</b> · шорт <b>${xn}</b>` : `Шорт <b>Totum</b> · лонг <b>${xn}</b>`,
       warn = TL.tab === "funding" && Math.abs(r.ps) > Math.abs(r.fs / TL.norm) * 24 ? `<i class="tl-warn" title="Разница в цене больше, чем фандинг даст за сутки — можно потерять на цене">!</i>` : "";
     return `<tr class="${TL.open === key ? "open" : ""}">
-      <td><div class="tl-c">${coinIcon(r.coin)}<div><button type="button" class="tl-coin" data-tlcoin="${esc(r.coin)}">${esc(r.base)}</button><small>${r.n} бирж</small></div></div></td>
+      <td><div class="tl-c">${coinIcon(r.coin)}<div><button type="button" class="tl-coin" data-tlcoin="${esc(r.coin)}">${esc(r.base)}${r.coin.includes(":") ? ` · ${esc(r.coin.split(":")[0])}` : ""}</button><small>${r.n} бирж</small></div></div></td>
       <td class="tl-v"><b>${vAva("hyperliquid")}Totum</b><b>${vAva(r.x.v)}${xn}</b></td>
       <td class="fr"><span>${tlPx(r.tp)}<em>инд. ${tlPx((r.t.idx || 0) / (r.t.mult || 1))}</em></span><span>${tlPx(r.xp)}<em>инд. ${tlPx((r.x.idx || 0) / (r.x.mult || 1))}</em></span></td>
       <td class="spr ${TL.tab === "arb" ? "main" : ""} ${r.ps >= 0 ? "pos" : "neg"}">${r.ps >= 0 ? "+" : "−"}${Math.abs(r.ps * 100).toFixed(2)}%</td>
@@ -4213,7 +4271,7 @@ var SC_AGG = [
   ["×10", { nSigFigs: 4 }],
   ["×100", { nSigFigs: 3 }],
 ];
-var SC = { asl: 0, aslU: "pct", atp: 0, agg: 0, center: null, step: 0, vols: [50, 100, 250, 500], vi: 1, hot: !0, confirm: !1, auto: !0, book: null, sub: null, subKey: "", tape: [], tv: new Map(), coin: null, levKey: "", raf: 0, sideAt: 0, busy: 0 };
+var SC = { ticks: [], tkRaf: 0, asl: 0, aslU: "pct", atp: 0, agg: 0, center: null, step: 0, vols: [50, 100, 250, 500], vi: 1, hot: !0, confirm: !1, auto: !0, book: null, sub: null, subKey: "", tape: [], tv: new Map(), coin: null, levKey: "", raf: 0, sideAt: 0, busy: 0 };
 try {
   const z = JSON.parse(localStorage.getItem("totum.scalp") || "{}");
   Array.isArray(z.vols) && z.vols.length === 4 && z.vols.every((v) => v > 0) && (SC.vols = z.vols);
@@ -4249,8 +4307,11 @@ function scOpen() {
           <button type="button" class="sc-center" id="scCenter" title="В центр (Пробел)">⦿ В центр</button>
           <span class="sc-hint" id="scHint"></span>
         </div>
-        <div class="sc-head"><span>Сделки</span><span class="b">Покупки</span><span>Цена</span><span class="s">Продажи</span></div>
-        <div class="sc-ladder" id="scLadder" tabindex="0"></div>
+        <div class="sc-body">
+          <div class="sc-tk"><div class="sc-tk-h">Сделки <small>последняя минута · кружок = объём</small></div><canvas id="scTicks"></canvas></div>
+          <div class="sc-col"><div class="sc-head"><span>Объём</span><span class="b">Покупки</span><span>Цена</span><span class="s">Продажи</span></div>
+          <div class="sc-ladder" id="scLadder" tabindex="0"></div></div>
+        </div>
       </section>
       <aside class="sc-side">
         <div class="sc-card"><b class="sc-t">Рабочий объём</b>
@@ -4333,7 +4394,8 @@ function scResetData() {
 }
 /* стакан: «точно» — общий поток терминала; крупнее — своя подписка с округлением */
 async function scSubscribe() {
-  if (SC.coin !== S.coin) ((SC.coin = S.coin), (SC.tape = []), scResetData(), scTapeRender());
+  if (SC.coin !== S.coin) ((SC.coin = S.coin), (SC.tape = []), (SC.ticks = []), scResetData(), scTapeRender());
+  scTicksLoop();
   document.querySelectorAll("#scAgg [data-scagg]").forEach((b) => b.classList.toggle("on", Number(b.dataset.scagg) === SC.agg));
   const p = SC_AGG[SC.agg][1],
     key = p ? `${S.coin}|${JSON.stringify(p)}` : "";
@@ -4383,6 +4445,9 @@ function scTrades(list) {
     const px = +t.px,
       usd = px * +t.sz;
     SC.tape.unshift({ px, usd, b: t.side === "B", time: t.time });
+    /* для окна сделок: подряд идущие сделки по одной цене и стороне — один кружок */
+    const lt = SC.ticks[SC.ticks.length - 1];
+    lt && lt.px === px && lt.b === (t.side === "B") && t.time - lt.t < 300 ? (lt.usd += usd) : SC.ticks.push({ px, usd, b: t.side === "B", t: t.time });
     if (SC.step) {
       const k = scKey(px),
         o = SC.tv.get(k) || { b: 0, s: 0 };
@@ -4392,6 +4457,7 @@ function scTrades(list) {
     SC.last = px;
   }
   SC.tape.length > 150 && (SC.tape.length = 150);
+  SC.ticks.length > 600 && SC.ticks.splice(0, SC.ticks.length - 600);
   scTapeRender();
   scRender();
 }
@@ -4421,7 +4487,9 @@ function scDraw() {
   if (!b || !SC.step || !b.asks[0] || !b.bids[0]) return void (lad.innerHTML = '<p class="sc-empty">Загружаем стакан…</p>');
   const RH = 20,
     n = Math.max(10, Math.floor(lad.clientHeight / RH)),
-    half = Math.floor(n / 2),
+    half = Math.floor(n / 2);
+  SC.geo = { RH, n, half };
+  const
     ask = b.asks[0].px,
     bid = b.bids[0].px,
     mid = scRound((ask + bid) / 2);
@@ -4480,6 +4548,89 @@ function scDraw() {
   }
   lad.innerHTML = html;
 }
+/* окно сделок как в MetaScalp: кружок на уровне цены сделки, зелёный — покупка,
+   красный — продажа, площадь — объём; справа «сейчас», влево — минута назад */
+function scTicksLoop() {
+  if (SC.tkRaf) return;
+  const loop = () => {
+    if (!scOn()) return void (SC.tkRaf = 0);
+    SC.tkRaf = requestAnimationFrame(loop);
+    const now = performance.now();
+    if (now - (SC.tkAt || 0) < 50) return;
+    SC.tkAt = now;
+    scTicksDraw();
+  };
+  SC.tkRaf = requestAnimationFrame(loop);
+}
+function scTicksDraw() {
+  const cv = $("scTicks"),
+    lad = $("scLadder");
+  if (!cv || !lad || !cv.clientWidth || !SC.geo || !SC.step || SC.center == null) return;
+  const dpr = window.devicePixelRatio || 1,
+    W = cv.clientWidth,
+    H = lad.clientHeight;
+  (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) && ((cv.width = Math.round(W * dpr)), (cv.height = Math.round(H * dpr)), (cv.style.height = `${H}px`));
+  const g = cv.getContext("2d"),
+    css = getComputedStyle(document.documentElement),
+    up = css.getPropertyValue("--buy").trim() || "#16a34a",
+    dn = css.getPropertyValue("--sell").trim() || "#e11d48",
+    mu = css.getPropertyValue("--muted").trim() || "#888",
+    line = css.getPropertyValue("--line").trim() || "#333",
+    { RH, half } = SC.geo,
+    SPAN = 60e3,
+    t1 = Date.now(),
+    xOf = (t) => W - 34 - ((t1 - t) / SPAN) * (W - 44),
+    yOf = (px) => (half - (px - SC.center) / SC.step) * RH + RH / 2;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  /* сетка времени: каждые 10 секунд */
+  g.font = "10px Manrope, sans-serif";
+  g.textAlign = "center";
+  for (let k = 0; k <= 6; k++) {
+    const x = xOf(t1 - k * 10e3);
+    g.strokeStyle = line;
+    g.globalAlpha = 0.5;
+    g.beginPath();
+    g.moveTo(x, 0);
+    g.lineTo(x, H - 14);
+    g.stroke();
+    g.globalAlpha = 1;
+    g.fillStyle = mu;
+    g.fillText(k ? `−${k * 10}с` : "сейчас", x, H - 3);
+  }
+  const vis = SC.ticks.filter((t) => t1 - t.t < SPAN),
+    mx = Math.max(1, ...vis.map((t) => t.usd));
+  let prev = null;
+  /* линия цены сделок */
+  g.strokeStyle = mu;
+  g.globalAlpha = 0.35;
+  g.beginPath();
+  for (const t of vis) {
+    const x = xOf(t.t),
+      y = yOf(scRound(t.px));
+    prev ? g.lineTo(x, y) : g.moveTo(x, y);
+    prev = t;
+  }
+  g.stroke();
+  g.globalAlpha = 1;
+  for (const t of vis) {
+    const x = xOf(t.t),
+      y = yOf(scRound(t.px));
+    if (y < -20 || y > H + 20) continue;
+    const r = 3 + 15 * Math.sqrt(t.usd / mx);
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fillStyle = t.b ? up : dn;
+    g.globalAlpha = 0.75;
+    g.fill();
+    g.globalAlpha = 1;
+    if (r >= 10) {
+      g.fillStyle = "#fff";
+      g.font = "bold 9px Manrope, sans-serif";
+      g.fillText(compactUsd(t.usd).replace(/,\d+$/, ""), x, y + 3);
+    }
+  }
+}
 function scSideRender(force) {
   SC.sideAt = Date.now();
   const P = $("scPos"),
@@ -4497,7 +4648,12 @@ function scSideRender(force) {
       <div class="bx-kv"><span>Цена входа</span><b>${fmtPx(Number(pos.entryPx))}</b></div>
       <div class="bx-kv"><span>Прибыль / убыток</span><b class="${clsOf(pnl)}">${usd(pnl)} · ${(Number(pos.returnOnEquity) * 100).toFixed(2)}%</b></div>
       ${pos.liquidationPx ? `<div class="bx-kv"><span>Ликвидация</span><b>${fmtPx(Number(pos.liquidationPx))}</b></div>` : ""}
-      <div class="sc-mk"><button type="button" class="btn ghost" id="scClose">Закрыть по рынку <kbd>X</kbd></button><button type="button" class="btn ghost" id="scRev">Развернуть</button></div>`;
+      <div class="sc-mk"><button type="button" class="btn ghost" id="scClose">Закрыть по рынку <kbd>X</kbd></button><button type="button" class="btn ghost" id="scRev">Развернуть</button><button type="button" class="btn ghost" id="scBe" title="С учётом комиссий и проскальзывания">Стоп в Б/У <kbd>E</kbd></button></div>
+      ${(() => {
+        const b = beCalc(S.coin);
+        return b ? `<p class="muted small">Безубыток с комиссиями: <b>${fmtPx(b.px)}</b></p>` : "";
+      })()}`;
+    $("scBe").onclick = () => beStop(S.coin);
     $("scClose").onclick = () => scClosePos();
     $("scRev").onclick = () => reversePosition(S.coin);
   } else P.innerHTML = `<b class="sc-t">Позиция ${esc(S.coin)}</b><p class="muted small">Позиции нет</p>`;
@@ -4646,29 +4802,49 @@ async function scCloseAt(px) {
     toast(humanError(err), "err");
   }
 }
-/* E: стоп в безубыток — убираем прежний стоп и ставим новый на цену входа */
-async function scBreakeven() {
-  const pos = curPosition();
-  if (!pos) return toast(`Позиции по ${S.coin} нет`, "info");
-  if (!(await scReady())) return;
-  const m = mkt(S.coin),
-    long = Number(pos.szi) > 0,
+/* Стоп в безубыток с учётом комиссий и проскальзывания: при срабатывании стопа
+   итог сделки после всех комиссий ≈ 0. Комиссия входа и выхода — тейкер Totum,
+   проскальзывание — по нынешнему стакану на размер позиции (не меньше 0,01%).
+   Лонг:  стоп = вход × (1 + комиссия) / ((1 − комиссия) × (1 − проскальз.))
+   Шорт:  стоп = вход × (1 − комиссия) / ((1 + комиссия) × (1 + проскальз.)) */
+function beCalc(coin) {
+  const pos = S.positions.find((p) => p.coin === coin);
+  if (!pos) return null;
+  const long = Number(pos.szi) > 0,
+    sz = Math.abs(Number(pos.szi)),
     ent = Number(pos.entryPx),
-    mid = Number(S.ctx[S.coin]?.midPx || 0);
-  if (long ? mid <= ent : mid >= ent) return toast("Позиция пока в минусе — стоп в безубыток можно поставить, когда цена уйдёт в плюс", "info");
-  const slip = Number(SET.slippage) || CFG.slippage,
-    old = (S.orders || []).filter((o) => o.coin === S.coin && o.isTrigger && /stop/i.test(o.orderType || ""));
+    f = FEE_RATE(coin),
+    mid = Number(S.ctx[coin]?.midPx || S.ctx[coin]?.markPx || 0);
+  let slip = 1e-4;
   try {
-    old.length && (await safeCancel(S.coin, old));
-    const o = { a: m.index, b: !long, p: fmtP(ent * (long ? 1 - slip * 3 : 1 + slip * 3), m), s: formatSize(Math.abs(Number(pos.szi)), m.szDecimals), r: !0, t: { trigger: { isMarket: !0, triggerPx: fmtP(ent, m), tpsl: "sl" } } };
+    const bf = coin === S.coin ? bookFill(coin, !long, { sz }) : null;
+    bf?.avg && mid && (slip = Math.max(slip, Math.abs(bf.avg / mid - 1)));
+  } catch {}
+  const px = long ? (ent * (1 + f)) / ((1 - f) * (1 - slip)) : (ent * (1 - f)) / ((1 + f) * (1 + slip));
+  return { pos, long, sz, ent, f, slip, px, mid, ok: long ? mid > px : mid < px };
+}
+async function beStop(coin = S.coin) {
+  const b = beCalc(coin);
+  if (!b) return toast(`Позиции по ${coin} нет`, "info");
+  if (!S.agentExchange) return toast("Подключите кошелёк", "err");
+  if (!b.ok)
+    return toast(`Цена ещё не дошла до безубытка с комиссиями (${fmtPx(b.px)}). Стоп там сработал бы сразу — подождите, пока позиция уйдёт в плюс дальше.`, "info");
+  const m = mkt(coin),
+    slipP = Number(SET.slippage) || CFG.slippage,
+    old = (S.orders || []).filter((o) => o.coin === coin && o.isTrigger && o.reduceOnly && /stop/i.test(o.orderType || ""));
+  try {
+    old.length && (await safeCancel(coin, old));
+    const o = { a: m.index, b: !b.long, p: fmtP(b.px * (b.long ? 1 - slipP * 3 : 1 + slipP * 3), m), s: formatSize(b.sz, m.szDecimals), r: !0, t: { trigger: { isMarket: !0, triggerPx: fmtP(b.px, m), tpsl: "sl" } } };
     const st = (await S.agentExchange.order({ orders: [o], grouping: "positionTpsl", builder: builderParam() })).response.data.statuses[0];
     if (st?.error) throw new Error(st.error);
-    toast(`Стоп перенесён в безубыток: ${fmtPx(ent)}`, "ok");
+    toast(`Стоп в безубыток: ${fmtPx(b.px)} (вход ${fmtPx(b.ent)} + комиссии ${(b.f * 200).toFixed(3)}% + проскальзывание ~${(b.slip * 100).toFixed(3)}%)`, "ok");
   } catch (err) {
     toast(humanError(err), "err");
   }
-  refreshAccount().then(() => (scRender(), scSideRender()));
+  await refreshAccount();
+  scOn() && (scRender(), scSideRender());
 }
+const scBreakeven = () => beStop(S.coin);
 async function scClosePos() {
   const pos = curPosition();
   if (!pos) return toast(`Позиции по ${S.coin} нет`, "info");
@@ -4745,7 +4921,7 @@ function bxEE(usd) {
   return { en: bS.px / S.m / (aL.px / L.m) - 1, ex: bL.px / L.m / (aS.px / S.m) - 1, full: aL.full && bS.full && bL.full && aS.full, have: Math.min(...[aL, bS, bL, aS].map((x) => (x.full ? Infinity : x.have))) };
 }
 function bxOpen(key) {
-  const r = tlPairs().find((p) => `${p.base}|${p.x.v}` === key);
+  const r = tlPairs().find((p) => `${p.coin}|${p.x.v}` === key);
   if (!r) return;
   BX.key = key;
   BX.r = r;
@@ -4819,7 +4995,7 @@ function bxClose() {
 }
 function bxHead() {
   if (!BX.r) return;
-  const fresh = tlPairs().find((p) => `${p.base}|${p.x.v}` === BX.key);
+  const fresh = tlPairs().find((p) => `${p.coin}|${p.x.v}` === BX.key);
   fresh && (BX.r = fresh);
   const r = BX.r,
     { L, S, T, X } = bxSides(),
@@ -6578,7 +6754,7 @@ function openTpsl(i, t = {}) {
   (setUnit("dlg", "px"),
     ($("tpslTitle").textContent = `TP / SL \xB7 ${Number(e.szi) > 0 ? "Лонг" : "Шорт"} ${i}`),
     ($("tpslInfo").textContent =
-      `Вход ${fmtPx(e.entryPx)} · маркировка ${fmtPx(S.ctx[i]?.markPx || 0)} · размер ${Math.abs(Number(e.szi))} ${i}`));
+      `Вход ${fmtPx(e.entryPx)} · маркировка ${fmtPx(S.ctx[i]?.markPx || 0)} · размер ${Math.abs(Number(e.szi))} ${i}. Тейк и стоп закроют всю позицию.`));
   let r = (o) => (o ? Number(Number(o).toFixed(pxDecimals(o))) : "");
   (($("ptp").value = r(t.tp ?? (n ? n.triggerPx : ""))),
     ($("psl").value = r(t.sl ?? (s ? s.triggerPx : ""))),
@@ -7864,6 +8040,7 @@ function startLoop() {
     }, 6e4));
 }
 function switchCoin(i) {
+  loadHip3Ctx(i);
   ((S.coin = i),
     isSpot(i) ? (S.lastSpot = i) : (S.lastPerp = i),
     setPairLabel(),
@@ -8180,6 +8357,8 @@ function bindSettings() {
       e && openCloseLimit(e.dataset.coin, e.dataset.szi, e.dataset.ct || "market");
       let n = i.target.closest("[data-reverse]");
       n && reversePosition(n.dataset.coin, n.dataset.szi);
+      let be = i.target.closest("[data-be]");
+      be && beStop(be.dataset.be);
       let ad = i.target.closest("[data-adl]");
       ad && openAdlInfo(ad.dataset.adl);
       let s = i.target.closest("[data-pos-share]");
@@ -8232,6 +8411,7 @@ async function init() {
     USER_CFG.debug &&
       (window.__totum = {
         S: S,
+        onTrades: (t) => onTrades(t),
         priceToY: (s) => candleSeries.priceToCoordinate(s),
         lines: () =>
           chartLines.map((s) => ({
