@@ -148,7 +148,12 @@ function toast(i, t = "info") {
     setTimeout(() => e.remove(), t === "err" ? 9e3 : 4500));
 }
 function humanError(i) {
-  let t = String(i?.message || i),
+  /* библиотека заворачивает ответ кошелька в «Failed to sign the typed data…» —
+     достаём настоящую причину (отмена, нет ответа, ошибка кошелька) из цепочки cause */
+  let t = String(i?.message || i);
+  for (let c = i?.cause, k = 0; c && k < 4; c = c.cause, k++) t += ` | ${c?.shortMessage || c?.message || c}`;
+  if (/Failed to sign the typed data/i.test(t) && !/reject|denied|cancel|отмен|timeout/i.test(t))
+    return `Кошелёк не подписал запрос: ${t.split(" | ").slice(1).join(" — ").slice(0, 140) || "без объяснения"}. Откройте кошелёк и попробуйте ещё раз.`;
     e = [
       [
         /Builder has insufficient balance/i,
@@ -1438,9 +1443,12 @@ function wcSigner(p, wc = !0) {
       const slow = new Promise((_, rej) => {
         timer = setTimeout(() => rej(new Error("wallet-timeout")), 120e3);
       });
+      const t0 = performance.now();
       try {
         return await Promise.race([req, slow, w.p]);
       } finally {
+        /* сколько кошелёк держал подпись — видно в консоли (F12), для разбора «долго» */
+        console.info(`[подпись] ${args.method}: ${((performance.now() - t0) / 1e3).toFixed(1)} с`);
         clearTimeout(timer);
         w.done();
       }

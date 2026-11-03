@@ -16,6 +16,7 @@ export async function setupPage(browser, vp, state, extra = {}) {
   await page.exposeFunction("__ethReq", async (method, params) => {
     if (method === "eth_requestAccounts" || method === "eth_accounts") return [user.address];
     if (method === "eth_chainId") return "0x66eee";
+    if (method === "eth_signTypedData_v4" && state.signFail) throw new Error(state.signFail);
     if (method === "eth_signTypedData_v4") { const td = JSON.parse(params[1]); const { EIP712Domain, ...types } = td.types; return user.signTypedData({ domain: td.domain, types, primaryType: td.primaryType, message: td.message }); }
   });
   await page.addInitScript(() => { window.ethereum = { request: ({ method, params }) => window.__ethReq(method, params), on() {} }; try { localStorage.setItem("totum.consent", "1"); } catch {} });

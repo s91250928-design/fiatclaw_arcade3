@@ -19,5 +19,10 @@ const lab0 = await page.textContent("#trFrom"); await page.click("#trSwap"); awa
 const lab1 = [await page.textContent("#trFrom"), await page.textContent("#trTo")];
 await page.screenshot({ path: "tests/out-transfer.png" });
 R.ok("одна кнопка меняет направление", lab0 === "Фьючерсы" && lab1[0] === "Спот" && lab1[1] === "Фьючерсы" && (await page.textContent("#trInfo")).includes("На споте"), JSON.stringify([lab0, ...lab1]));
+// кошелёк отказал — на экране настоящая причина, а не «Failed to sign…»
+state.signFail = "Request timed out in OKX Wallet";
+await page.fill("#trAmt", "1"); await page.click("#trGo"); await page.waitForTimeout(2500);
+const tx = await page.evaluate(() => [...document.querySelectorAll(".toast")].map((t) => t.textContent).join(" | "));
+R.ok("ошибка кошелька — понятным текстом", /Кошелёк не подписал запрос/.test(tx) && /OKX/.test(tx), tx.slice(-200));
 R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();
