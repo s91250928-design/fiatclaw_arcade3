@@ -7882,7 +7882,7 @@ function totalFeeText() {
 }
 function renderLanding() {
   if (document.body.dataset.view !== "landing") return;
-  $("lnFee").innerHTML = totalFeeText();
+  $("lnFee") && ($("lnFee").textContent = `${(FEE_RATE("BTC") * 100).toFixed(2).replace(".", ",")}% / ${(MAKER_RATE("BTC") * 100).toFixed(2).replace(".", ",")}%`);
   let i = Math.max(0, ...S.meta.map((a) => Number(a.maxLeverage || 0)));
   (i && ($("lnMaxLev").textContent = i),
     ($("lnStep3").textContent = CFG.isTestnet
@@ -7990,7 +7990,15 @@ function bindLanding() {
       isDesk() && setView("landing", !0);
     }),
     addEventListener("popstate", () => setView(wantLanding() ? "landing" : "app")),
-    setView(wantLanding() ? "landing" : "app"));
+    setView(wantLanding() ? "landing" : "app"),
+    lnReveal());
+}
+/* блоки лендинга плавно появляются при прокрутке */
+function lnReveal() {
+  const els = document.querySelectorAll(".ln-reveal");
+  if (!("IntersectionObserver" in window)) return els.forEach((e) => e.classList.add("in"));
+  const io = new IntersectionObserver((list) => list.forEach((x) => x.isIntersecting && (x.target.classList.add("in"), io.unobserve(x.target))), { threshold: 0.15 });
+  els.forEach((e) => io.observe(e));
 }
 function pickInterval(i) {
   ((S.interval = i),
