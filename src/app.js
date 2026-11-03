@@ -1324,24 +1324,49 @@ function wcOpenWallet() {
   if (link && /^[a-z][a-z0-9+.-]*:\/\//i.test(link) && !/^https?:/i.test(link)) location.href = link;
 }
 const WC_SIGN = ["eth_signTypedData_v4", "eth_signTypedData", "personal_sign", "eth_sendTransaction", "wallet_switchEthereumChain"];
-function wcSigner(p) {
+/* Окно «ждём подпись»: подпись часто «не приходит», потому что запрос уже в
+   кошельке, а человек его не видит. При входе по QR-коду запрос уходит в
+   приложение на телефоне без уведомления — его надо открыть самому. */
+function signWait(wc) {
+  let d = $("signWait");
+  d || ((d = document.createElement("div")), (d.id = "signWait"), (d.className = "sign-wait"), document.body.appendChild(d));
+  let cancel = null;
+  const t0 = Date.now();
+  d.innerHTML = `<div class="sw-box"><div class="sw-ic"><i></i></div><b>Подтвердите в кошельке</b><p>${
+    wc
+      ? isPhone()
+        ? "Сейчас откроется приложение кошелька. Если не открылось — откройте его сами: запрос подписи уже там."
+        : "Запрос подписи отправлен в кошелёк на телефоне. Откройте приложение кошелька (например, OKX) — уведомления может не быть, запрос ждёт внутри."
+      : "Откройте окно кошелька: значок расширения в правом верхнем углу браузера (иногда окно открывается за этой вкладкой)."
+  }</p><small id="swT">0:00</small><button type="button" class="btn ghost" id="swCancel">Отмена</button></div>`;
+  d.hidden = !1;
+  const iv = setInterval(() => {
+    const s = Math.floor((Date.now() - t0) / 1e3);
+    $("swT") && ($("swT").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
+  }, 1e3);
+  const p = new Promise((_, rej) => (cancel = () => rej(new Error("user rejected: отменено"))));
+  $("swCancel").onclick = () => cancel();
+  return { p, done: () => (clearInterval(iv), (d.hidden = !0)) };
+}
+function wcSigner(p, wc = !0) {
   return {
-    on: (...a) => p.on(...a),
+    on: (...a) => p.on?.(...a),
     removeListener: (...a) => p.removeListener?.(...a),
     request: async (args) => {
-      if (!WC_SIGN.includes(args?.method)) return p.request(args);
-      await wcEnsureRelay();
-      const req = p.request(args);
-      toast("Подтвердите подпись в кошельке", "info");
-      isPhone() && setTimeout(wcOpenWallet, 400);
+      if (!WC_SIGN.includes(args?.method) || args?.method === "wallet_switchEthereumChain") return p.request(args);
+      wc && (await wcEnsureRelay());
+      const req = p.request(args),
+        w = signWait(wc);
+      wc && isPhone() && setTimeout(wcOpenWallet, 400);
       let timer;
       const slow = new Promise((_, rej) => {
         timer = setTimeout(() => rej(new Error("wallet-timeout")), 120e3);
       });
       try {
-        return await Promise.race([req, slow]);
+        return await Promise.race([req, slow, w.p]);
       } finally {
         clearTimeout(timer);
+        w.done();
       }
     },
   };
@@ -1468,7 +1493,7 @@ async function connectWallet(silent = !1) {
       (S.user = getAddress(n)));
     let s = createWalletClient({
       account: S.user,
-      transport: custom(e === wcProvider ? wcSigner(e) : e),
+      transport: custom(e === wcProvider ? wcSigner(e) : USER_CFG.debug ? e : wcSigner(e, !1)),
     });
     ((S.userExchange = new ExchangeClient({
       transport: transport,
@@ -1835,7 +1860,10 @@ var ICON_LOCAL = null,
     return ICON_LOCAL
       ? ICON_LOCAL.has(t)
         ? `<span class="coin-ic" data-letter="${e}"><img alt="" decoding="async" src="icons/${encodeURIComponent(t)}.svg"></span>`
-        : `<span class="coin-ic">${e}</span>`
+        : /* спот-токена нет в скачанном списке — пробуем иконку спота прямо у Hyperliquid, потом букву */
+          isSpot(i) && !ICON_FAIL.has(`${t}_spot`)
+          ? `<span class="coin-ic" data-letter="${e}" data-name="${esc(t)}_spot"><img alt="" loading="lazy" decoding="async" src="${ICON_CDN}${encodeURIComponent(t)}_spot.svg"></span>`
+          : `<span class="coin-ic">${e}</span>`
       : ICON_FAIL.has(t)
         ? `<span class="coin-ic">${e}</span>`
         : `<span class="coin-ic" data-letter="${e}" data-name="${esc(t)}"><img alt="" loading="lazy" decoding="async" src="${ICON_CDN}${encodeURIComponent(t)}.svg"></span>`;
@@ -7831,8 +7859,7 @@ var LN = {
     mob: null,
   },
   isDesk = () => matchMedia("(min-width: 901px)").matches,
-  wantLanding = () =>
-    isDesk() && (location.pathname === "/" || location.pathname === "/index.html") && location.hash !== "#trade";
+  wantLanding = () => (location.pathname === "/" || location.pathname === "/index.html") && location.hash !== "#trade";
 function setView(i, t = !1) {
   /* пока скрипт грузится, виден только знак Totum (без «каркаса» терминала) */
   document.body.classList.remove("boot");
@@ -7880,8 +7907,76 @@ function totalFeeText() {
   const t = CFG.feeTenthBps / 1e5, f = (x) => `${(x * 100).toFixed(3).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",")}%`;
   return `фьючерсы — <b>${f(45e-5 + t)}</b> по рынку и <b>${f(15e-5 + t)}</b> лимитом, спот — <b>${f(7e-4 + t)}</b> и <b>${f(4e-4 + t)}</b>`;
 }
+/* Карточки инструментов на лендинге показывают живые данные биржи, а не картинки */
+function lnLive() {
+  if (Date.now() - (LN.liveAt || 0) < 1200) return;
+  LN.liveAt = Date.now();
+  const set = (id, html) => {
+      const el = $(id);
+      if (!el) return;
+      const tag = el.querySelector(".lv-live")?.outerHTML || "";
+      let body = el.querySelector(".lv-body");
+      body || ((body = document.createElement("div")), (body.className = "lv-body"), (el.innerHTML = tag), el.appendChild(body));
+      body.innerHTML = html;
+    },
+    c = S.ctx.BTC || {},
+    px = Number(c.midPx || c.markPx || 0),
+    f = FEE_RATE("BTC");
+  /* стакан BTC */
+  const b = S.coin === "BTC" ? S.book : null;
+  if (b?.asks?.length && b?.bids?.length) {
+    const a3 = b.asks.slice(0, 3).reverse(),
+      b3 = b.bids.slice(0, 3),
+      mx = Math.max(...a3.concat(b3).map((x) => x.px * x.sz), 1),
+      row = (x, cls) => `<div class="lv-r ${cls}"><i style="width:${Math.min(100, ((x.px * x.sz) / mx) * 100).toFixed(0)}%"></i><span>${fmtPx(x.px)}</span><span>$${compactUsd(x.px * x.sz)}</span></div>`;
+    set("lvBook", a3.map((x) => row(x, "a")).join("") + `<div class="lv-mid">${fmtPx((b.asks[0].px + b.bids[0].px) / 2)}</div>` + b3.map((x) => row(x, "b")).join(""));
+  }
+  /* связки по фандингу и арбитраж */
+  if (!TL.data && !TL.busy && !LN.fundTried) ((LN.fundTried = !0), loadTools(!0));
+  if (!TL.data) {
+    const w = '<div class="lv-wait"><i></i><i></i><i></i></div>';
+    set("lvFund", w);
+    set("lvArb", w);
+  }
+  if (TL.data) {
+    const pr = tlPairs().filter((r) => (r.x.vol || 0) > 1e6 && (r.t.vol || 0) > 1e5);
+    const top = [...pr].sort((x, y) => Math.abs(y.fs) - Math.abs(x.fs)).slice(0, 3);
+    top.length &&
+      set("lvFund", top.map((r) => `<div class="lv-f"><b>${esc(r.base)}</b><span>Totum ↔ ${esc(tlVName(r.x.v))}</span><em class="up">+${((Math.abs(r.fs) * 24) * 100).toFixed(3)}%<small>/сутки</small></em></div>`).join(""));
+    const arb = [...pr].sort((x, y) => Math.abs(y.ps) - Math.abs(x.ps))[0];
+    arb && set("lvArb", `<div class="lv-big"><b>${(Math.abs(arb.ps) * 100).toFixed(2)}%</b><span>${esc(arb.base)}: Totum ${fmtPx(arb.tp)} · ${esc(tlVName(arb.x.v))} ${fmtPx(arb.xp)}</span></div>`);
+  }
+  if (px > 0) {
+    const stop = px * 0.985,
+      sz = 10 / (px - stop);
+    set("lvRisk", `<div class="lv-calc"><div><span>Риск</span><b>$10</b></div><div><span>Стоп</span><b>${fmtPx(stop)}</b></div><div><span>Размер</span><b>${sz.toFixed(5)} BTC</b></div></div>`);
+    const be = (px * (1 + f)) / ((1 - f) * (1 - 2e-4));
+    set("lvBe", `<div class="lv-calc"><div><span>Вход</span><b>${fmtPx(px)}</b></div><div><span>Безубыток</span><b class="up">${fmtPx(be)}</b></div><div><span>С учётом</span><b>${(f * 200).toFixed(2)}% + проскальз.</b></div></div>`);
+  }
+  /* акции, золото, индексы — живые цены */
+  const want = [/GOLD$/, /NVDA$/, /ANTH/, /TSLA$/, /SP500$/, /SILVER$/],
+    picks = [];
+  for (const re of want) {
+    const m = S.meta.filter((x) => x.dex && re.test(x.name) && !isUsdeDex(x)).sort((x, y) => Number(S.ctx[y.name]?.dayNtlVlm || 0) - Number(S.ctx[x.name]?.dayNtlVlm || 0))[0];
+    m && S.ctx[m.name] && picks.push(m.name);
+  }
+  picks.length &&
+    set(
+      "lvAssets",
+      picks
+        .slice(0, 6)
+        .map((n) => {
+          const q = S.ctx[n],
+            v = Number(q.midPx || q.markPx || 0),
+            ch = Number(q.prevDayPx) ? v / Number(q.prevDayPx) - 1 : 0;
+          return `<div class="lv-a"><b>${esc(dexBase(n))}</b><span>${fmtPx(v)}</span><em class="${ch >= 0 ? "up" : "dn"}">${ch >= 0 ? "+" : "−"}${Math.abs(ch * 100).toFixed(1)}%</em></div>`;
+        })
+        .join(""),
+    );
+}
 function renderLanding() {
   if (document.body.dataset.view !== "landing") return;
+  lnLive();
   $("lnFee") && ($("lnFee").textContent = `${(FEE_RATE("BTC") * 100).toFixed(2).replace(".", ",")}% / ${(MAKER_RATE("BTC") * 100).toFixed(2).replace(".", ",")}%`);
   let i = Math.max(0, ...S.meta.map((a) => Number(a.maxLeverage || 0)));
   (i && ($("lnMaxLev").textContent = i),
