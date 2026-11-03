@@ -172,6 +172,7 @@ function humanError(i) {
         "Ордер не исполнился: по такой цене нет встречных заявок (тонкий стакан или широкий спред). Увеличьте проскальзывание или выставьте лимитный ордер.",
       ],
       [/never placed|already canceled|already cancelled|was canceled/i, "Этот ордер уже исполнен или отменён."],
+      [/Reduce only order would increase position/i, "Позиции уже нет (или она меньше) — закрывать нечего. Обновляем данные…"],
       [/Order has invalid price|tick|invalid price/i, "Биржа не приняла такую цену. Попробуйте чуть другую."],
       [/min.*notional|minimum value|\$10/i, "Слишком маленький ордер: на Hyperliquid минимум 10 USDC."],
       [
@@ -2177,6 +2178,21 @@ function renderIndicators() {
     chart.panes()[0]?.setStretchFactor(1);
   } catch {}
 }
+/* меню над графиком рисуем поверх страницы (position: fixed): полоса инструментов
+   прокручивается и обрезала всё, что ниже неё, — меню было не видно */
+function placeMenu(btn, menu) {
+  if (menu.hidden) return;
+  const r = btn.getBoundingClientRect(),
+    w = menu.offsetWidth || 220;
+  menu.style.position = "fixed";
+  menu.style.top = `${Math.round(r.bottom + 6)}px`;
+  menu.style.left = `${Math.round(Math.max(8, Math.min(r.left, innerWidth - w - 8)))}px`;
+  menu.style.right = "auto";
+  menu.style.zIndex = "60";
+  menu.style.maxHeight = `${Math.max(160, innerHeight - r.bottom - 20)}px`;
+  menu.style.overflowY = "auto";
+}
+addEventListener("resize", () => document.querySelectorAll(".chart-bar .dd-menu").forEach((m) => (m.hidden = !0)));
 function bindIndicators() {
   (document.querySelectorAll("[data-ind]").forEach((i) => {
     ((i.checked = !!IND[i.dataset.ind]),
@@ -2190,6 +2206,7 @@ function bindIndicators() {
   }),
     ($("indBtn").onclick = () => {
       $("indMenu").hidden = !$("indMenu").hidden;
+      placeMenu($("indBtn"), $("indMenu"));
     }),
     document.addEventListener("click", (i) => {
       i.target.closest("#ddInd") || ($("indMenu").hidden = !0);
@@ -2824,6 +2841,7 @@ function bindDrawing() {
     ),
     ($("ctypeBtn").onclick = () => {
       $("ctypeMenu").hidden = !$("ctypeMenu").hidden;
+      placeMenu($("ctypeBtn"), $("ctypeMenu"));
     }),
     document.addEventListener("click", (e) => {
       e.target.closest("#ddCtype") || ($("ctypeMenu").hidden = !0);
@@ -2907,6 +2925,8 @@ async function refreshAccount(i = {}) {
         netGood("account"));
     } catch (t) {
       netBad(t, "account");
+      /* связь подвела — не ждём следующего круга (10 с), пробуем ещё раз через 2 с */
+      i.retried || setTimeout(() => refreshAccount({ ...i, retried: !0 }), 2e3);
     }
 }
 function filledPct(i) {
@@ -6383,6 +6403,10 @@ async function closePosition(i, t, e = 1, n = !1) {
     r = mkt(i),
     o = S.ctx[i];
   if (!r || !o) return !1;
+  /* при медленной связи кнопку жали много раз — пока закрытие идёт, повтор не шлём */
+  S.closing = S.closing || {};
+  if (S.closing[i]) return (toast("Закрытие уже отправлено — ждём ответ биржи", "info"), !1);
+  S.closing[i] = !0;
   try {
     let a = Number(SET.slippage) || CFG.slippage,
       c = formatSize(Math.abs(Number(t)) * e, r.szDecimals),
@@ -6413,6 +6437,8 @@ async function closePosition(i, t, e = 1, n = !1) {
         })
       )?.response?.data?.statuses?.[0];
     if (p?.error) throw new Error(p.error);
+    /* сразу убираем закрытую позицию с экрана, не дожидаясь обновления счёта */
+    e >= 1 && ((S.positions = S.positions.filter((q) => q.coin !== i)), renderPositions(), scOn() && (scRender(), scSideRender()));
     return (
       n || toast(e >= 1 ? `Позиция ${i} закрыта` : `Закрыто ${Math.round(e * 100)}% позиции ${i}`, "ok"),
       (fundingAt = 0),
@@ -6420,7 +6446,11 @@ async function closePosition(i, t, e = 1, n = !1) {
       !0
     );
   } catch (a) {
+    /* позиции уже нет — обновим счёт, чтобы кнопка «закрыть» пропала */
+    /Reduce only/i.test(String(a?.message || a)) && refreshAccount();
     return (toast(humanError(a), "err"), !1);
+  } finally {
+    S.closing[i] = !1;
   }
 }
 async function closeAll() {
