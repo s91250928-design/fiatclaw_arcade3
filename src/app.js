@@ -1354,7 +1354,8 @@ async function disconnectWallet() {
     try {
       S.provider && S.provider === wcProvider && (await wcProvider.disconnect());
     } catch {}
-    ((S.provider = null),
+    (connSave(null),
+      (S.provider = null),
       (S.user = null),
       (S.userExchange = null),
       (S.agent = null),
@@ -1365,10 +1366,38 @@ async function disconnectWallet() {
       toast("Кошелёк отключён", "info"));
   }
 }
-async function connectWallet() {
+/* Подключение. Есть расширение кошелька (OKX, MetaMask, Rabby) — работаем через
+   него напрямую: быстрее и без сервера WalletConnect, который у части людей рвётся.
+   Нет расширения (телефон) — WalletConnect. silent — тихое восстановление после
+   обновления страницы: без окон, только если кошелёк уже разрешил этот сайт. */
+const CONN_KEY = "totum.conn";
+const connSave = (v) => {
+  try {
+    v ? localStorage.setItem(CONN_KEY, JSON.stringify(v)) : localStorage.removeItem(CONN_KEY);
+  } catch {}
+};
+async function connectWallet(silent = !1) {
   let i = $("btnConnect"),
-    t = (USER_CFG.debug || !WC_PROJECT_ID) && window.ethereum,
+    t = window.ethereum,
     e = S.provider;
+  if (silent) {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(CONN_KEY) || "null");
+    } catch {}
+    if (!saved) return;
+    if (saved.via === "inj") {
+      if (!t) return;
+      const acc = await t.request({ method: "eth_accounts" }).catch(() => []);
+      if (!acc?.length || acc[0].toLowerCase() !== String(saved.addr || "").toLowerCase()) return;
+      e = t;
+    } else {
+      if (!WC_PROJECT_ID) return;
+      const wc = await preloadWalletConnect().catch(() => null);
+      if (!wc?.session || !wc.accounts?.length) return;
+      e = wc;
+    }
+  }
   if (!e)
     if (t) e = window.ethereum;
     else {
@@ -1413,11 +1442,12 @@ async function connectWallet() {
       await restoreAgent(),
       (i.dataset.label = short(S.user)),
       document.body.classList.add("connected"),
+      connSave({ via: e === wcProvider ? "wc" : "inj", addr: S.user }),
       await refreshStatus(),
       startLoop(),
       autoEnable());
   } catch (n) {
-    toast(humanError(n), "err");
+    silent ? console.warn("[кошелёк] не восстановили подключение", n?.message || n) : toast(humanError(n), "err");
   } finally {
     setBusy(i, !1);
   }
@@ -8494,6 +8524,8 @@ async function init() {
     setLeverage(10),
     subscribeAllPrices(),
     startLoop(),
+    /* после обновления страницы — тихо возвращаем подключённый кошелёк */
+    connectWallet(!0).catch(() => {}),
     USER_CFG.debug &&
       (window.__totum = {
         S: S,
