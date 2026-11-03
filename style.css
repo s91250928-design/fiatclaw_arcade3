@@ -1451,8 +1451,10 @@ body.bx-on{overflow:hidden}
 body.boot{overflow:hidden}
 body.boot>*:not(.boot-splash){visibility:hidden}
 body.boot .boot-splash{display:grid;place-items:center;position:fixed;inset:0;z-index:999;background:#070b1a}
-.boot-splash img{width:64px;height:64px;animation:boot-pulse 1.4s ease-in-out infinite}
-@keyframes boot-pulse{0%,100%{transform:scale(.92);opacity:.6}50%{transform:scale(1);opacity:1}}
+/* лента Мёбиуса вращается: 36 кадров 3D-рендера, под ней мягкая тень */
+.bs-ring{position:relative;display:grid;place-items:center}
+.bs-ring::before{content:"";width:96px;height:96px;background:url(brand/spin.webp) 0 0/3456px 96px no-repeat;animation:mob-spin 1.5s steps(36) infinite,mob-float 3s ease-in-out infinite}
+.bs-ring i{position:absolute;bottom:-14px;width:70px;height:12px;border-radius:50%;background:radial-gradient(closest-side,rgba(56,189,248,.45),transparent);animation:mob-glow 3s ease-in-out infinite}
 .chart-loader{background:var(--panel)!important}
 .spin-logo{transform:scale(.6)}
 /* страховка: если скрипт не загрузился за 12 с — показываем страницу как есть */
@@ -1611,3 +1613,12 @@ body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
 body.spot-mode .b-tabs .sp-spot{display:inline}
 body.spot-mode .b-tabs .sp-perp{display:none}
 body.spot-mode .b-tabs [data-b="pos"]{display:none}
+
+/* перевод: одна кнопка — нажал, и направление меняется */
+.tr-swap{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;color:var(--text);cursor:pointer}
+.tr-swap span{display:flex;flex-direction:column;gap:2px}
+.tr-swap span:last-child{text-align:right}
+.tr-swap small{font-size:11px;color:var(--muted)}
+.tr-swap b{font-size:14px}
+.tr-swap i{font-style:normal;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;font-size:17px;transition:transform .25s}
+.tr-swap:hover i{transform:rotate(180deg)}
