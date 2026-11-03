@@ -172,6 +172,9 @@ function humanError(i) {
         "Ордер не исполнился: по такой цене нет встречных заявок (тонкий стакан или широкий спред). Увеличьте проскальзывание или выставьте лимитный ордер.",
       ],
       [/never placed|already canceled|already cancelled|was canceled/i, "Этот ордер уже исполнен или отменён."],
+      [/Size is too small/i, "Объём меньше минимального шага этой монеты — увеличьте сумму."],
+      [/Insufficient spot balance/i, "Не хватает средств на споте. При покупке комиссия списывается в купленной монете, поэтому монет чуть меньше, чем куплено."],
+      [/Slicprice|could not immediately match/i, "Заявка по рынку не нашла встречных ордеров. Попробуйте ещё раз или поставьте лимитную."],
       [/Reduce only order would increase position/i, "Позиции уже нет (или она меньше) — закрывать нечего. Обновляем данные…"],
       [/Order has invalid price|tick|invalid price/i, "Биржа не приняла такую цену. Попробуйте чуть другую."],
       [/min.*notional|minimum value|\$10/i, "Слишком маленький ордер: на Hyperliquid минимум 10 USDC."],
@@ -182,7 +185,8 @@ function humanError(i) {
     ];
   console.warn("[ошибка биржи]", t);
   for (let [n, s] of e) if (n.test(t)) return s;
-  return "Биржа не выполнила запрос. Попробуйте ещё раз.";
+  /* неизвестная ошибка — показываем и исходный текст биржи, чтобы было понятно, что не так */
+  return `Биржа не выполнила запрос: ${String(t).slice(0, 140)}`;
 }
 var NET = {};
 function netShow() {
@@ -1885,6 +1889,12 @@ function setPairLabel() {
   (($("pairName").textContent = pairLabel(S.coin)),
     ($("pairType").textContent = isSpot() ? "Спот" : "Бессрочный"),
     document.body.classList.toggle("spot-mode", isSpot()));
+  /* на споте вместо «Позиций» — «Активы»: монеты на балансе с прибылью/убытком */
+  {
+    const on = document.querySelector(".b-tabs [data-b].on")?.dataset.b;
+    isSpot() && on === "pos" && document.querySelector('.b-tabs [data-b="spot"]')?.click();
+    !isSpot() && on === "spot" && document.querySelector('.b-tabs [data-b="pos"]')?.click();
+  }
   let i = $("pairIc");
   ((i.outerHTML = coinIcon(S.coin).replace('class="coin-ic"', 'class="coin-ic" id="pairIc"')), fixIcons($("pairBtn")));
 }
@@ -6294,10 +6304,20 @@ async function placeSpotOrder(i, t) {
   setBusy(s, !0, "Отправляем…");
   try {
     let { m: r, px: o, sz: a } = sizeFor(i, t);
+    /* количество — только вниз: при покупке комиссия списывается в купленной монете
+       (купил 0,34 HYPE — пришло 0,3398), и округление вверх давало «не хватает баланса» */
+    const fl = (x) => {
+      const k = 10 ** r.szDecimals;
+      return formatSize(Math.floor(x * k + 1e-9) / k, r.szDecimals);
+    };
     if (!i) {
       let h = spotBal(e);
-      (Number(a) > h || Number($("pct").value) === 100) && (a = formatSize(h, r.szDecimals));
+      (Number(a) > h || Number($("pct").value) === 100) && (a = fl(h));
+    } else {
+      const usdc = spotBal("USDC");
+      Number(a) * Number(o) > usdc && (a = fl(usdc / Number(o)));
     }
+    if (Number(a) * Number(o) < 10) throw new Error("Слишком маленький ордер: на Hyperliquid минимум 10 USDC. Остаток дешевле $10 продать нельзя — докупите до $10 или оставьте как есть.");
     if (!(Number(a) > 0)) throw new Error("Слишком маленький объём");
     let l = (
       await S.agentExchange.order({

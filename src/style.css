@@ -1605,3 +1605,9 @@ body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
   .ln-foot{flex-direction:column;gap:6px;padding:20px 16px}
 }
 .lv-wait{display:grid;gap:7px;padding-top:4px}.lv-wait i{height:16px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.09),rgba(255,255,255,.04));background-size:200% 100%;animation:rw-sh 1.2s linear infinite}
+
+/* на спот-паре: вкладка «Активы» вместо «Позиций» */
+.b-tabs .sp-spot{display:none}
+body.spot-mode .b-tabs .sp-spot{display:inline}
+body.spot-mode .b-tabs .sp-perp{display:none}
+body.spot-mode .b-tabs [data-b="pos"]{display:none}
