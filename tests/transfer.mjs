@@ -14,5 +14,10 @@ await page.fill("#trAmt", "3"); await page.click("#trGo"); await page.waitForTim
 console.log("TOAST", await page.evaluate(() => [...document.querySelectorAll(".toast")].map((t) => t.textContent).join(" | ")), "ACT", state.exchange.slice(n0).map((e) => e.action.type).join());
 const tr = state.exchange.slice(n0).find((e) => e.action.type === "usdClassTransfer");
 R.ok("перевод ушёл на биржу с подписью кошелька", !!tr && tr.action.toPerp === false && tr.action.amount === "3" && !!tr.signature, JSON.stringify(tr?.action));
+await page.evaluate(() => document.querySelector('#pgAssets [data-act="transfer"]').click()); await page.waitForTimeout(400);
+const lab0 = await page.textContent("#trFrom"); await page.click("#trSwap"); await page.waitForTimeout(200);
+const lab1 = [await page.textContent("#trFrom"), await page.textContent("#trTo")];
+await page.screenshot({ path: "tests/out-transfer.png" });
+R.ok("одна кнопка меняет направление", lab0 === "Фьючерсы" && lab1[0] === "Спот" && lab1[1] === "Фьючерсы" && (await page.textContent("#trInfo")).includes("На споте"), JSON.stringify([lab0, ...lab1]));
 R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();

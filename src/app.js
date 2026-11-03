@@ -615,6 +615,38 @@ function initChart() {
   })),
     applyChartTheme(),
     createMainSeries());
+  /* догружаем историю, когда человек листает график влево почти до начала */
+  chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
+    r && r.from < 40 && loadOlder();
+  });
+}
+var HIST = { busy: !1, done: "" };
+async function loadOlder() {
+  const key = `${S.coin}|${S.interval}`;
+  if (HIST.busy || HIST.done === key || !S.bars?.length || !INTERVAL_MS[S.interval]) return;
+  HIST.busy = !0;
+  const coin = S.coin,
+    iv = S.interval,
+    first = S.bars[0].time * 1e3;
+  try {
+    const n = await info.candleSnapshot({ coin, interval: iv, startTime: first - INTERVAL_MS[iv] * 500, endTime: first - 1 });
+    if (coin !== S.coin || iv !== S.interval || !S.bars?.length || S.bars[0].time * 1e3 !== first) return;
+    const add = (n || []).filter((a) => a && a.t && a.t < first);
+    if (!add.length) return void (HIST.done = key); /* дальше истории у биржи нет */
+    const ts = chart.timeScale(),
+      lr = ts.getVisibleLogicalRange();
+    S.bars = [...add.map(toBar), ...S.bars];
+    S.vols = [...add.map(toVol), ...S.vols];
+    setSeriesData();
+    renderIndicators();
+    drawPrimitive.refresh();
+    /* оставляем на экране тот же участок, что смотрел человек */
+    lr && ts.setVisibleLogicalRange({ from: lr.from + add.length, to: lr.to + add.length });
+  } catch (e) {
+    console.warn("[history]", e);
+  } finally {
+    HIST.busy = !1;
+  }
 }
 var toBar = (i) => ({
     time: Math.floor(i.t / 1e3),
@@ -949,10 +981,46 @@ function bindTpslDrag() {
         });
     }));
 }
+/* последняя свеча двигается по ленте сделок: она приходит раньше, чем поток свечей */
+var TICK = { bar: null, at: 0 };
+function tradeTick(list) {
+  const ms = INTERVAL_MS[S.interval];
+  if (!ms || !S.bars?.length || !candleSeries || !list.length) return;
+  let last = S.bars.at(-1),
+    fresh = !1;
+  for (const tr of [...list].sort((a, b) => a.time - b.time)) {
+    const px = +tr.px,
+      bt = (Math.floor(tr.time / ms) * ms) / 1e3;
+    if (!(px > 0) || bt < last.time) continue;
+    if (bt > last.time) {
+      last = { time: bt, open: px, high: px, low: px, close: px };
+      S.bars.push(last);
+      S.vols?.push({ time: bt, value: 0, color: "rgba(22,163,74,.35)" });
+      fresh = !0;
+    } else {
+      last = { ...last, high: Math.max(last.high, px), low: Math.min(last.low, px), close: px };
+      S.bars[S.bars.length - 1] = last;
+    }
+  }
+  TICK.bar = last;
+  TICK.at = Date.now();
+  try {
+    updateSeriesBar(last);
+  } catch {}
+  fresh ? scheduleIndicators() : scheduleIndicatorsLazy();
+}
+var indLazyT = 0;
+/* внутри одной свечи индикаторы пересчитываем не чаще раза в 2 с — иначе график подтормаживает */
+function scheduleIndicatorsLazy() {
+  indLazyT || (indLazyT = setTimeout(() => ((indLazyT = 0), renderIndicators()), 2e3));
+}
 function onCandle(i) {
   if (!i || i.s !== S.coin || i.i !== S.interval) return;
   S.live.candle = !0;
   let t = toBar(i);
+  /* поток свечей отстаёт от сделок: свежую цену из сделок не откатываем назад */
+  if (TICK.bar && TICK.bar.time === t.time && Date.now() - TICK.at < 2500)
+    t = { ...t, close: TICK.bar.close, high: Math.max(t.high, TICK.bar.high), low: Math.min(t.low, TICK.bar.low) };
   if ((updateSeriesBar(t), volSeries))
     try {
       volSeries.update(toVol(i));
@@ -961,8 +1029,11 @@ function onCandle(i) {
     let e = toVol(i);
     S.vols.at(-1).time === e.time ? (S.vols[S.vols.length - 1] = e) : S.vols.push(e);
   }
-  S.bars?.length &&
-    (S.bars.at(-1).time === t.time ? (S.bars[S.bars.length - 1] = t) : S.bars.push(t), scheduleIndicators());
+  if (S.bars?.length) {
+    const same = S.bars.at(-1).time === t.time;
+    same ? (S.bars[S.bars.length - 1] = t) : S.bars.push(t);
+    same ? scheduleIndicatorsLazy() : scheduleIndicators();
+  }
 }
 function onBook(i) {
   if (!i) return;
@@ -1152,7 +1223,8 @@ function onTrades(i) {
     .sort((n, s) => s.time - n.time)
     .slice(0, 40)),
     renderTrades(),
-    scTrades(t));
+    scTrades(t),
+    tradeTick(t));
 }
 function renderTrades() {
   let i = mkt(S.coin),
@@ -3266,7 +3338,7 @@ function renderPositions() {
         lev: s.p.leverage?.value,
         entry: Number(s.p.entryPx),
         exit: Number(s.c?.markPx || s.p.entryPx),
-        exitLabel: "Справедливая цена",
+        exitLabel: "Маркировочная цена",
         time: Date.now(),
         pnl: s.pnl,
         pnlLabel: "Нереализованный PnL",
@@ -3313,7 +3385,7 @@ function renderPositions() {
         ${n("Маржа (USDC)", num(s.p.marginUsed || 0, 2))}
         ${n("Коэфф. маржи", `${r.toFixed(2)}%`)}
         ${n("Цена входа", fmtPx(s.p.entryPx))}
-        ${n("Справедливая цена", s.c ? fmtPx(s.c.markPx) : "—")}
+        ${n("Маркировочная цена", s.c ? fmtPx(s.c.markPx) : "—")}
         ${n("Расч. цена ликв.", s.p.liquidationPx ? fmtPx(s.p.liquidationPx) : "—", "warn")}
         ${n("Риск ADL", `${adlBadge(s.p)} <small>${ADL_TEXT[adlRisk(s.p)?.level || 0] || ""}</small>`)}
         ${n("Реализ. PnL (USDC)", s.real === void 0 ? "…" : sgnUsd(s.real), clsOf(s.real ?? 0))}
@@ -6484,7 +6556,9 @@ function openTransfer() {
 }
 function setTrDir(i) {
   ((trToPerp = i),
-    document.querySelectorAll("[data-tr]").forEach((t) => t.classList.toggle("on", (t.dataset.tr === "toPerp") === i)),
+    ($("trFrom").textContent = i ? "Спот" : "Фьючерсы"),
+    ($("trTo").textContent = i ? "Фьючерсы" : "Спот"),
+    ($("trAmt").value = ""),
     ($("trInfo").textContent = i
       ? `На споте: ${num(spotBal("USDC"), 2)} USDC`
       : `На фьючерсах можно перевести: ${num(S.withdrawable, 2)} USDC`));
@@ -7169,7 +7243,7 @@ function renderInfo() {
                 ["Котировка", esc(m.quote)],
               ]
             : [
-                ["Справедливая цена", fmtPx(c.markPx)],
+                ["Маркировочная цена", fmtPx(c.markPx)],
                 ["Оракул (индекс)", c.oraclePx ? fmtPx(c.oraclePx) : "—"],
                 ["Макс. за 24ч", hi],
                 ["Мин. за 24ч", lo],
@@ -7321,7 +7395,7 @@ async function infHistory(m, c) {
   const head =
     kind === "funding"
       ? `<div class="inf-hh"><div><span>Ставка сейчас</span><b class="${clsOf(fr)}">${fPct(fr)} <small>за час</small></b></div><div><span>До выплаты</span><b data-cd>${mmss(nextFundingMs())}</b></div><div data-stat="avg"><span>Средняя за период</span><b>—</b></div><div data-stat="sum"><span>Сумма за период</span><b>—</b></div></div>`
-      : `<div class="inf-hh"><div><span>Цена оракула (индекс)</span><b>${c.oraclePx ? fmtPx(c.oraclePx) : "—"}</b></div><div><span>Справедливая цена</span><b>${fmtPx(c.markPx)}</b></div><div><span>Разница с индексом</span><b class="${clsOf(prem)}">${fPct(prem, 3)}</b></div><div data-stat="avg"><span>Средняя разница</span><b>—</b></div></div>`;
+      : `<div class="inf-hh"><div><span>Цена оракула (индекс)</span><b>${c.oraclePx ? fmtPx(c.oraclePx) : "—"}</b></div><div><span>Маркировочная цена</span><b>${fmtPx(c.markPx)}</b></div><div><span>Разница с индексом</span><b class="${clsOf(prem)}">${fPct(prem, 3)}</b></div><div data-stat="avg"><span>Средняя разница</span><b>—</b></div></div>`;
   if (INF.key === key && INF.chart) {
     const h = body.querySelector(".inf-hh");
     if (h) {
@@ -7359,7 +7433,7 @@ async function infHistory(m, c) {
     <div class="inf-ct">Что такое индекс и справедливая цена</div>
     <div class="inf-steps">
       <div><i>1</i><span><b>Индекс (оракул)</b> — средняя цена монеты на крупных спотовых биржах. Обновляется примерно каждые 3 секунды.</span></div>
-      <div><i>2</i><span><b>Справедливая цена</b> — сглаженная цена фьючерса. Hyperliquid берёт среднее из трёх: индекс с поправкой на стакан, цену в стакане Hyperliquid и цены фьючерсов на пяти крупных биржах. Так один резкий прокол в стакане её не двигает.</span></div>
+      <div><i>2</i><span><b>Маркировочная цена (mark price)</b> — сглаженная цена фьючерса. Hyperliquid берёт среднее из трёх: индекс с поправкой на стакан, цену в стакане Hyperliquid и цены фьючерсов на пяти крупных биржах. Так один резкий прокол в стакане её не двигает.</span></div>
       <div><i>3</i><span>По справедливой цене считаются <b>PnL, ликвидации и срабатывание TP/SL</b>. Поэтому стоп не сработает от случайной «свечи-иглы» на одной бирже.</span></div>
     </div>
     <div class="inf-ct">Разница с индексом (премия)</div>
@@ -8605,7 +8679,7 @@ function bindSettings() {
     ($("closePct").oninput = (i) => {
       (paintRange(i.target), updateCloseInfo());
     }),
-    document.querySelectorAll("[data-cp]").forEach(
+    document.querySelectorAll("#closeDialog [data-cp]").forEach(
       (i) =>
         (i.onclick = () => {
           (($("closePct").value = i.dataset.cp), paintRange($("closePct")), updateCloseInfo());
@@ -8620,7 +8694,7 @@ function bindSettings() {
     ($("btnCloseAll").onclick = closeAll),
     document.querySelectorAll("[data-sside]").forEach((i) => (i.onclick = () => setSpotSide(i.dataset.sside))),
     ($("btnTransfer").onclick = openTransfer),
-    document.querySelectorAll("[data-tr]").forEach((i) => (i.onclick = () => setTrDir(i.dataset.tr === "toPerp"))),
+    ($("trSwap").onclick = () => setTrDir(!trToPerp)),
     ($("trMax").onclick = () => {
       $("trAmt").value = Math.floor((trToPerp ? spotBal("USDC") : S.withdrawable) * 100) / 100;
     }),
@@ -8807,6 +8881,7 @@ async function init() {
       (window.__totum = {
         S: S,
         onTrades: (t) => onTrades(t),
+        chart: () => chart,
         priceToY: (s) => candleSeries.priceToCoordinate(s),
         lines: () =>
           chartLines.map((s) => ({
