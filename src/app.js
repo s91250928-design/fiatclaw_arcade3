@@ -5682,7 +5682,7 @@ var ORDER_TYPES_RU = {
     Sell: "Продажа (спот)",
   };
 S.mode = "open";
-S.margin = "cross";
+S.margin = "isolated"; /* по умолчанию — изолированная маржа и плечо 1x: безопаснее для новичка */
 function paintRange(i) {
   let t = ((Number(i.value) - Number(i.min || 0)) / ((Number(i.max) || 100) - Number(i.min || 0))) * 100;
   i.style.setProperty("--p", `${t}%`);
@@ -7531,7 +7531,7 @@ function renderHome() {
       <div class="seg mini-seg" id="homeSeg"><button data-ht="gain" class="${S.homeTab === "gain" ? "on" : ""}" type="button">Растут</button><button data-ht="loss" class="${S.homeTab === "loss" ? "on" : ""}" type="button">Падают</button><button data-ht="vol" class="${S.homeTab === "vol" ? "on" : ""}" type="button">По объёму</button></div>
       <div class="movers">${t.map((e) => `<div class="mv-row" data-go="${esc(e.name)}">${coinIcon(e.name)}<b>${esc(dexBase(e.name))}</b><span class="muted small">${compact(e.vol)}</span><span class="mv-px">${fmtPx(e.mid)}</span><span class="mv-ch ${e.ch >= 0 ? "pos" : "neg"}">${e.ch >= 0 ? "+" : ""}${(e.ch * 100).toFixed(2)}%</span></div>`).join("") || '<p class="muted small pad">Загружаем рынки…</p>'}</div>
     </div>
-    ${CFG.isTestnet ? '<a class="faucet" href="https://app.hyperliquid-testnet.xyz/drip" target="_blank" rel="noopener">Нужны тестовые USDC? Кран тестовой сети →</a>' : ""}`) && fixIcons($("pgHome")));
+`) && fixIcons($("pgHome")));
 }
 function markMarketTabs() {
   (document.querySelectorAll("[data-mmk]").forEach((i) => i.classList.toggle("on", i.dataset.mmk === MP.mk)),
@@ -7620,30 +7620,67 @@ function rewardCard() {
   if (!S.user) return "";
   RW.user !== S.user || Date.now() - RW.at > 6e4 ? loadReward() : 0;
   const d = RW.user === S.user ? RW.data : null,
-    m = (v) => `$${(v || 0).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: v < 1 ? 4 : 2 })}`,
-    pct = d && d.acc > 0 ? Math.min(100, (d.open / d.acc) * 100) : 0;
-  return `<div class="card-block rw-card">
-      <div class="cb-head"><b>Твоя доля в Totum</b><span class="rw-badge">50% комиссии — трейдерам</span></div>
+    pct = d && d.acc > 0 ? Math.min(100, (d.open / d.acc) * 100) : 0,
+    now = new Date(),
+    next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+    days = Math.max(0, Math.ceil((next - now) / 864e5)),
+    R = 34,
+    C = 2 * Math.PI * R,
+    num = (v, k) => `<b class="rw-n" data-count="${(v || 0).toFixed(6)}" data-dp="${(v || 0) < 1 ? 4 : 2}">$0</b>`;
+  return `<div class="rw-card${d ? " ready" : ""}">
+      <i class="rw-glow"></i>
+      <div class="rw-top">
+        <div class="rw-ttl"><span class="rw-coin"><img src="brand/mark-128.webp" alt=""></span><div><b>Твоя доля в Totum</b><small>50% комиссии биржи — трейдерам</small></div></div>
+        <span class="rw-pay">Выплата через <b>${days}</b> ${days % 10 === 1 && days % 100 !== 11 ? "день" : days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 12 || days % 100 > 14) ? "дня" : "дней"}</span>
+      </div>
       ${
         d
-          ? `<div class="rw-nums"><div><span>Начислено</span><b>${m(d.acc)}</b></div><div><span>Открыто</span><b class="pos">${m(d.open)}</b></div><div><span>Выплачено</span><b>$0,00</b></div></div>
-      <div class="rw-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
-      <p class="muted small">${d.trades ? `Сделок через Totum: ${d.trades} · комиссия Totum ${m(d.fees)}, половина — твоя.` : "Пока сделок через Totum нет — доля начнёт копиться с первой сделки."} Доля открывается равномерно за 12 месяцев${d.liqs ? " · после ликвидации накопленное открыто сразу" : ""}. Выплата открытой части — раз в месяц в USDC на этот счёт Hyperliquid.</p>`
-          : '<p class="muted small">Считаем твою долю…</p>'
+          ? `<div class="rw-main">
+        <div class="rw-ring" style="--C:${C.toFixed(2)};--off:${(C * (1 - pct / 100)).toFixed(2)}">
+          <svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="${R}" class="bg"/><circle cx="40" cy="40" r="${R}" class="fg"/></svg>
+          <div><b>${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%</b><small>открыто</small></div>
+        </div>
+        <div class="rw-nums">
+          <div><span>Начислено</span>${num(d.acc)}</div>
+          <div class="op"><span>Открыто</span>${num(d.open)}</div>
+          <div><span>Выплачено</span><b>$0,00</b></div>
+        </div>
+      </div>
+      <p class="rw-sub">${d.trades ? `Сделок через Totum: <b>${d.trades}</b> · комиссия Totum $${d.fees.toFixed(d.fees < 1 ? 4 : 2)} — половина твоя.` : "Доля начнёт копиться с первой сделки через Totum."}${d.liqs ? " После ликвидации накопленное открыто сразу." : ""}</p>`
+          : '<div class="rw-skel"><i></i><i></i><i></i></div>'
       }
       <details class="rw-rules"><summary>Как это работает</summary>
-        <p>Половина всей комиссии Totum каждый месяц возвращается трейдерам — пропорционально тому, сколько комиссии заплатил каждый. Выходит ровно половина твоей собственной комиссии.</p>
-        <p>Доля открывается постепенно: сделка сегодня — её доля полностью открыта через 12 месяцев. Чем дольше торгуешь с нами, тем больше открыто.</p>
-        <p>Если позицию ликвидировало, всё, что накопилось до этого, открывается сразу и уходит в ближайшую выплату.</p>
-        <p>Всё проверяется: комиссия Totum записана в каждой сделке на Hyperliquid. Кошелёк выплат: <code>${RW.payout.slice(0, 6)}…${RW.payout.slice(-4)}</code>.</p>
+        <ol>
+          <li><b>Половина комиссии — твоя.</b> Каждый месяц 50% всей комиссии Totum возвращается трейдерам пропорционально тому, кто сколько заплатил.</li>
+          <li><b>Чем дольше с нами — тем больше открыто.</b> Доля каждой сделки открывается равномерно за 12 месяцев.</li>
+          <li><b>Ликвидировало — получаешь сразу.</b> Всё, что накопилось до ликвидации, открывается и уходит в ближайшую выплату.</li>
+          <li><b>Всё проверяемо.</b> Комиссия записана в каждой сделке на Hyperliquid. Кошелёк выплат: <code>${RW.payout.slice(0, 6)}…${RW.payout.slice(-4)}</code>.</li>
+        </ol>
       </details>
     </div>`;
+}
+/* счётчики «набегают» от 0 до значения */
+function rwAnimate(root = document) {
+  root.querySelectorAll(".rw-n[data-count]:not([data-done])").forEach((el) => {
+    el.dataset.done = "1";
+    const to = Number(el.dataset.count),
+      dp = Number(el.dataset.dp),
+      t0 = performance.now(),
+      f = (t) => {
+        const k = Math.min(1, (t - t0) / 1100),
+          e = 1 - Math.pow(1 - k, 3);
+        el.textContent = `$${(to * e).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: dp })}`;
+        k < 1 && requestAnimationFrame(f);
+      };
+    requestAnimationFrame(f);
+  });
 }
 /* на компьютере раздела «Активы» нет — карточка доли открывается окном из шапки */
 function openShare() {
   $("rwBody").innerHTML = rewardCard();
   $("rwDialog").open || $("rwDialog").showModal();
-  RW.onLoad = () => $("rwDialog").open && ($("rwBody").innerHTML = rewardCard());
+  rwAnimate($("rwBody"));
+  RW.onLoad = () => $("rwDialog").open && (($("rwBody").innerHTML = rewardCard()), rwAnimate($("rwBody")));
 }
 function renderAssets() {
   let i = S.positions || [],
@@ -7678,7 +7715,8 @@ function renderAssets() {
       }
     </div>`
       : '<div class="hero-card"><div class="hc-lead">Подключите кошелёк, чтобы увидеть балансы фьючерсного и спот-счёта.</div><button class="btn wide-btn" type="button" data-act="connect">Подключить кошелёк</button></div>')) &&
-    fixIcons($("pgAssets")));
+    fixIcons($("pgAssets")),
+    rwAnimate($("pgAssets")));
 }
 var NAV_IC = {
   futures:
@@ -7796,6 +7834,8 @@ var LN = {
   wantLanding = () =>
     isDesk() && (location.pathname === "/" || location.pathname === "/index.html") && location.hash !== "#trade";
 function setView(i, t = !1) {
+  /* пока скрипт грузится, виден только знак Totum (без «каркаса» терминала) */
+  document.body.classList.remove("boot");
   ((document.body.dataset.view = i),
     ($("landing").hidden = i !== "landing"),
     t && history.pushState(null, "", i === "landing" ? "/" : "/trade"),
@@ -7842,7 +7882,7 @@ function totalFeeText() {
 }
 function renderLanding() {
   if (document.body.dataset.view !== "landing") return;
-  (($("lnNet").hidden = !CFG.isTestnet), ($("lnFee").innerHTML = totalFeeText()));
+  $("lnFee").innerHTML = totalFeeText();
   let i = Math.max(0, ...S.meta.map((a) => Number(a.maxLeverage || 0)));
   (i && ($("lnMaxLev").textContent = i),
     ($("lnStep3").textContent = CFG.isTestnet
@@ -8608,9 +8648,7 @@ function bindSettings() {
         i.target.closest("#ddMargin") || ($("ddMargin").querySelector(".dd-menu").hidden = !0),
         !i.target.closest("#settingsPop") && !i.target.closest("#btnSettings") && ($("settingsPop").hidden = !0));
     }),
-    ($("netBadge").textContent = isMobile() ? "ТЕСТ" : "ТЕСТОВАЯ СЕТЬ"),
     ($("setThemeBtn").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark")),
-    ($("netBadge").hidden = !CFG.isTestnet), $("faucetHelp") && ($("faucetHelp").hidden = !CFG.isTestnet),
     ($("feeLabel").textContent = FEE_PCT),
     ($("termsFee").textContent = FEE_PCT),
     paintRange($("pct")),
@@ -8625,7 +8663,7 @@ async function init() {
   (setTheme(i),
     setCpTab("chart"),
     updateSetupUI(),
-    setMargin("cross"),
+    setMargin("isolated"),
     renderCountdown(),
     setInterval(renderCountdown, 1e3),
     iconsReady.then(() => {
@@ -8637,7 +8675,7 @@ async function init() {
   t || (await e);
   let n = mkt(S.coin);
   (renderLevChips(n?.maxLeverage || 50),
-    setLeverage(10),
+    setLeverage(1),
     subscribeAllPrices(),
     startLoop(),
     /* после обновления страницы — тихо возвращаем подключённый кошелёк */

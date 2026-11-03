@@ -1390,16 +1390,50 @@ body.bx-on{overflow:hidden}
 @media (max-width:900px){.sc-tk{display:none}.sc-col{flex:1}}
 
 /* ═══ твоя доля в Totum ═══ */
-.rw-card{border-color:color-mix(in srgb,var(--accent) 40%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 9%,var(--panel)),var(--panel))}
-.rw-badge{font:700 11px "Manrope",var(--font);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);padding:3px 8px;border-radius:999px}
-.rw-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 10px}
-.rw-nums div{display:flex;flex-direction:column;gap:2px}
-.rw-nums span{font-size:11.5px;color:var(--muted)}
-.rw-nums b{font:800 18px "Manrope",var(--font);font-variant-numeric:tabular-nums}
-.rw-bar{height:6px;border-radius:6px;background:var(--panel2);overflow:hidden;margin-bottom:8px}
-.rw-bar i{display:block;height:100%;background:var(--accent);border-radius:6px}
-.rw-rules summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--accent);margin-top:4px}
-.rw-rules p{font-size:12.5px;color:var(--muted);margin:6px 0}
+@property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+.rw-card{position:relative;overflow:hidden;border-radius:18px;padding:16px;margin:12px 0;background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 16%,var(--panel)) 0%,var(--panel) 55%);isolation:isolate}
+.rw-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:conic-gradient(from var(--ang),color-mix(in srgb,var(--accent) 80%,#fff) 0deg,transparent 70deg,transparent 180deg,#a78bfa 250deg,transparent 320deg);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:rw-spin 6s linear infinite;z-index:-1}
+@keyframes rw-spin{to{--ang:360deg}}
+.rw-glow{position:absolute;width:220px;height:220px;right:-80px;top:-90px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 35%,transparent),transparent);filter:blur(6px);animation:rw-float 7s ease-in-out infinite;z-index:-1;pointer-events:none}
+@keyframes rw-float{50%{transform:translate(-30px,25px) scale(1.1)}}
+.rw-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.rw-ttl{display:flex;align-items:center;gap:10px}
+.rw-ttl b{display:block;font:800 16px "Manrope",var(--font)}
+.rw-ttl small{font-size:11.5px;color:var(--muted)}
+.rw-coin{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 18%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent) inset}
+.rw-coin img{width:26px;height:26px;animation:rw-bob 3s ease-in-out infinite}
+@keyframes rw-bob{50%{transform:translateY(-3px) rotate(-6deg)}}
+.rw-pay{font-size:11.5px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);padding:5px 9px;border-radius:999px;white-space:nowrap}
+.rw-pay b{color:var(--text)}
+.rw-main{display:flex;align-items:center;gap:16px}
+.rw-ring{position:relative;width:92px;height:92px;flex:none}
+.rw-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.rw-ring circle{fill:none;stroke-width:7}
+.rw-ring .bg{stroke:color-mix(in srgb,var(--accent) 14%,var(--line))}
+.rw-ring .fg{stroke:url(#none);stroke:var(--accent);stroke-linecap:round;stroke-dasharray:var(--C);stroke-dashoffset:var(--C);animation:rw-ring 1.3s .15s cubic-bezier(.2,.8,.2,1) forwards;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent) 60%,transparent))}
+@keyframes rw-ring{to{stroke-dashoffset:var(--off)}}
+.rw-ring>div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.rw-ring>div b{font:800 17px "Manrope",var(--font)}
+.rw-ring>div small{font-size:10px;color:var(--muted)}
+.rw-nums{flex:1;display:grid;grid-template-columns:1fr;gap:6px}
+.rw-nums div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:10px;background:color-mix(in srgb,var(--panel2) 70%,transparent)}
+.rw-nums span{font-size:12px;color:var(--muted)}
+.rw-nums b{font:800 15px "Manrope",var(--font);font-variant-numeric:tabular-nums}
+.rw-nums .op b{color:var(--buy)}
+.rw-sub{font-size:12px;color:var(--muted);margin:12px 0 4px;line-height:1.45}
+.rw-sub b{color:var(--text)}
+.rw-skel{display:grid;gap:8px}
+.rw-skel i{height:30px;border-radius:10px;background:linear-gradient(90deg,var(--panel2),color-mix(in srgb,var(--panel2) 50%,var(--panel)),var(--panel2));background-size:200% 100%;animation:rw-sh 1.2s linear infinite}
+@keyframes rw-sh{to{background-position:-200% 0}}
+.rw-rules summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--accent);margin-top:8px;list-style:none}
+.rw-rules summary::before{content:"▸ ";transition:transform .2s;display:inline-block}
+.rw-rules[open] summary::before{transform:rotate(90deg)}
+.rw-rules ol{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
+.rw-rules li{font-size:12.5px;color:var(--muted);line-height:1.45}
+.rw-rules li b{color:var(--text)}
+.rw-card.ready .rw-main{animation:rw-in .5s ease both}
+@keyframes rw-in{from{opacity:0;transform:translateY(6px)}}
+@media (prefers-reduced-motion:reduce){.rw-card::before,.rw-glow,.rw-coin img{animation:none}.rw-ring .fg{animation:none;stroke-dashoffset:var(--off)}}
 .rw-dlg{width:min(460px,94vw);border:1px solid var(--line);border-radius:16px;background:var(--bg);color:var(--text);padding:14px}
 .rw-dlg::backdrop{background:rgba(0,0,0,.45)}
 .rw-dlg .rw-card{margin-bottom:10px}
@@ -1413,3 +1447,18 @@ body.bx-on{overflow:hidden}
 .wp-dlg button:hover{border-color:var(--accent)}
 .wp-dlg img,.wp-ic{width:26px;height:26px;border-radius:7px;flex:none;display:inline-grid;place-items:center;background:var(--panel2);font-size:15px}
 .wp-dlg .wp-cancel{justify-content:center;background:transparent;color:var(--muted);border-color:transparent}
+
+/* заставка на время загрузки скрипта: только знак Totum на фоне страницы */
+.boot-splash{display:none}
+body.boot{overflow:hidden}
+body.boot>*:not(.boot-splash){visibility:hidden}
+body.boot .boot-splash{display:grid;place-items:center;position:fixed;inset:0;z-index:999;background:#070b1a}
+.boot-splash img{width:64px;height:64px;animation:boot-pulse 1.4s ease-in-out infinite}
+@keyframes boot-pulse{0%,100%{transform:scale(.92);opacity:.6}50%{transform:scale(1);opacity:1}}
+.chart-loader{background:var(--panel)!important}
+.spin-logo{transform:scale(.6)}
+/* страховка: если скрипт не загрузился за 12 с — показываем страницу как есть */
+body.boot>*:not(.boot-splash){animation:boot-show 0s 12s forwards}
+body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
+@keyframes boot-show{to{visibility:visible}}
+@keyframes boot-hide{to{visibility:hidden}}
