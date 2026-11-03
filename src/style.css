@@ -1388,3 +1388,20 @@ body.bx-on{overflow:hidden}
 #scTicks{display:block;width:100%;flex:1;min-height:0}
 .sc-col{flex:0 0 min(460px,58%);display:flex;flex-direction:column;min-height:0}
 @media (max-width:900px){.sc-tk{display:none}.sc-col{flex:1}}
+
+/* ═══ твоя доля в Totum ═══ */
+.rw-card{border-color:color-mix(in srgb,var(--accent) 40%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 9%,var(--panel)),var(--panel))}
+.rw-badge{font:700 11px "Manrope",var(--font);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);padding:3px 8px;border-radius:999px}
+.rw-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 10px}
+.rw-nums div{display:flex;flex-direction:column;gap:2px}
+.rw-nums span{font-size:11.5px;color:var(--muted)}
+.rw-nums b{font:800 18px "Manrope",var(--font);font-variant-numeric:tabular-nums}
+.rw-bar{height:6px;border-radius:6px;background:var(--panel2);overflow:hidden;margin-bottom:8px}
+.rw-bar i{display:block;height:100%;background:var(--accent);border-radius:6px}
+.rw-rules summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--accent);margin-top:4px}
+.rw-rules p{font-size:12.5px;color:var(--muted);margin:6px 0}
+.rw-dlg{width:min(460px,94vw);border:1px solid var(--line);border-radius:16px;background:var(--bg);color:var(--text);padding:14px}
+.rw-dlg::backdrop{background:rgba(0,0,0,.45)}
+.rw-dlg .rw-card{margin-bottom:10px}
+.desk-share{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))!important}
+@media (max-width:900px){.desk-share{display:none!important}}

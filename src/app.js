@@ -1357,6 +1357,7 @@ async function disconnectWallet() {
     (connSave(null),
       (S.provider = null),
       (S.user = null),
+      ($("btnShare").hidden = !0),
       (S.userExchange = null),
       (S.agent = null),
       (S.agentExchange = null),
@@ -1442,6 +1443,7 @@ async function connectWallet(silent = !1) {
       await restoreAgent(),
       (i.dataset.label = short(S.user)),
       document.body.classList.add("connected"),
+      ($("btnShare").hidden = !1),
       connSave({ via: e === wcProvider ? "wc" : "inj", addr: S.user }),
       await refreshStatus(),
       startLoop(),
@@ -7532,6 +7534,79 @@ function renderMarketsPage() {
       : `<div class="pp-empty">${MP.tab === "fav" ? "Добавьте пары в избранное звёздочкой" : S.meta.length ? "Ничего не найдено" : "Загружаем рынки…"}</div>`),
     fixIcons(e));
 }
+/* ═══════════ «Твоя доля в Totum» ═══════════
+   50% комиссии Totum возвращается трейдерам. Делим пропорционально уплаченной
+   комиссии — значит, каждому достаётся ровно половина его собственной комиссии
+   Totum (builderFee в его сделках через Totum, их узнаём по cloid «totum…»).
+   Доля открывается равномерно за 12 месяцев с момента сделки. При ликвидации
+   всё накопленное до неё открывается сразу. Выплаты — с кошелька выплат. */
+const RW = { start: Date.UTC(2026, 10, 2), share: 0.5, vest: 365 * 864e5, payout: "0x390fab5e62025b2f53a090b3761d3c737e751107", data: null, at: 0, busy: !1, user: null };
+async function loadReward(force) {
+  if (!S.user || RW.busy) return;
+  if (!force && RW.user === S.user && Date.now() - RW.at < 6e4) return;
+  RW.busy = !0;
+  try {
+    const fills = [];
+    let st = RW.start;
+    for (let k = 0; k < 20; k++) {
+      const f = (await info.userFillsByTime({ user: S.user, startTime: st, endTime: Date.now() })) || [];
+      fills.push(...f);
+      if (f.length < 2000) break;
+      st = Math.max(...f.map((x) => x.time)) + 1;
+    }
+    const mine = fills.filter((f) => String(f.cloid || "").toLowerCase().startsWith(TOTUM_CLOID) && Number(f.builderFee) > 0),
+      liqs = fills.filter((f) => f.liquidation).map((f) => f.time).sort((a, b) => a - b),
+      now = Date.now();
+    let acc = 0,
+      open = 0;
+    const byMonth = {};
+    for (const f of mine) {
+      const v = Number(f.builderFee) * RW.share,
+        liq = liqs.find((t) => t >= f.time);
+      acc += v;
+      open += liq ? v : v * Math.min(1, (now - f.time) / RW.vest);
+      const m = new Date(f.time).toISOString().slice(0, 7);
+      byMonth[m] = (byMonth[m] || 0) + v;
+    }
+    RW.data = { acc, open, trades: mine.length, liqs: liqs.length, byMonth, fees: acc / RW.share };
+    RW.user = S.user;
+    RW.at = Date.now();
+  } catch (e) {
+    console.warn("[доля]", e?.message || e);
+  }
+  RW.busy = !1;
+  document.body.dataset.app === "assets" && renderAssets();
+  RW.onLoad && RW.onLoad();
+}
+function rewardCard() {
+  if (!S.user) return "";
+  RW.user !== S.user || Date.now() - RW.at > 6e4 ? loadReward() : 0;
+  const d = RW.user === S.user ? RW.data : null,
+    m = (v) => `$${(v || 0).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: v < 1 ? 4 : 2 })}`,
+    pct = d && d.acc > 0 ? Math.min(100, (d.open / d.acc) * 100) : 0;
+  return `<div class="card-block rw-card">
+      <div class="cb-head"><b>Твоя доля в Totum</b><span class="rw-badge">50% комиссии — трейдерам</span></div>
+      ${
+        d
+          ? `<div class="rw-nums"><div><span>Начислено</span><b>${m(d.acc)}</b></div><div><span>Открыто</span><b class="pos">${m(d.open)}</b></div><div><span>Выплачено</span><b>$0,00</b></div></div>
+      <div class="rw-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <p class="muted small">${d.trades ? `Сделок через Totum: ${d.trades} · комиссия Totum ${m(d.fees)}, половина — твоя.` : "Пока сделок через Totum нет — доля начнёт копиться с первой сделки."} Доля открывается равномерно за 12 месяцев${d.liqs ? " · после ликвидации накопленное открыто сразу" : ""}. Выплата открытой части — раз в месяц в USDC на этот счёт Hyperliquid.</p>`
+          : '<p class="muted small">Считаем твою долю…</p>'
+      }
+      <details class="rw-rules"><summary>Как это работает</summary>
+        <p>Половина всей комиссии Totum каждый месяц возвращается трейдерам — пропорционально тому, сколько комиссии заплатил каждый. Выходит ровно половина твоей собственной комиссии.</p>
+        <p>Доля открывается постепенно: сделка сегодня — её доля полностью открыта через 12 месяцев. Чем дольше торгуешь с нами, тем больше открыто.</p>
+        <p>Если позицию ликвидировало, всё, что накопилось до этого, открывается сразу и уходит в ближайшую выплату.</p>
+        <p>Всё проверяется: комиссия Totum записана в каждой сделке на Hyperliquid. Кошелёк выплат: <code>${RW.payout.slice(0, 6)}…${RW.payout.slice(-4)}</code>.</p>
+      </details>
+    </div>`;
+}
+/* на компьютере раздела «Активы» нет — карточка доли открывается окном из шапки */
+function openShare() {
+  $("rwBody").innerHTML = rewardCard();
+  $("rwDialog").open || $("rwDialog").showModal();
+  RW.onLoad = () => $("rwDialog").open && ($("rwBody").innerHTML = rewardCard());
+}
 function renderAssets() {
   let i = S.positions || [],
     t = i.reduce((n, s) => n + Number(s.unrealizedPnl || 0), 0),
@@ -7545,6 +7620,7 @@ function renderAssets() {
       <div class="hc-sum">${usd(totalEquity())}</div>${heroPnl()}
       <div class="hc-actions"><button class="btn" type="button" data-act="transfer">Перевести</button><button class="btn ghost" type="button" data-act="acchist">История счёта</button></div>
     </div>
+    ${rewardCard()}
     <div class="card-block">
       <div class="cb-head"><b>Фьючерсный счёт</b><button class="link-btn" type="button" data-act="futures">Торговать →</button></div>
       <div class="kv">${kvRow("Стоимость счёта", usd(S.accountValue || 0))}${kvRow("Доступно", usd(availFor("BTC") || 0))}${kvRow("Маржа в позициях", usd(S.marginUsed || 0))}${kvRow("Нереализованный PnL", sgnUsd(t), clsOf(t))}${kvRow("Открытых позиций", i.length)}</div>
@@ -8274,6 +8350,8 @@ function bindSettings() {
     ($("btnConnect").onclick = () => (S.user ? disconnectWallet() : connectWallet())),
     ($("btnConnect2").onclick = connectWallet),
     ($("btnEnable").onclick = enableTrading),
+    ($("btnShare").onclick = openShare),
+    ($("rwClose").onclick = () => $("rwDialog").close()),
     ($("adlClose").onclick = () => $("adlDialog").close()),
     ($("btnUnified").onclick = () => ensureUnified(!0)));
   try {
