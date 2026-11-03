@@ -7736,7 +7736,13 @@ async function loadReward(force) {
       const m = new Date(f.time).toISOString().slice(0, 7);
       byMonth[m] = (byMonth[m] || 0) + v;
     }
-    RW.data = { acc, open, trades: mine.length, liqs: liqs.length, byMonth, fees: acc / RW.share };
+    /* сколько уже выплачено — сервер смотрит историю кошелька выплат на Hyperliquid */
+    let paid = 0;
+    try {
+      const r = await fetch(`/api/payout?user=${S.user}`);
+      r.ok && (paid = Number((await r.json()).paid) || 0);
+    } catch {}
+    RW.data = { acc, open, paid, trades: mine.length, liqs: liqs.length, byMonth, fees: acc / RW.share };
     RW.user = S.user;
     RW.at = Date.now();
   } catch (e) {
@@ -7773,7 +7779,7 @@ function rewardCard() {
         <div class="rw-nums">
           <div><span>Начислено</span>${num(d.acc)}</div>
           <div class="op"><span>Открыто</span>${num(d.open)}</div>
-          <div><span>Выплачено</span><b>$0,00</b></div>
+          <div><span>Выплачено</span>${num(d.paid)}</div>
         </div>
       </div>
       <p class="rw-sub">${d.trades ? `Сделок через Totum: <b>${d.trades}</b> · комиссия Totum $${d.fees.toFixed(d.fees < 1 ? 4 : 2)} — половина твоя.` : "Доля начнёт копиться с первой сделки через Totum."}${d.liqs ? " После ликвидации накопленное открыто сразу." : ""}</p>`

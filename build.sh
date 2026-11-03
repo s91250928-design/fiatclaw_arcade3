@@ -12,4 +12,7 @@ cp -r src/brand src/fonts src/sounds dist/
 V=$(date +%s)
 sed -i "s|href=\"style.css\"|href=\"style.css?v=$V\"|; s|src=\"app.js\"|src=\"app.js?v=$V\"|" dist/index.html
 echo '[]' > dist/icons.json            # на Vercel заменяется скриптом deploy/scripts/fetch-icons.mjs
+# сервер выплат: один файл со всем нужным (на Vercel пакеты не ставятся)
+npx esbuild server/payout.src.mjs --bundle --platform=node --format=esm --target=node20 --minify \
+  --outfile=deploy/api/payout.mjs --log-level=warning
 echo "⚡ Готово: dist/"
