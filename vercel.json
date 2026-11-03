@@ -94,6 +94,15 @@
   "functions": {
     "api/*.mjs": {
       "maxDuration": 20
+    },
+    "api/payout.mjs": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/payout?k=pay",
+      "schedule": "0 6 1 * *"
+    }
+  ]
 }
