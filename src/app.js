@@ -1377,6 +1377,32 @@ const connSave = (v) => {
     v ? localStorage.setItem(CONN_KEY, JSON.stringify(v)) : localStorage.removeItem(CONN_KEY);
   } catch {}
 };
+/* Выбор кошелька. В браузере может стоять несколько расширений (OKX, MetaMask,
+   Phantom…), и window.ethereum часто «захватывает» не тот — отсюда «Unexpected
+   error». Поэтому показываем список найденных кошельков (EIP-6963) и вариант
+   «Кошелёк на телефоне (QR-код)». Выбор запоминаем. */
+const injById = (rdns) => PROVIDERS.find((p) => p.info?.rdns === rdns)?.provider || null;
+function pickWallet() {
+  const list = PROVIDERS.filter((p) => p.provider && p.info?.name),
+    hasWc = !!WC_PROJECT_ID;
+  if (!list.length && !window.ethereum) return Promise.resolve(hasWc ? { wc: !0 } : null);
+  return new Promise((res) => {
+    let d = $("walletPick");
+    d || ((d = document.createElement("dialog")), (d.id = "walletPick"), (d.className = "wp-dlg"), document.body.appendChild(d));
+    const items = list.length ? list.map((p, k) => `<button type="button" data-wp="${k}"><img src="${esc(p.info.icon || "")}" alt="">${esc(p.info.name)}</button>`).join("") : '<button type="button" data-wp="eth"><span class="wp-ic">⬡</span>Кошелёк в браузере</button>';
+    d.innerHTML = `<h3>Подключить кошелёк</h3>${items}${hasWc ? '<button type="button" data-wp="wc"><span class="wp-ic">⌁</span>Кошелёк на телефоне (QR-код)</button>' : ""}<button type="button" class="wp-cancel" data-wp="x">Отмена</button>`;
+    const done = (v) => (d.close(), res(v));
+    d.querySelectorAll("[data-wp]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          const k = b.dataset.wp;
+          k === "x" ? done(null) : k === "wc" ? done({ wc: !0 }) : k === "eth" ? done({ prov: window.ethereum, rdns: "" }) : done({ prov: list[Number(k)].provider, rdns: list[Number(k)].info.rdns || "" });
+        }),
+    );
+    d.onclose = () => res(null);
+    d.showModal();
+  });
+}
 async function connectWallet(silent = !1) {
   let i = $("btnConnect"),
     t = window.ethereum,
@@ -1388,16 +1414,24 @@ async function connectWallet(silent = !1) {
     } catch {}
     if (!saved) return;
     if (saved.via === "inj") {
-      if (!t) return;
-      const acc = await t.request({ method: "eth_accounts" }).catch(() => []);
+      await new Promise((r) => setTimeout(r, 300)); /* кошельки успевают объявить себя */
+      const pv = (saved.rdns && injById(saved.rdns)) || t;
+      if (!pv) return;
+      const acc = await pv.request({ method: "eth_accounts" }).catch(() => []);
       if (!acc?.length || acc[0].toLowerCase() !== String(saved.addr || "").toLowerCase()) return;
-      e = t;
+      e = pv;
+      S.rdns = saved.rdns || "";
     } else {
       if (!WC_PROJECT_ID) return;
       const wc = await preloadWalletConnect().catch(() => null);
       if (!wc?.session || !wc.accounts?.length) return;
       e = wc;
     }
+  }
+  if (!e && !silent && !(USER_CFG.debug && t)) {
+    const ch = await pickWallet();
+    if (!ch) return;
+    ch.prov ? ((e = ch.prov), (S.rdns = ch.rdns)) : (t = null);
   }
   if (!e)
     if (t) e = window.ethereum;
@@ -1444,12 +1478,16 @@ async function connectWallet(silent = !1) {
       (i.dataset.label = short(S.user)),
       document.body.classList.add("connected"),
       ($("btnShare").hidden = !1),
-      connSave({ via: e === wcProvider ? "wc" : "inj", addr: S.user }),
+      connSave({ via: e === wcProvider ? "wc" : "inj", addr: S.user, rdns: S.rdns || "" }),
       await refreshStatus(),
       startLoop(),
       autoEnable());
   } catch (n) {
-    silent ? console.warn("[кошелёк] не восстановили подключение", n?.message || n) : toast(humanError(n), "err");
+    silent
+      ? console.warn("[кошелёк] не восстановили подключение", n?.message || n)
+      : /reject|denied|cancel/i.test(String(n?.message || n))
+        ? toast("Подключение отменено в кошельке", "info")
+        : (toast(`${humanError(n)} Если не выходит — выберите «Кошелёк на телефоне (QR-код)».`, "err"), (S.provider = null));
   } finally {
     setBusy(i, !1);
   }
