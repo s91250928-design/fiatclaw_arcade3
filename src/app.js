@@ -620,11 +620,11 @@ function initChart() {
     r && r.from < 40 && loadOlder();
   });
 }
-var HIST = { busy: !1, done: "" };
+var CHIST = { busy: !1, done: "" };
 async function loadOlder() {
   const key = `${S.coin}|${S.interval}`;
-  if (HIST.busy || HIST.done === key || !S.bars?.length || !INTERVAL_MS[S.interval]) return;
-  HIST.busy = !0;
+  if (CHIST.busy || CHIST.done === key || !S.bars?.length || !INTERVAL_MS[S.interval]) return;
+  CHIST.busy = !0;
   const coin = S.coin,
     iv = S.interval,
     first = S.bars[0].time * 1e3;
@@ -632,7 +632,7 @@ async function loadOlder() {
     const n = await info.candleSnapshot({ coin, interval: iv, startTime: first - INTERVAL_MS[iv] * 500, endTime: first - 1 });
     if (coin !== S.coin || iv !== S.interval || !S.bars?.length || S.bars[0].time * 1e3 !== first) return;
     const add = (n || []).filter((a) => a && a.t && a.t < first);
-    if (!add.length) return void (HIST.done = key); /* дальше истории у биржи нет */
+    if (!add.length) return void (CHIST.done = key); /* дальше истории у биржи нет */
     const ts = chart.timeScale(),
       lr = ts.getVisibleLogicalRange();
     S.bars = [...add.map(toBar), ...S.bars];
@@ -645,7 +645,7 @@ async function loadOlder() {
   } catch (e) {
     console.warn("[history]", e);
   } finally {
-    HIST.busy = !1;
+    CHIST.busy = !1;
   }
 }
 var toBar = (i) => ({
