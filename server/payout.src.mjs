@@ -154,7 +154,7 @@ async function report() {
 }
 
 async function pay(rep) {
-  const key = process.env.PAYOUT_KEY;
+  const key = (process.env.PAYOUT_KEY || "").trim();
   if (!key) return { ok: false, why: "PAYOUT_KEY не задан в Vercel" };
   const acc = privateKeyToAccount(key.startsWith("0x") ? key : `0x${key}`);
   if (acc.address.toLowerCase() !== PAYOUT) return { ok: false, why: `ключ от другого кошелька (${mask(acc.address)}), нужен ${mask(PAYOUT)}` };
@@ -174,6 +174,16 @@ async function pay(rep) {
   return { ok: sent.every((s) => s.ok), sent };
 }
 
+/* ключ от кошелька выплат? — только «да/нет», сам ключ и адрес не показываем */
+function keyOk() {
+  const k = process.env.PAYOUT_KEY;
+  if (!k) return false;
+  try {
+    return privateKeyToAccount(k.trim().startsWith("0x") ? k.trim() : `0x${k.trim()}`).address.toLowerCase() === PAYOUT;
+  } catch {
+    return false;
+  }
+}
 export default async function handler(req, res) {
   const q = new URL(req.url, "http://x").searchParams;
   const send = (code, body) => {
@@ -201,7 +211,7 @@ export default async function handler(req, res) {
       dueNow: rep.total,
       needTopUp: Math.max(0, rep.total - rep.bal),
       minPayout: MIN,
-      setup: { keySet: !!process.env.PAYOUT_KEY, cronSecretSet: !!process.env.CRON_SECRET },
+      setup: { keySet: !!process.env.PAYOUT_KEY, keyMatchesWallet: keyOk(), cronSecretSet: !!process.env.CRON_SECRET },
       files: rep.log,
       list: rep.rows.map((r) => ({ user: mask(r.user), trades: r.trades, accrued: +r.acc.toFixed(4), unlocked: +r.open.toFixed(4), paid: r.paid, due: r.due })),
     };

@@ -93,9 +93,6 @@
   ],
   "functions": {
     "api/*.mjs": {
-      "maxDuration": 20
-    },
-    "api/payout.mjs": {
       "maxDuration": 60
     }
   },
