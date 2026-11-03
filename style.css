@@ -777,12 +777,10 @@ body:not(.connected) #trRow{display:none}
    Главный элемент — живая лента Мёбиуса; остальное спокойное.
    ============================================================ */
 .landing{display:none}
-@media (min-width:901px){
-  body[data-view="landing"]{padding:0;background:#070c1d}
-  body[data-view="landing"] > :not(#landing):not(dialog):not(#toasts){display:none!important}
-  body[data-view="landing"] #landing{display:block}
-  .top .brand{cursor:pointer}
-}
+body[data-view="landing"]{padding:0;background:#070c1d}
+body[data-view="landing"] > :not(#landing):not(dialog):not(#toasts):not(.boot-splash):not(.sign-wait){display:none!important}
+body[data-view="landing"] #landing{display:block}
+@media (min-width:901px){.top .brand{cursor:pointer}}
 .landing{
   --ln-bg:#070c1d; --ln-deep:#0b1430; --ln-line:rgba(148,190,255,.14); --ln-text:#e9f1ff; --ln-muted:#8fa3c7;
   --ln-blue:#2f6bff; --ln-cyan:#2fd6f0; --ln-up:#34d399; --ln-dn:#fb7185;
@@ -1539,3 +1537,71 @@ body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
 @media (max-width:1100px){.ln-tools{grid-template-columns:repeat(2,minmax(0,1fr))}.ln-share{grid-template-columns:1fr}.ln-fast{grid-template-columns:repeat(2,minmax(0,1fr))}.ln-safe{grid-template-columns:1fr}.ln-safe>div::after{display:none}}
 @media (prefers-reduced-motion:reduce){.ln-reveal{opacity:1;transform:none;transition:none}.ln-grad,.lt-viz *,.ln-kicker i{animation:none!important}}
 .ln-chips b i{font-style:normal}
+
+/* окно «ждём подпись в кошельке» */
+.sign-wait{position:fixed;inset:0;z-index:400;display:grid;place-items:center;background:rgba(3,7,20,.55);backdrop-filter:blur(3px)}
+.sign-wait[hidden]{display:none}
+.sw-box{width:min(360px,90vw);background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.sw-box b{font:800 17px "Manrope",var(--font)}
+.sw-box p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.5}
+.sw-box small{font:700 13px var(--mono,monospace);color:var(--muted)}
+.sw-ic{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.sw-ic i{width:26px;height:26px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent) 30%,transparent);border-top-color:var(--accent);animation:sw-spin .9s linear infinite}
+@keyframes sw-spin{to{transform:rotate(360deg)}}
+
+/* ═══ живые карточки инструментов ═══ */
+.lt-viz.lv{display:block;height:auto;min-height:118px;padding:10px 12px 10px;font-size:12.5px;font-variant-numeric:tabular-nums}
+.lv-live{display:flex;align-items:center;gap:6px;font-style:normal;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:#7f95bd;margin-bottom:6px}
+.lv-live::before{content:"";width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 0 0 rgba(52,211,153,.6);animation:ln-ping 1.8s infinite}
+.lv-body{animation:lv-in .4s ease}
+@keyframes lv-in{from{opacity:.4}}
+.lv-r{position:relative;display:flex;justify-content:space-between;padding:1px 6px;line-height:17px}
+.lv-r i{position:absolute;top:1px;bottom:1px;right:0;border-radius:3px;opacity:.22;transition:width .4s}
+.lv-r span{position:relative}
+.lv-r.a span:first-child{color:#fb7185}.lv-r.a i{background:#fb7185}
+.lv-r.b span:first-child{color:#34d399}.lv-r.b i{background:#34d399}
+.lv-mid{text-align:center;font-weight:800;color:#fff;border-top:1px solid var(--ln-line);border-bottom:1px solid var(--ln-line);margin:2px 0;line-height:18px}
+.lv-f{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--ln-line)}
+.lv-f:last-child{border-bottom:0}
+.lv-f b{color:#fff}
+.lv-f span{color:#7f95bd;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv-f em,.lv-a em{font-style:normal;font-weight:800}
+.lv-f small{font-weight:500;color:#7f95bd;margin-left:2px}
+.lv .up{color:#34d399}.lv .dn{color:#fb7185}
+.lv-big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0}
+.lv-big b{font:700 34px/1 "Unbounded",var(--font);color:#fff;text-shadow:0 0 22px rgba(96,165,250,.45)}
+.lv-big span{color:#7f95bd;font-size:11.5px;text-align:center}
+.lv-calc{display:grid;gap:4px}
+.lv-calc div{display:flex;justify-content:space-between;gap:8px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.03)}
+.lv-calc span{color:#7f95bd}.lv-calc b{color:#fff}
+.lv-a{display:inline-grid;grid-template-columns:auto auto;gap:0 8px;width:calc(50% - 4px);margin:0 4px 4px 0;padding:5px 8px;border-radius:9px;background:rgba(96,165,250,.08);vertical-align:top}
+.lv-a:nth-child(2n){margin-right:0}
+.lv-a b{color:#fff;grid-column:1 / span 2;font-size:12px}
+.lv-a span{color:#c3d2ee}
+/* ═══ лендинг на телефоне ═══ */
+@media (max-width:900px){
+  .landing{font-size:15.5px}
+  .ln-nav{padding:14px 16px;gap:12px}
+  .ln-links{display:none}
+  .ln-nav .ln-btn{padding:9px 14px;font-size:13.5px}
+  .ln-hero{grid-template-columns:1fr;padding:16px 16px 28px;min-height:0;gap:8px}
+  .ln-hero h1{font-size:clamp(34px,10vw,46px);max-width:none}
+  .ln-lead{font-size:16px;margin-bottom:22px}
+  .ln-mark{order:-1;height:200px}
+  .ln-cta{flex-wrap:wrap;gap:12px}
+  .ln-sec{padding:56px 16px 0}
+  .ln-sec-head{grid-template-columns:1fr;gap:10px;margin-bottom:20px}
+  .ln-sec h2,.ln-final h2{font-size:clamp(26px,7.5vw,34px)}
+  .ln-tools{grid-template-columns:1fr}
+  .ln-share{padding:24px 18px;gap:20px}
+  .ls-ring{width:180px;height:180px}
+  .ls-ring b{font-size:40px}
+  .ln-fast{grid-template-columns:1fr 1fr}
+  .ln-fast>div{border-bottom:1px solid var(--ln-line)}
+  .ln-fast b{font-size:17px}
+  .ln-steps{grid-template-columns:1fr}
+  .ln-table th:nth-child(4),.ln-table td:nth-child(4),.ln-table th:nth-child(5),.ln-table td:nth-child(5){display:none}
+  .ln-final{margin-top:64px;padding:40px 16px}
+  .ln-foot{flex-direction:column;gap:6px;padding:20px 16px}
+}
+.lv-wait{display:grid;gap:7px;padding-top:4px}.lv-wait i{height:16px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.09),rgba(255,255,255,.04));background-size:200% 100%;animation:rw-sh 1.2s linear infinite}

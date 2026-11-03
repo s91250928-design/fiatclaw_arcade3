@@ -7,7 +7,7 @@
    продолжит брать иконки напрямую с Hyperliquid. */
 import { mkdir, writeFile } from "node:fs/promises";
 
-const APIS = (process.env.TOTUM_HL_APIS || "https://api.hyperliquid.xyz/info,https://api.hyperliquid-testnet.xyz/info").split(",");
+const APIS = (process.env.TOTUM_HL_APIS || "https://api.hyperliquid.xyz/info").split(","); /* только основная сеть: в тестовой тысячи мусорных токенов, и до нужных не доходила очередь */
 const CDN = process.env.TOTUM_ICON_CDN || "https://app.hyperliquid.xyz/coins/";   // для проверки можно подменить
 const MAX_NAMES = 4000, CONCURRENCY = 8, TIMEOUT = 8000, BUDGET_MS = 150000;
 const started = Date.now();
