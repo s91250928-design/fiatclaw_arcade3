@@ -16,16 +16,26 @@ function roundRect(w, h, r) {
   g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   return g;
 }
-/* строка состояния iPhone: время, связь, батарея */
+/* строка состояния iOS: время слева, справа — связь (4 столбика), Wi-Fi (3 дуги), батарея */
 function statusTex() {
-  const c = document.createElement("canvas"); c.width = 540; c.height = 64;
+  const W = 1170, H = 162, c = document.createElement("canvas"); c.width = W; c.height = H;
   const x = c.getContext("2d");
-  x.fillStyle = "#0f1623"; x.fillRect(0, 0, 540, 64);
-  x.fillStyle = "#fff"; x.font = "600 30px -apple-system, 'SF Pro Text', Manrope, sans-serif"; x.textBaseline = "middle";
-  x.fillText("9:41", 52, 36);
-  [8, 13, 18, 24].forEach((h, k) => x.fillRect(400 + k * 9, 46 - h, 6, h));
-  x.strokeStyle = "rgba(255,255,255,.85)"; x.lineWidth = 2.5; x.strokeRect(446, 25, 44, 22); x.fillRect(450, 29, 32, 14); x.fillRect(492, 32, 3, 8);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  x.fillStyle = "#0f1623"; x.fillRect(0, 0, W, H);
+  x.fillStyle = "#fff"; x.textBaseline = "middle";
+  x.font = "600 51px -apple-system, 'SF Pro Text', 'Helvetica Neue', Manrope, sans-serif";
+  x.textAlign = "center"; x.fillText("9:41", 168, 92);
+  const rr = (X, Y, w, h, r) => { x.beginPath(); x.roundRect(X, Y, w, h, r); x.fill(); };
+  /* связь */
+  [[0, 15], [1, 22], [2, 30], [3, 38]].forEach(([k, h]) => rr(828 + k * 17, 110 - h, 12, h, 3));
+  /* Wi-Fi: три дуги и точка */
+  x.save(); x.translate(938, 111); x.strokeStyle = "#fff"; x.lineCap = "round";
+  [[32, 8], [21, 8], [10, 0]].forEach(([r, w], k) => { if (k === 2) { x.beginPath(); x.moveTo(0, 0); x.arc(0, 0, 12, -Math.PI * 0.76, -Math.PI * 0.24); x.closePath(); x.fill(); return; } x.lineWidth = w; x.beginPath(); x.arc(0, 0, r + 8, -Math.PI * 0.76, -Math.PI * 0.24); x.stroke(); });
+  x.restore();
+  /* батарея: корпус, контакт, заряд */
+  x.strokeStyle = "rgba(255,255,255,.42)"; x.lineWidth = 3.5; x.beginPath(); x.roundRect(1000, 74, 72, 36, 11); x.stroke();
+  x.fillStyle = "rgba(255,255,255,.42)"; rr(1076, 85, 6, 14, 3);
+  x.fillStyle = "#fff"; rr(1005, 79, 62, 26, 7);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
 }
 
 export function mountPhone(host, video) {
@@ -61,18 +71,19 @@ export function mountPhone(host, video) {
   const glass = new THREE.Mesh(roundRect(W - 0.022, H - 0.022, R - 0.012), new THREE.MeshPhysicalMaterial({ color: 0x05070d, metalness: 0, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.6 }));
   glass.position.z = D / 2 + 0.0015; group.add(glass);
   /* экран: запись сайта + строка состояния */
-  const SW = W - 0.07, SH = H - 0.07, SR = R - 0.035, SB = SW * (64 / 540);
+  const SW = W - 0.07, SH = H - 0.07, SR = R - 0.035, SB = (SW - 2 * SR * 0.6) * (162 / 1170);
   const vt = new THREE.VideoTexture(video); vt.colorSpace = THREE.SRGBColorSpace;
   vt.minFilter = THREE.LinearFilter; vt.magFilter = THREE.LinearFilter; vt.generateMipmaps = false; vt.anisotropy = r.capabilities.getMaxAnisotropy();
-  const vidH = SH - SB, vAsp = (video.videoWidth || 540) / (video.videoHeight || 1168);
-  /* видео заполняет экран по ширине, лишнее снизу обрезается */
-  vt.repeat.set(1, Math.min(1, (SW / vAsp) > 0 ? vidH / (SW / vAsp) : 1)); vt.offset.set(0, 1 - vt.repeat.y);
+  const vidH = SH - SB, vAsp = (video.videoWidth || 1080) / (video.videoHeight || 2248), aAsp = SW / vidH;
+  /* видео встаёт без растяжения: лишнее обрезаем по краям (cover) */
+  if (vAsp > aAsp) { const k = aAsp / vAsp; vt.repeat.set(k, 1); vt.offset.set((1 - k) / 2, 0); }
+  else { const k = vAsp / aAsp; vt.repeat.set(1, k); vt.offset.set(0, 1 - k); }
   const scr = new THREE.Mesh(roundRect(SW, SH, SR), new THREE.MeshBasicMaterial({ color: 0x0f1623, toneMapped: false }));
   scr.position.z = D / 2 + 0.002; group.add(scr);
   const vid = new THREE.Mesh(new THREE.PlaneGeometry(SW, vidH), new THREE.MeshBasicMaterial({ map: vt, toneMapped: false }));
   vid.position.set(0, -SB / 2, D / 2 + 0.0025); group.add(vid);
   /* нижние углы видео скругляем маской из экрана: накрываем углы цветом стекла */
-  const sb = new THREE.Mesh(new THREE.PlaneGeometry(SW - 2 * SR, SB), new THREE.MeshBasicMaterial({ map: statusTex(), toneMapped: false }));
+  const sb = new THREE.Mesh(new THREE.PlaneGeometry(SW - 2 * SR * 0.6, SB), new THREE.MeshBasicMaterial({ map: statusTex(), toneMapped: false }));
   sb.position.set(0, SH / 2 - SB / 2, D / 2 + 0.0026); group.add(sb);
   const isl = new THREE.Mesh(roundRect(0.2, 0.056, 0.028), new THREE.MeshBasicMaterial({ color: 0x000000 }));
   isl.position.set(0, SH / 2 - SB / 2, D / 2 + 0.004); group.add(isl);
@@ -83,8 +94,11 @@ export function mountPhone(host, video) {
     const m = new THREE.Mesh(new THREE.ShapeGeometry(s, 12), cornerMat);
     m.position.set(sx * (SW / 2), sy * (SH / 2), D / 2 + 0.0028); m.scale.set(-sx, -sy, 1); group.add(m);
   }
+  /* полоска «домой» iOS */
+  const home = new THREE.Mesh(roundRect(0.22, 0.012, 0.006), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, toneMapped: false }));
+  home.position.set(0, -SH / 2 + 0.03, D / 2 + 0.0031); group.add(home);
   /* блик на стекле */
-  const glare = new THREE.Mesh(roundRect(SW, SH, SR), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05, depthWrite: false }));
+  const glare = new THREE.Mesh(roundRect(SW, SH, SR), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.035, depthWrite: false }));
   glare.position.z = D / 2 + 0.003; glare.scale.set(1, 1, 1); group.add(glare);
   /* боковые кнопки */
   const btnMat = body.material;
@@ -102,8 +116,8 @@ export function mountPhone(host, video) {
   function frame(now) {
     raf = 0; const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     cur.x += (target.x - cur.x) * Math.min(1, dt * 2.5); cur.y += (target.y - cur.y) * Math.min(1, dt * 2.5);
-    group.rotation.y = -0.38 + Math.sin(t * 0.45) * 0.1 + cur.x * 0.3;
-    group.rotation.x = 0.06 + Math.sin(t * 0.33) * 0.03 + cur.y * 0.18;
+    group.rotation.y = -0.2 + Math.sin(t * 0.45) * 0.08 + cur.x * 0.25;
+    group.rotation.x = 0.04 + Math.sin(t * 0.33) * 0.025 + cur.y * 0.14;
     group.position.y = Math.sin(t * 0.8) * 0.02;
     r.render(scene, cam);
     if (visible && !document.hidden) raf = requestAnimationFrame(frame);

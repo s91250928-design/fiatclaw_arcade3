@@ -1,0 +1,14 @@
+name = "totum-delta"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[durable_objects.bindings]]
+name = "COLLECTOR"
+class_name = "Collector"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Collector"]

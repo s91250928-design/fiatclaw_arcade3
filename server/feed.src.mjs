@@ -80,10 +80,10 @@ export default async function handler(req, res) {
       let posts = [], likes = 0;
       if (ids?.length) {
         const r = await redis([["MGET", ...ids.map((id) => `feed:p:${id}`)], ["HMGET", "feed:lc", ...ids], ...(isAddr(me) ? [["SMISMEMBER", `feed:ul:${me}`, ...ids]] : [])]);
-        posts = r[0].map((j, k) => (j ? { ...JSON.parse(j), nick: prof.nick || "", likes: Number(r[1]?.[k] || 0), liked: isAddr(me) ? !!r[2]?.[k] : false } : null)).filter(Boolean);
+        posts = r[0].map((j, k) => (j ? { ...JSON.parse(j), nick: prof.nick || "", avatar: prof.avatar || "", likes: Number(r[1]?.[k] || 0), liked: isAddr(me) ? !!r[2]?.[k] : false } : null)).filter(Boolean);
         likes = posts.reduce((a, p) => a + p.likes, 0);
       }
-      return send(200, { user: u, nick: prof.nick || "", bio: prof.bio || "", since: prof.since || posts.at(-1)?.ts || null, posts, count: Number(n || 0), likes });
+      return send(200, { user: u, nick: prof.nick || "", avatar: prof.avatar || "", bio: prof.bio || "", since: prof.since || posts.at(-1)?.ts || null, posts, count: Number(n || 0), likes });
     }
     if (req.method === "GET") {
       const from = Math.max(0, Number(q.get("from")) || 0), me = (q.get("me") || "").toLowerCase();
@@ -95,12 +95,12 @@ export default async function handler(req, res) {
       /* ники авторов — одним запросом */
       const au = [...new Set(posts.map((p) => p.user))];
       if (au.length) {
-        const [nk] = await redis([["HMGET", "feed:nicks", ...au]]);
-        const m = Object.fromEntries(au.map((a, k) => [a, nk?.[k] || ""]));
-        posts = posts.map((p) => ({ ...p, nick: m[p.user] }));
+        const [nk, av] = await redis([["HMGET", "feed:nicks", ...au], ["HMGET", "feed:avs", ...au]]);
+        const m = Object.fromEntries(au.map((a, k) => [a, nk?.[k] || ""])), mv = Object.fromEntries(au.map((a, k) => [a, av?.[k] || ""]));
+        posts = posts.map((p) => ({ ...p, nick: m[p.user], avatar: mv[p.user] }));
       }
-      const myNick = isAddr(me) ? (await redis([["HGET", "feed:nicks", me]]))[0] || "" : "";
-      return send(200, { posts, more: ids.length === PAGE, video: !!BLOB, myNick });
+      const [myNick, myAv] = isAddr(me) ? await redis([["HGET", "feed:nicks", me], ["HGET", "feed:avs", me]]) : ["", ""];
+      return send(200, { posts, more: ids.length === PAGE, video: !!BLOB, myNick: myNick || "", myAvatar: myAv || "" });
     }
     if (req.method !== "POST") return send(405, { error: "method" });
     const b = typeof req.body === "object" && req.body ? req.body : JSON.parse(req.body || "{}");
@@ -140,6 +140,7 @@ export default async function handler(req, res) {
     if (b.act === "profile") {
       /* ник уникальный (без учёта регистра): 3–20 символов — буквы, цифры, _ . - */
       const nick = String(p.nick || "").trim(), bio = clean(p.bio).slice(0, 160);
+      const avatar = typeof p.avatar === "string" && /^\/api\/feed\?m=[a-z0-9]{6,24}$/.test(p.avatar) ? p.avatar : "";
       if (nick.length < 3 || nick.length > 20 || !/^[A-Za-zА-Яа-яЁё0-9_.-]+( [A-Za-zА-Яа-яЁё0-9_.-]+)*$/.test(nick)) return send(400, { error: "Ник: 3–20 символов — буквы, цифры, пробел, _ . -" });
       if (/^0x[0-9a-f]{6,}/i.test(nick) || /totum|admin|support|hyperliquid/i.test(nick) && user !== ADMIN) return send(400, { error: "Такой ник занят" });
       const low = nick.toLowerCase(), [owner, pj] = await redis([["GET", `feed:nick:${low}`], ["GET", `feed:u:${user}`]]);
@@ -147,11 +148,12 @@ export default async function handler(req, res) {
       const old = pj ? JSON.parse(pj) : {};
       const [got] = await redis([["SET", `feed:nick:${low}`, user, "NX"]]);
       if (got !== "OK" && owner !== user) return send(409, { error: "Этот ник уже занят" });
-      const prof = { nick, bio, since: old.since || Date.now() };
+      const prof = { nick, bio, avatar: avatar || (p.avatar === "" ? "" : old.avatar || ""), since: old.since || Date.now() };
       await redis([
         ...(old.nick && old.nick.toLowerCase() !== low ? [["DEL", `feed:nick:${old.nick.toLowerCase()}`]] : []),
         ["SET", `feed:u:${user}`, JSON.stringify(prof)],
         ["HSET", "feed:nicks", user, nick],
+        prof.avatar ? ["HSET", "feed:avs", user, prof.avatar] : ["HDEL", "feed:avs", user],
       ]);
       return send(200, prof);
     }

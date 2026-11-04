@@ -18,7 +18,7 @@ await page.route("**/api/feed**", async (r) => {
   const p = JSON.parse(b.payload);
   if (b.act === "upload") { state.up = b; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ k: "img", u: "/brand/howto.webp" }) }); }
   if (b.act === "post") { state.post = p; const pos = p.att?.kind === "closed" ? { kind: "closed", coin: "ETH", dir: "Close Long", sz: "1", px: "2400", entry: "2200", pnl: "199", roe: "0.09", at: Date.now() - 864e5 } : { kind: "open", coin: "BTC", szi: "0.01", entry: "70000", lev: 5, pnl: "42.5", roe: "0.31" }; const post = { id: "abc123def" + posts.length, user: b.user.toLowerCase(), text: p.text, ts: Date.now(), pos, media: p.media, likes: 0, liked: false }; posts.unshift(post); return r.fulfill({ contentType: "application/json", body: JSON.stringify({ post }) }); }
-  if (b.act === "profile") { state.nick = p.nick; state.bio = p.bio; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ nick: p.nick, bio: p.bio, since: Date.now() }) }); }
+  if (b.act === "profile") { state.nick = p.nick; state.bio = p.bio; state.avatar = p.avatar; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ nick: p.nick, bio: p.bio, since: Date.now() }) }); }
   if (b.act === "like") return r.fulfill({ contentType: "application/json", body: '{"likes":1,"liked":true}' });
   r.fulfill({ contentType: "application/json", body: '{"ok":true}' });
 });
@@ -52,7 +52,9 @@ R.ok("в посте закрытая сделка и фото", state.post?.att?
 R.ok("карточка «закрыта» и фото в ленте", (await page.textContent("#feedList")).includes("закрыта") && (await page.locator(".fd-media img").count()) === 1);
 // профиль: задать ник
 await page.click('[data-feed="me"]'); await page.waitForTimeout(700);
+await page.setInputFiles("#pfAvFile", { name: "me.png", mimeType: "image/png", buffer: png }); await page.waitForTimeout(1500);
 await page.fill("#pfNick", "Tyler Durden"); await page.fill("#pfBio", "Скальпинг BTC"); await page.click("#pfSave"); await page.waitForTimeout(1500);
+R.ok("аватарка загружена и сохранена с профилем", state.avatar === "/brand/howto.webp", String(state.avatar));
 R.ok("ник сохранён и виден в профиле", state.nick === "Tyler Durden" && (await page.textContent("#pfBody")).includes("Tyler Durden"));
 await page.locator("#profDlg").screenshot({ path: "tests/out-profile.png" });
 await page.click('[data-pf="close"]'); await page.waitForTimeout(800);

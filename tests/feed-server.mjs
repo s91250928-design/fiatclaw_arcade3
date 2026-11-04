@@ -40,4 +40,8 @@ r = await call("POST", await sign(agent, "profile", JSON.stringify({ nick: "Се
 r = await call("POST", await sign(agent, "profile", JSON.stringify({ nick: "a" }))); ok("короткий ник — отказ", r.code === 400);
 r = await call("GET", null, `/api/feed?me=${user.address}`); ok("ник виден в ленте и «мой ник»", r.posts[0].nick === "Семён_трейдер" && r.myNick === "Семён_трейдер", JSON.stringify([r.posts[0]?.nick, r.myNick]));
 r = await call("GET", null, `/api/feed?u=${user.address}`); ok("профиль: ник, описание, посты", r.nick === "Семён_трейдер" && r.bio === "Скальпинг BTC" && r.count === 1 && r.posts.length === 1, JSON.stringify({ n: r.nick, c: r.count }));
+r = await call("POST", await sign(agent, "upload", JSON.stringify({ size: png.length, type: "image/png" }), { data: png.toString("base64") }));
+const av = r.u; r = await call("POST", await sign(agent, "profile", JSON.stringify({ nick: "Семён_трейдер", bio: "x", avatar: av }))); ok("аватарка сохранена", r.avatar === av);
+r = await call("GET", null, `/api/feed?me=${user.address}`); ok("аватарка в ленте", r.posts[0].avatar === av && r.myAvatar === av);
+r = await call("POST", await sign(agent, "profile", JSON.stringify({ nick: "Семён_трейдер", avatar: "https://evil.com/a.png" }))); ok("чужая ссылка вместо аватарки не принимается", r.avatar !== "https://evil.com/a.png");
 db.set("feed:nick:занят", "0xother"); r = await call("POST", await sign(agent, "profile", JSON.stringify({ nick: "Занят" }))); ok("чужой ник занять нельзя", r.code === 409, r.error);

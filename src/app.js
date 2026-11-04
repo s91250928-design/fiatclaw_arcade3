@@ -2524,10 +2524,16 @@ var UP_COLOR = "#16a34a",
    Ширина и яркость свечи — от её объёма (широкая и яркая — торговали много, узкая и
    тусклая — почти не торговали). Под свечой — полоска «покупки / продажи» по живым
    сделкам (собирается, пока открыт сайт). Точка над свечой — всплеск объёма. */
-var CV = { delta: new Map() };
+var CV = { delta: new Map(), key: "" };
+/* данные свечей — своей монеты и своего интервала: при смене сбрасываем */
+function cvSync() {
+  const k = `${S.coin}|${S.interval}`;
+  k !== CV.key && ((CV.key = k), CV.delta.clear(), (CV.histKey = ""));
+}
 function cvDeltaAdd(list) {
   const ms = INTERVAL_MS[S.interval];
   if (!ms) return;
+  cvSync();
   for (const t of list) {
     const bt = (Math.floor(t.time / ms) * ms) / 1e3,
       usd = +t.px * +t.sz,
@@ -2537,6 +2543,29 @@ function cvDeltaAdd(list) {
     CV.delta.set(bt, o);
   }
   CV.delta.size > 3e3 && CV.delta.delete(CV.delta.keys().next().value);
+}
+/* история покупок/продаж по свечам — с нашего сервера-сборщика (он слушает сделки круглосуточно) */
+async function cvLoadHist() {
+  if (chartType !== "original" || !S.bars?.length) return;
+  cvSync();
+  const iv = (INTERVAL_MS[S.interval] || 0) / 1e3;
+  if (!iv) return;
+  const coin = S.coin,
+    from = S.bars[0].time,
+    to = S.bars.at(-1).time + iv,
+    key = `${coin}|${iv}|${from}|${Math.floor(Date.now() / 3e4)}`;
+  if (CV.histKey === key) return;
+  CV.histKey = key;
+  try {
+    const d = await (await fetch(`/api/delta?coin=${encodeURIComponent(coin)}&i=${iv}&from=${from}&to=${to}`, { signal: AbortSignal.timeout(1e4) })).json();
+    if (coin !== S.coin || !d?.rows) return;
+    CV.srv = !d.off;
+    for (const [t, b, sl, n] of d.rows) {
+      const o = CV.delta.get(t);
+      (!o || o.n < n) && CV.delta.set(t, { b, s: sl, n, srv: 1 });
+    }
+    candleSeries?.applyOptions({});
+  } catch {}
 }
 const cvCompact = (v) => (v >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(v >= 1e4 ? 0 : 1)}K` : v.toFixed(0));
 /* свечи Original: скруглённые «капсулы» с переливом; ширина и яркость — от объёма */
@@ -2697,7 +2726,7 @@ function cvLegend(p) {
     ${
       fb != null
         ? `<div class="cvt-r2"><span class="pos">${Math.round(fb * 100)}% · $${cvCompact(dl.b)}</span><div class="cvt-bar"><i style="width:${(fb * 100).toFixed(1)}%"></i></div><span class="neg">$${cvCompact(dl.s)} · ${Math.round((1 - fb) * 100)}%</span></div><div class="cvt-d">${dl.b >= dl.s ? "Покупатели" : "Продавцы"} сильнее на <b class="${dl.b >= dl.s ? "pos" : "neg"}">$${cvCompact(Math.abs(dl.b - dl.s))}</b> · ${dl.n} сделок</div>`
-        : '<div class="cvt-na">Покупки/продажи — для свечей с момента, как открыт сайт</div>'
+        : `<div class="cvt-na">${CV.srv ? "По этой свече у сборщика пока нет данных" : "Покупки/продажи — для свечей с момента, как открыт сайт"}</div>`
     }`;
   el.hidden = !1;
   const W = box.clientWidth,
@@ -2831,6 +2860,7 @@ function heikinAshi(i) {
 function seriesData() {
   let i = S.bars || [];
   if (chartType === "original") {
+    setTimeout(cvLoadHist, 0);
     const vm = new Map((S.vols || []).map((v) => [v.time, v.value]));
     return i.map((b) => cvRow(b, vm.get(b.time)));
   }
@@ -7507,6 +7537,7 @@ async function feedLoad(more = !1, quiet = !1) {
       FEED.posts = more ? [...FEED.posts, ...d.posts] : d.posts;
       FEED.video = !!d.video;
       FEED.myNick = d.myNick || "";
+      FEED.myAv = d.myAvatar || "";
       feedMeRender();
       FEED.more = d.more;
     }
@@ -7528,15 +7559,17 @@ async function feedSigned(act, payload, extra = {}) {
   if (!r.ok) throw new Error(d.error || `Ошибка ${r.status}`);
   return d;
 }
-function feedAvatar(u, nick = "") {
-  return `<span class="fd-av" style="--h:${icHue(u)}">${esc(nick ? nick.slice(0, 2) : u.slice(2, 4))}</span>`;
+function feedAvatar(u, nick = "", av = "") {
+  return av && /^\/api\/feed\?m=/.test(av)
+    ? `<span class="fd-av img"><img src="${esc(av)}" alt="" loading="lazy"></span>`
+    : `<span class="fd-av" style="--h:${icHue(u)}">${esc(nick ? nick.slice(0, 2) : u.slice(2, 4))}</span>`;
 }
 /* ═══ профиль трейдера ═══ */
 function feedMeRender() {
   const el = $("feedMe");
   if (!el) return;
   el.innerHTML = S.user
-    ? `<button type="button" class="fm-btn" data-feed="me">${feedAvatar(S.user.toLowerCase(), FEED.myNick)}<span><b>${esc(FEED.myNick || "Задайте ник")}</b><small>${FEED.myNick ? "Мой профиль" : "чтобы вас узнавали в ленте"}</small></span></button>`
+    ? `<button type="button" class="fm-btn" data-feed="me">${feedAvatar(S.user.toLowerCase(), FEED.myNick, FEED.myAv)}<span><b>${esc(FEED.myNick || "Задайте ник")}</b><small>${FEED.myNick ? "Мой профиль" : "чтобы вас узнавали в ленте"}</small></span></button>`
     : "";
 }
 async function feedProfile(u) {
@@ -7547,20 +7580,45 @@ async function feedProfile(u) {
     if (d.error) throw new Error(d.error);
     const mine = S.user && u === S.user.toLowerCase();
     FEED.prof = d;
-    $("pfBody").innerHTML = `<div class="pf-head">${feedAvatar(u, d.nick)}<div><b>${esc(d.nick || short(u))}</b><button type="button" class="pf-addr" data-pf="copy" title="Скопировать адрес">${esc(short(u))}</button></div><button type="button" class="pf-x" data-pf="close" aria-label="Закрыть">✕</button></div>
+    FEED.pfAv = d.avatar || "";
+    $("pfBody").innerHTML = `<div class="pf-head">${mine ? `<label class="pf-av-up" title="Сменить аватарку">${feedAvatar(u, d.nick, d.avatar)}<i>Фото</i><input type="file" id="pfAvFile" accept="image/*" hidden></label>` : feedAvatar(u, d.nick, d.avatar)}<div><b>${esc(d.nick || short(u))}</b><button type="button" class="pf-addr" data-pf="copy" title="Скопировать адрес">${esc(short(u))}</button></div><button type="button" class="pf-x" data-pf="close" aria-label="Закрыть">✕</button></div>
       ${d.bio ? `<p class="pf-bio">${esc(d.bio)}</p>` : ""}
       <div class="pf-stats"><div><b>${d.count}</b><span>постов</span></div><div><b>${d.likes}</b><span>лайков</span></div><div><b>${d.since ? new Date(d.since).toLocaleDateString("ru-RU", { month: "short", year: "numeric" }) : "—"}</b><span>с нами с</span></div></div>
       ${mine ? `<form class="pf-edit" id="pfForm"><label class="inp"><span>Ник</span><input id="pfNick" maxlength="20" value="${esc(d.nick)}" placeholder="например, btc_scalper" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label class="inp pf-bio-in"><span>О себе</span><textarea id="pfBio" maxlength="160" rows="2" placeholder="Что торгуете, какой стиль">${esc(d.bio)}</textarea></label><button class="btn" type="submit" id="pfSave">Сохранить</button><small class="muted">Ник: 3–20 символов — буквы, цифры, пробел, _ . -</small></form>` : ""}
       <div class="pf-posts">${d.posts.length ? d.posts.map(feedPostHtml).join("") : '<p class="muted pad">Постов пока нет</p>'}</div>`;
     fixIcons($("pfBody"));
+    /* аватарка: квадрат по центру, 256×256 WebP — загружаем сразу, сохраняется кнопкой «Сохранить» */
+    $("pfAvFile") &&
+      ($("pfAvFile").onchange = async (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const lab = e.target.closest(".pf-av-up");
+        lab.classList.add("up");
+        try {
+          const img = await createImageBitmap(f),
+            m = Math.min(img.width, img.height),
+            c = document.createElement("canvas");
+          c.width = c.height = 256;
+          c.getContext("2d").drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, 256, 256);
+          const blob = await new Promise((r) => c.toBlob(r, "image/webp", 0.85));
+          const d2 = await feedSigned("upload", JSON.stringify({ size: blob.size, type: "image/webp" }), { data: await blob64(blob) });
+          FEED.pfAv = d2.u;
+          lab.querySelector(".fd-av").outerHTML = feedAvatar(u, "", d2.u);
+          toast("Фото загружено — нажмите «Сохранить»", "info");
+        } catch (err) {
+          toast(err.message || "Не получилось загрузить фото", "err");
+        }
+        lab.classList.remove("up");
+      });
     $("pfForm") &&
       ($("pfForm").onsubmit = async (e) => {
         e.preventDefault();
         const b = $("pfSave");
         setBusy(b, !0, "Сохраняем…");
         try {
-          const r = await feedSigned("profile", JSON.stringify({ nick: $("pfNick").value.trim(), bio: $("pfBio").value }));
+          const r = await feedSigned("profile", JSON.stringify({ nick: $("pfNick").value.trim(), bio: $("pfBio").value, avatar: FEED.pfAv || "" }));
           FEED.myNick = r.nick;
+          FEED.myAv = r.avatar || "";
           feedMeRender();
           toast("Профиль сохранён", "ok");
           feedLoad(!1, !0);
@@ -7602,7 +7660,7 @@ function feedPos(p) {
 function feedPostHtml(p) {
   const me = (S.user || "").toLowerCase();
   return `<article class="fd-post" data-id="${esc(p.id)}">
-      <header><button type="button" class="fd-au" data-feed="prof">${feedAvatar(p.user, p.nick)}<span><b>${esc(p.nick || short(p.user))}</b><small>${p.nick ? `${esc(short(p.user))} · ` : ""}${agoRu(p.ts)}</small></span></button>${p.user === me ? `<button class="fd-del" type="button" data-feed="del" title="Удалить пост">✕</button>` : ""}</header>
+      <header><button type="button" class="fd-au" data-feed="prof">${feedAvatar(p.user, p.nick, p.avatar)}<span><b>${esc(p.nick || short(p.user))}</b><small>${p.nick ? `${esc(short(p.user))} · ` : ""}${agoRu(p.ts)}</small></span></button>${p.user === me ? `<button class="fd-del" type="button" data-feed="del" title="Удалить пост">✕</button>` : ""}</header>
       ${p.text ? `<p>${esc(p.text).replace(/\n/g, "<br>")}</p>` : ""}
       ${feedPos(p.pos)}${feedMedia(p.media)}
       <footer><button type="button" class="fd-like${p.liked ? " on" : ""}" data-feed="like"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>${p.likes || ""}</span></button></footer>
