@@ -651,6 +651,8 @@ function initChart() {
   })),
     applyChartTheme(),
     createMainSeries());
+  chart.subscribeCrosshairMove((p) => chartType === "original" && cvLegend(p));
+  chartType === "original" && setTimeout(() => setChartView("original"), 0);
   /* догружаем историю, когда человек листает график влево почти до начала */
   chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
     r && r.from < 40 && loadOlder();
@@ -1053,7 +1055,7 @@ function scheduleIndicatorsLazy() {
 function onCandle(i) {
   if (!i || i.s !== S.coin || i.i !== S.interval) return;
   S.live.candle = !0;
-  let t = toBar(i);
+  let t = { ...toBar(i), v: +i.v };
   /* поток свечей отстаёт от сделок: свежую цену из сделок не откатываем назад */
   if (TICK.bar && TICK.bar.time === t.time && Date.now() - TICK.at < 2500)
     t = { ...t, close: TICK.bar.close, high: Math.max(t.high, TICK.bar.high), low: Math.min(t.low, TICK.bar.low) };
@@ -1242,8 +1244,12 @@ function renderDepth() {
   }
 }
 function setChartView(i) {
+  /* «Original» — наш вид свечей с объёмом; «Обычный» возвращает прежний вид */
+  if (i === "original") (chartType !== "original" && ((S.prevType = chartType), setChartType("original")), (i = "candles"), (S.cvOn = 1));
+  else if (i === "candles" && chartType === "original") (setChartType(S.prevType && S.prevType !== "original" ? S.prevType : "candles"), (S.cvOn = 0));
+  const on = i === "candles" && chartType === "original" ? "original" : i;
   ((S.chartView = i),
-    document.querySelectorAll("[data-view]").forEach((t) => t.classList.toggle("on", t.dataset.view === i)),
+    document.querySelectorAll("[data-view]").forEach((t) => t.classList.toggle("on", t.dataset.view === on)),
     $("paneChart").classList.toggle("depth-on", i === "depth"),
     i === "depth" && requestAnimationFrame(renderDepth));
 }
@@ -1260,6 +1266,7 @@ function onTrades(i) {
     .slice(0, 40)),
     renderTrades(),
     scTrades(t),
+    cvDeltaAdd(t),
     tradeTick(t));
 }
 function renderTrades() {
@@ -1475,7 +1482,9 @@ function signWait(wc) {
       ? isPhone()
         ? "Сейчас откроется приложение кошелька. Если не открылось — откройте его сами: запрос подписи уже там."
         : "Запрос подписи отправлен в кошелёк на телефоне. Откройте приложение кошелька (например, OKX) — уведомления может не быть, запрос ждёт внутри."
-      : "Откройте окно кошелька: значок расширения в правом верхнем углу браузера (иногда окно открывается за этой вкладкой)."
+      : isPhone()
+        ? "Окно подписи откроется в кошельке поверх страницы. Проверьте и подтвердите."
+        : "Откройте окно кошелька: значок расширения в правом верхнем углу браузера (иногда окно открывается за этой вкладкой)."
   }</p><small id="swT">0:00</small><button type="button" class="btn ghost" id="swCancel">Отмена</button></div>`;
   d.hidden = !1;
   const iv = setInterval(() => {
@@ -2490,6 +2499,7 @@ var CHART_TYPES = {
     area: "Область",
     baseline: "Базовая линия",
     columns: "Колонны",
+    original: "Original — объём в свече",
   },
   chartType = "candles";
 try {
@@ -2498,11 +2508,151 @@ try {
 CHART_TYPES[chartType] || (chartType = "candles");
 var UP_COLOR = "#16a34a",
   DOWN_COLOR = "#e11d48";
+/* ═══════════ График Original: объём виден в каждой свече ═══════════
+   Ширина и яркость свечи — от её объёма (широкая и яркая — торговали много, узкая и
+   тусклая — почти не торговали). Под свечой — полоска «покупки / продажи» по живым
+   сделкам (собирается, пока открыт сайт). Точка над свечой — всплеск объёма. */
+var CV = { delta: new Map() };
+function cvDeltaAdd(list) {
+  const ms = INTERVAL_MS[S.interval];
+  if (!ms) return;
+  for (const t of list) {
+    const bt = (Math.floor(t.time / ms) * ms) / 1e3,
+      usd = +t.px * +t.sz,
+      o = CV.delta.get(bt) || { b: 0, s: 0, n: 0 };
+    t.side === "B" ? (o.b += usd) : (o.s += usd);
+    o.n++;
+    CV.delta.set(bt, o);
+  }
+  CV.delta.size > 3e3 && CV.delta.delete(CV.delta.keys().next().value);
+}
+const cvCompact = (v) => (v >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(v >= 1e4 ? 0 : 1)}K` : v.toFixed(0));
+class CvRenderer {
+  draw(target, conv) {
+    const d = this.d;
+    if (!d?.visibleRange || !d.bars.length) return;
+    target.useBitmapCoordinateSpace(({ context: c, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
+      const { from, to } = d.visibleRange,
+        vis = d.bars.slice(Math.max(0, from), Math.min(d.bars.length, to + 1));
+      if (!vis.length) return;
+      const vols = vis.map((b) => b.originalData.usd || 0),
+        mx = Math.max(...vols, 1),
+        avg = vols.reduce((a, v) => a + v, 0) / vols.length || 1,
+        sp = d.barSpacing * (d.conflationFactor || 1),
+        up = this.o.upColor,
+        dn = this.o.downColor;
+      c.save();
+      for (const b of vis) {
+        const o = b.originalData,
+          v = o.usd || 0,
+          rel = Math.sqrt(v / mx),
+          w = Math.max(1, Math.min(sp * 0.92, sp * (0.22 + 0.7 * rel))) * hr,
+          x = Math.round(b.x * hr),
+          yo = conv(o.open) * vr,
+          yc = conv(o.close) * vr,
+          yh = conv(o.high) * vr,
+          yl = conv(o.low) * vr,
+          isUp = o.close >= o.open,
+          a = Math.max(0.28, Math.min(1, 0.3 + 0.7 * (v / (avg * 1.6))));
+        if ([yo, yc, yh, yl].some((y) => !Number.isFinite(y))) continue;
+        c.globalAlpha = a;
+        c.fillStyle = c.strokeStyle = isUp ? up : dn;
+        c.fillRect(x - Math.max(1, hr) / 2, Math.min(yh, yl), Math.max(1, hr), Math.abs(yl - yh));
+        const top = Math.min(yo, yc),
+          h = Math.max(Math.abs(yc - yo), 1 * vr);
+        c.fillRect(x - w / 2, top, w, h);
+        c.globalAlpha = 1;
+        /* покупки / продажи под свечой */
+        const dl = CV.delta.get(o.time);
+        if (dl && dl.b + dl.s > 0 && sp > 4) {
+          const bw = Math.max(w, 3 * hr),
+            yb = yl + 4 * vr,
+            fb = dl.b / (dl.b + dl.s);
+          c.fillStyle = up;
+          c.fillRect(x - bw / 2, yb, bw * fb, 3 * vr);
+          c.fillStyle = dn;
+          c.fillRect(x - bw / 2 + bw * fb, yb, bw * (1 - fb), 3 * vr);
+        }
+        /* всплеск объёма */
+        if (v > avg * 2.6) {
+          const r = Math.max(2, Math.min(4, sp / 6)) * hr;
+          c.fillStyle = isUp ? up : dn;
+          c.globalAlpha = 0.25;
+          c.beginPath();
+          c.arc(x, yh - 9 * vr, r * 2.2, 0, Math.PI * 2);
+          c.fill();
+          c.globalAlpha = 1;
+          c.beginPath();
+          c.arc(x, yh - 9 * vr, r, 0, Math.PI * 2);
+          c.fill();
+        }
+        /* сумма объёма — когда свечи крупные */
+        if (sp >= 30 && v > 0) {
+          c.font = `${10 * vr}px "Manrope",system-ui,sans-serif`;
+          c.textAlign = "center";
+          c.fillStyle = this.o.textColor;
+          c.fillText(`$${cvCompact(v)}`, x, yh - (v > avg * 2.6 ? 18 : 6) * vr);
+        }
+      }
+      c.restore();
+    });
+  }
+}
+class CvView {
+  constructor() {
+    this.r = new CvRenderer();
+  }
+  renderer() {
+    return this.r;
+  }
+  update(d, o) {
+    this.r.d = d;
+    this.r.o = o;
+  }
+  priceValueBuilder(b) {
+    return [b.low, b.high, b.close];
+  }
+  isWhitespace(b) {
+    return b.close === void 0;
+  }
+  defaultOptions() {
+    return { upColor: UP_COLOR, downColor: DOWN_COLOR, textColor: "rgba(148,163,184,.9)", priceLineVisible: !0, lastValueVisible: !0, color: UP_COLOR };
+  }
+}
+const cvRow = (b, v) => ({ ...b, usd: (v ?? 0) * ((b.high + b.low) / 2) });
+function cvVolOf(t) {
+  const v = S.vols?.length && S.vols.at(-1).time === t ? S.vols.at(-1) : S.vols?.find((x) => x.time === t);
+  return v ? v.value : 0;
+}
+/* подсказка над графиком: объём, покупки/продажи, число сделок */
+function cvLegend(p) {
+  let el = $("cvLegend");
+  if (chartType !== "original") return el && (el.hidden = !0);
+  el || ((el = document.createElement("div")), (el.id = "cvLegend"), (el.className = "cv-legend"), $("chart").appendChild(el));
+  const b = p?.time ? S.bars?.find((x) => x.time === p.time) : S.bars?.at(-1);
+  if (!b) return void (el.hidden = !0);
+  const v = cvVolOf(b.time) * ((b.high + b.low) / 2),
+    dl = CV.delta.get(b.time),
+    ch = (b.close / b.open - 1) * 100;
+  el.hidden = !1;
+  el.innerHTML = `<b class="${ch >= 0 ? "pos" : "neg"}">${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b><span>Объём <b>$${cvCompact(v)}</b></span>${
+    dl ? `<span>Покупки <b class="pos">$${cvCompact(dl.b)}</b></span><span>Продажи <b class="neg">$${cvCompact(dl.s)}</b></span><span>Сделок <b>${dl.n}</b></span>` : '<span class="muted">покупки/продажи появятся по живым сделкам</span>'
+  }`;
+}
 function createMainSeries() {
   let i = {
     priceLineVisible: !0,
     lastValueVisible: !0,
   };
+  if (chartType === "original") {
+    candleSeries = chart.addCustomSeries(new CvView(), { ...i, upColor: UP_COLOR, downColor: DOWN_COLOR });
+    S.priceFormat && candleSeries.applyOptions({ priceFormat: S.priceFormat });
+    try {
+      candleSeries.attachPrimitive(drawPrimitive);
+    } catch {}
+    return void cvLegend();
+  }
+  $("cvLegend") && ($("cvLegend").hidden = !0);
   switch (chartType) {
     case "hollow":
       candleSeries = chart.addSeries(CandlestickSeries, {
@@ -2608,6 +2758,10 @@ function heikinAshi(i) {
 }
 function seriesData() {
   let i = S.bars || [];
+  if (chartType === "original") {
+    const vm = new Map((S.vols || []).map((v) => [v.time, v.value]));
+    return i.map((b) => cvRow(b, vm.get(b.time)));
+  }
   return ["candles", "hollow", "bars"].includes(chartType)
     ? i
     : chartType === "heikin"
@@ -2699,6 +2853,7 @@ function setSeriesData() {
       }));
 }
 function updateSeriesBar(i) {
+  if (chartType === "original") return candleSeries.update(cvRow(i, i.v ?? cvVolOf(i.time))), cvLegend();
   if (["candles", "hollow", "bars"].includes(chartType)) candleSeries.update(i);
   else if (chartType === "heikin") {
     let t = heikinAshi(S.bars || [i]);
@@ -2728,6 +2883,8 @@ function setChartType(i) {
       (chartLines = []),
       createMainSeries(),
       setSeriesData(),
+      /* при замене основной серии библиотека сдвигала панель объёма на место цены — перестраиваем панели сразу */
+      renderIndicators(),
       drawChartLines(),
       ($("ctypeLabel").textContent = CHART_TYPES[i]),
       document.querySelectorAll("[data-ctype]").forEach((t) => t.classList.toggle("on", t.dataset.ctype === i)));
@@ -7228,7 +7385,7 @@ function toggleInlineChart(i) {
    Пост подписывается ключом для сделок (он уже на устройстве) — окна кошелька нет.
    Сервер проверяет на Hyperliquid, что ключ выдан этим кошельком. Позицию к посту
    сервер тоже берёт с Hyperliquid сам — нарисовать прибыль нельзя. */
-var FEED = { posts: [], more: !1, busy: 0, t: 0, nodb: !1, err: "" };
+var FEED = { posts: [], more: !1, busy: 0, t: 0, nodb: !1, err: "", att: null, media: [], up: 0, video: !1, fp: "open" };
 const agoRu = (t) => {
   const s = Math.max(1, Math.floor((Date.now() - t) / 1e3));
   return s < 60 ? "только что" : s < 3600 ? `${Math.floor(s / 60)} мин назад` : s < 86400 ? `${Math.floor(s / 3600)} ч назад` : new Date(t).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
@@ -7240,9 +7397,7 @@ function feedOpen() {
   FEED.t = setInterval(() => document.body.dataset.cp === "feed" && !document.hidden && feedLoad(!1, !0), 2e4);
 }
 function feedCompose() {
-  const p = S.positions.find((x) => x.coin === S.coin);
-  $("feedAttRow").hidden = !p;
-  p && ($("feedAttTxt").textContent = `Приложить позицию ${dexBase(p.coin)} (${Number(p.szi) > 0 ? "лонг" : "шорт"}) — цифры возьмём с Hyperliquid`);
+  feedAttsRender();
   $("feedHint").textContent = !S.user
     ? "Подключите кошелёк, чтобы писать в ленту"
     : !S.agent
@@ -7261,6 +7416,7 @@ async function feedLoad(more = !1, quiet = !1) {
       FEED.nodb = !1;
       FEED.err = "";
       FEED.posts = more ? [...FEED.posts, ...d.posts] : d.posts;
+      FEED.video = !!d.video;
       FEED.more = d.more;
     }
   } catch (e) {
@@ -7269,13 +7425,13 @@ async function feedLoad(more = !1, quiet = !1) {
   FEED.busy = 0;
   feedRender();
 }
-async function feedSigned(act, payload) {
+async function feedSigned(act, payload, extra = {}) {
   if (!S.user) throw new Error("Подключите кошелёк");
   if (!S.agent) throw new Error("Включите торговлю: пост подписывается ключом для сделок");
   const ts = Date.now(),
     msg = `Totum feed\n${act}\n${S.user.toLowerCase()}\n${ts}\n${payload}`,
     sig = await S.agent.signMessage({ message: msg });
-  const r = await fetch("/api/feed", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ user: S.user, agent: S.agent.address, ts, sig, act, payload }) });
+  const r = await fetch("/api/feed", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ user: S.user, agent: S.agent.address, ts, sig, act, payload, ...extra }) });
   const d = await r.json().catch(() => ({}));
   if (r.status === 503) throw new Error("Лента ещё не подключена к базе");
   if (!r.ok) throw new Error(d.error || `Ошибка ${r.status}`);
@@ -7284,8 +7440,23 @@ async function feedSigned(act, payload) {
 function feedAvatar(u) {
   return `<span class="fd-av" style="--h:${icHue(u)}">${esc(u.slice(2, 4))}</span>`;
 }
+function feedMedia(m) {
+  if (!m?.length) return "";
+  return `<div class="fd-media n${Math.min(m.length, 4)}">${m
+    .map((x) => (x.k === "vid" ? `<video src="${esc(x.u)}" controls playsinline preload="metadata"></video>` : `<img src="${esc(x.u)}" alt="" loading="lazy" decoding="async" data-feed="view">`))
+    .join("")}</div>`;
+}
 function feedPos(p) {
   if (!p) return "";
+  if (p.kind === "closed") {
+    const pnl = Number(p.pnl),
+      roe = p.roe != null ? Number(p.roe) * 100 : null,
+      long = /Long/.test(p.dir || "");
+    return `<div class="fd-pos ${pnl >= 0 ? "up" : "dn"}" data-go="${esc(p.coin)}">
+    ${coinIcon(p.coin)}<div><b>${esc(dexBase(p.coin))} <em class="fd-cl">закрыта</em></b><small>${long ? "Лонг" : "Шорт"} · ${p.entry ? `вход ${fmtPx(p.entry)} → ` : ""}выход ${fmtPx(p.px)}</small></div>
+    <div class="fd-pnl"><b>${roe != null ? `${roe >= 0 ? "+" : ""}${roe.toFixed(1)}%` : sgnUsd(pnl)}</b><small>${sgnUsd(pnl)} · ${new Date(p.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</small></div>
+    <span class="fd-ok" title="Сделка найдена в истории Hyperliquid">✓ Hyperliquid</span></div>`;
+  }
   const long = Number(p.szi) > 0,
     pnl = Number(p.pnl),
     roe = Number(p.roe) * 100;
@@ -7307,8 +7478,8 @@ function feedRender() {
       .map(
         (p) => `<article class="fd-post" data-id="${esc(p.id)}">
       <header>${feedAvatar(p.user)}<div><b>${esc(short(p.user))}</b><small>${agoRu(p.ts)}</small></div>${p.user === me ? `<button class="fd-del" type="button" data-feed="del" title="Удалить пост">✕</button>` : ""}</header>
-      <p>${esc(p.text).replace(/\n/g, "<br>")}</p>
-      ${feedPos(p.pos)}
+      ${p.text ? `<p>${esc(p.text).replace(/\n/g, "<br>")}</p>` : ""}
+      ${feedPos(p.pos)}${feedMedia(p.media)}
       <footer><button type="button" class="fd-like${p.liked ? " on" : ""}" data-feed="like"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>${p.likes || ""}</span></button></footer>
     </article>`,
       )
@@ -7318,13 +7489,15 @@ function feedRender() {
 async function feedPublish() {
   const t = $("feedText").value.trim(),
     b = $("feedGo");
-  if (t.length < 2) return toast("Напишите хотя бы пару слов", "err");
+  if (t.length < 2 && !FEED.att && !FEED.media.length) return toast("Напишите пару слов, приложите позицию или фото", "err");
+  if (FEED.up) return toast("Подождите — файл ещё загружается", "info");
   setBusy(b, !0, "Публикуем…");
   try {
-    const coin = !$("feedAttRow").hidden && $("feedAtt").checked ? S.coin : "";
-    const d = await feedSigned("post", JSON.stringify({ text: t, coin }));
+    const d = await feedSigned("post", JSON.stringify({ text: t, att: FEED.att, media: FEED.media.filter((x) => x.u) }));
     $("feedText").value = "";
-    $("feedAtt").checked = !1;
+    FEED.att = null;
+    FEED.media = [];
+    feedAttsRender();
     FEED.posts = [d.post, ...FEED.posts.filter((x) => x.id !== d.post.id)];
     FEED.nodb = !1;
     feedRender();
@@ -7333,12 +7506,112 @@ async function feedPublish() {
   }
   setBusy(b, !1);
 }
+function feedView(src) {
+  $("fvBody").innerHTML = `<img src="${esc(src)}" alt="">`;
+  $("feedView").showModal();
+}
+/* вложения в черновике: позиция и файлы */
+function feedAttsRender() {
+  const el = $("feedAtts");
+  if (!el) return;
+  const a = FEED.att;
+  el.innerHTML =
+    (a ? `<span class="fc-chip">${coinIcon(a.coin)}<b>${esc(dexBase(a.coin))}</b><small>${esc(a.label)}</small><button type="button" data-fcx="att" aria-label="Убрать">✕</button></span>` : "") +
+    FEED.media.map((m, k) => `<span class="fc-thumb${m.u ? "" : " up"}">${m.k === "vid" ? `<video src="${esc(m.prev)}" muted></video>` : `<img src="${esc(m.prev)}" alt="">`}${m.u ? "" : "<i></i>"}<button type="button" data-fcx="${k}" aria-label="Убрать">✕</button></span>`).join("");
+  el.hidden = !el.innerHTML;
+}
+function feedPickRender() {
+  const list = $("fpList"),
+    tab = FEED.fp;
+  document.querySelectorAll("[data-fp]").forEach((b) => b.classList.toggle("on", b.dataset.fp === tab));
+  let rows = [];
+  if (tab === "open")
+    rows = S.positions.map((p) => {
+      const c = S.ctx[p.coin],
+        pnl = Number(p.unrealizedPnl || 0),
+        long = Number(p.szi) > 0;
+      return { kind: "open", coin: p.coin, label: `${long ? "Лонг" : "Шорт"} ${p.leverage?.value || ""}x`, pnl, sub: `вход ${fmtPx(p.entryPx)}${c ? ` · сейчас ${fmtPx(c.markPx)}` : ""}` };
+    });
+  else {
+    /* закрытые сделки: заявки, у которых есть закрытый PnL (из истории сделок) */
+    const by = new Map();
+    for (const f of S.fills || []) {
+      if (!Number(f.closedPnl) || !/Close|>/.test(f.dir || "")) continue;
+      const o = by.get(f.oid) || { kind: "closed", oid: f.oid, coin: f.coin, dir: f.dir, pnl: 0, sz: 0, time: f.time, px: f.px };
+      o.pnl += Number(f.closedPnl) - Number(f.fee || 0);
+      o.sz += Number(f.sz);
+      by.set(f.oid, o);
+    }
+    rows = [...by.values()].sort((a, b) => b.time - a.time).slice(0, 40).map((o) => ({ ...o, label: /Long/.test(o.dir) ? "Лонг закрыт" : "Шорт закрыт", sub: `${new Date(o.time).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · выход ${fmtPx(o.px)}` }));
+  }
+  FEED.fpRows = rows;
+  list.innerHTML = rows.length
+    ? rows.map((r, k) => `<button type="button" class="fp-row" data-fpi="${k}">${coinIcon(r.coin)}<div><b>${esc(dexBase(r.coin))} <small>${esc(r.label)}</small></b><span>${esc(r.sub)}</span></div><em class="${r.pnl >= 0 ? "pos" : "neg"}">${sgnUsd(r.pnl)}</em></button>`).join("")
+    : `<p class="muted pad">${tab === "open" ? "Открытых позиций нет" : "Закрытых сделок пока нет"}</p>`;
+  fixIcons(list);
+}
+async function feedOpenPick() {
+  if (!S.user) return toast("Подключите кошелёк", "err");
+  FEED.fp = S.positions.length ? "open" : "closed";
+  if (!S.fills?.length)
+    try {
+      S.fills = (await info.userFills({ user: S.user })) || [];
+    } catch {}
+  feedPickRender();
+  $("feedPick").showModal();
+}
+/* фото сжимаем в браузере (до 1600 px, WebP) — пост грузится быстро даже на мобильном интернете */
+async function feedShrink(file) {
+  const img = await createImageBitmap(file).catch(() => null);
+  if (!img) throw new Error("Не получилось открыть картинку");
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height)),
+    c = document.createElement("canvas");
+  c.width = Math.round(img.width * k);
+  c.height = Math.round(img.height * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  for (const q of [0.82, 0.7, 0.55, 0.4]) {
+    const b = await new Promise((r) => c.toBlob(r, "image/webp", q));
+    if (b && b.size < 580e3) return { blob: b, w: c.width, h: c.height };
+  }
+  throw new Error("Картинка слишком большая");
+}
+const blob64 = (blob) => new Promise((r) => { const f = new FileReader(); f.onload = () => r(String(f.result).split(",")[1]); f.readAsDataURL(blob); });
+async function feedFiles(files) {
+  for (const file of [...files].slice(0, 4 - FEED.media.length)) {
+    const vid = /^video\//.test(file.type),
+      m = { k: vid ? "vid" : "img", prev: URL.createObjectURL(file), u: "" };
+    if (vid && !FEED.video) {
+      toast("Видео включится, когда подключат хранилище файлов. Пока можно фото.", "info");
+      continue;
+    }
+    if (vid && file.size > 3.2e6) {
+      toast("Видео до 3 МБ (около 15–20 секунд)", "err");
+      continue;
+    }
+    FEED.media.push(m);
+    FEED.up++;
+    feedAttsRender();
+    try {
+      const { blob, w, h } = vid ? { blob: file, w: 0, h: 0 } : await feedShrink(file);
+      const type = vid ? file.type : "image/webp",
+        data = await blob64(blob);
+      const d = await feedSigned("upload", JSON.stringify({ size: blob.size, type }), { data });
+      Object.assign(m, { u: d.u, w, h });
+    } catch (e) {
+      FEED.media = FEED.media.filter((x) => x !== m);
+      toast(e.message || String(e), "err");
+    }
+    FEED.up--;
+    feedAttsRender();
+  }
+}
 async function feedClick(e) {
   const a = e.target.closest("[data-feed]"),
     go = e.target.closest("[data-go]");
   if (!a) return void (go && switchCoin(go.dataset.go));
   const id = a.closest("[data-id]")?.dataset.id,
     k = a.dataset.feed;
+  if (k === "view") return feedView(a.src);
   if (k === "more") return feedLoad(!0);
   if (k === "reload") return feedLoad();
   const p = FEED.posts.find((x) => x.id === id);
@@ -8468,21 +8741,30 @@ function lnFx() {
     } catch {}
   };
   seen($("lnFast"), (v) => (clearInterval(pt), v && (ping(), (pt = setInterval(ping, 1500)))));
-  /* «Как начать»: экран телефона проигрывает шаги */
-  const gs = $("gs");
-  let gst = 0, gt = 0, gon = !1;
-  const gset = (n) => {
-    gst = n;
-    gs.classList.remove("play");
-    gs.dataset.step = n;
-    gs.querySelectorAll("[data-gs]").forEach((li, k) => (li.classList.toggle("on", k === n), li.classList.toggle("done", k < n)));
-    gs.offsetWidth;
-    gs.classList.add("play");
-    clearTimeout(gt);
-    gon && (gt = setTimeout(() => gset((gst + 1) % 3), 3600));
-  };
-  gs && (gs.querySelectorAll("[data-gs]").forEach((li) => (li.onclick = () => gset(Number(li.dataset.gs)))),
-    seen(gs, (v) => ((gon = v), v ? gset(gst) : clearTimeout(gt))));
+  /* «Как начать»: запись настоящего сайта на телефоне; шаги слева идут в такт видео,
+     нажатие на шаг перематывает к нему. Видео грузится, только когда раздел рядом. */
+  const gs = $("gs"),
+    vid = $("gsVid");
+  if (gs && vid) {
+    const mk = [0, ...vid.dataset.marks.split(",").map(Number)];
+    const mark = (n) => {
+      gs.dataset.step = n;
+      gs.querySelectorAll("[data-gs]").forEach((li, k) => (li.classList.toggle("on", k === n), li.classList.toggle("done", k < n)));
+    };
+    vid.addEventListener("timeupdate", () => {
+      const t = vid.currentTime;
+      mark(t >= mk[2] ? 2 : t >= mk[1] ? 1 : 0);
+    });
+    gs.querySelectorAll("[data-gs]").forEach((li) => (li.onclick = () => {
+      const n = Number(li.dataset.gs);
+      vid.src || ((vid.src = vid.dataset.src), vid.load());
+      vid.currentTime = mk[n] + 0.05;
+      mark(n);
+      vid.play().catch(() => {});
+    }));
+    new IntersectionObserver(([x]) => x.isIntersecting && !vid.src && ((vid.src = vid.dataset.src), vid.load()), { rootMargin: "600px" }).observe(gs);
+    seen(gs, (v) => (v ? (vid.src || ((vid.src = vid.dataset.src), vid.load()), vid.play().catch(() => {})) : vid.pause()));
+  }
   /* финал: слова заголовка по очереди, живой 3D-знак на компьютере, кнопка тянется за курсором */
   const fin = $("lnFinal");
   seen(fin, (v) => {
@@ -9019,8 +9301,30 @@ function bindSettings() {
     }),
     ($("closeCancel").onclick = () => $("closeDialog").close()),
     ($("feedGo").onclick = feedPublish),
+    ($("feedPosBtn").onclick = feedOpenPick),
+    ($("fpCancel").onclick = () => $("feedPick").close()),
+    document.querySelectorAll("[data-fp]").forEach((b) => (b.onclick = () => ((FEED.fp = b.dataset.fp), feedPickRender()))),
+    ($("fpList").onclick = (e) => {
+      const r = FEED.fpRows?.[Number(e.target.closest("[data-fpi]")?.dataset.fpi)];
+      if (!r) return;
+      FEED.att = r.kind === "open" ? { kind: "open", coin: r.coin, label: r.label } : { kind: "closed", oid: r.oid, coin: r.coin, label: r.label };
+      $("feedPick").close();
+      feedAttsRender();
+    }),
+    ($("feedFile").onchange = (e) => (feedFiles(e.target.files), (e.target.value = ""))),
+    ($("feedAtts").onclick = (e) => {
+      const x = e.target.closest("[data-fcx]")?.dataset.fcx;
+      if (x == null) return;
+      x === "att" ? (FEED.att = null) : FEED.media.splice(Number(x), 1);
+      feedAttsRender();
+    }),
+    ($("fvClose").onclick = () => $("feedView").close()),
+    ($("feedView").onclick = (e) => e.target === $("feedView") && $("feedView").close()),
     ($("feedList").onclick = feedClick),
-    ($("feedText").onkeydown = (e) => (e.ctrlKey || e.metaKey) && e.key === "Enter" && feedPublish()),
+    /* обработчик ничего не возвращает: «false» из onkeydown браузер считает отменой нажатия */
+    ($("feedText").onkeydown = (e) => {
+      (e.ctrlKey || e.metaKey) && e.key === "Enter" && feedPublish();
+    }),
     document.querySelectorAll("#closeTabs [data-ct]").forEach((i) => (i.onclick = () => setCloseType(i.dataset.ct))),
     ($("btnCloseAll").onclick = closeAll),
     document.querySelectorAll("[data-sside]").forEach((i) => (i.onclick = () => setSpotSide(i.dataset.sside))),

@@ -12,5 +12,8 @@
     "lightweight-charts": "^5.1.0",
     "three": "^0.169.0",
     "viem": "^2.57.10"
+  },
+  "devDependencies": {
+    "@vercel/blob": "^2.8.2"
   }
 }

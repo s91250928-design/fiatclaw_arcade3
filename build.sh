@@ -16,5 +16,6 @@ echo '[]' > dist/icons.json            # на Vercel заменяется скр
 npx esbuild server/payout.src.mjs --bundle --platform=node --format=esm --target=node20 --minify \
   --outfile=deploy/api/payout.mjs --log-level=warning
 npx esbuild server/feed.src.mjs --bundle --platform=node --format=esm --target=node20 --minify \
+  --banner:js="import{createRequire as __cr}from'module';const require=__cr(import.meta.url);" \
   --outfile=deploy/api/feed.mjs --log-level=warning
 echo "⚡ Готово: dist/"
