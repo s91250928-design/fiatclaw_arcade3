@@ -7,7 +7,7 @@ const OUT = process.argv[2] || "/tmp/claude-0/rec", SHOT = process.env.SHOT === 
 const user = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
 const now = Date.now(); let agent = null, filled = false, mid = 0;
 const b = await pw.chromium.launch({ args: ["--force-device-scale-factor=3"] });
-const ctx = await b.newContext({ ...pw.devices["iPhone 13"], viewport: { width: 390, height: 812 }, screen: { width: 390, height: 812 }, deviceScaleFactor: 3, colorScheme: "dark" });
+const ctx = await b.newContext({ ...pw.devices["iPhone 13"], viewport: { width: 402, height: 820 }, screen: { width: 402, height: 874 }, deviceScaleFactor: 3, colorScheme: "dark" });
 const p = await ctx.newPage();
 await p.exposeFunction("__ethReq", async (method, params) => {
   if (method === "eth_requestAccounts" || method === "eth_accounts") return method === "eth_accounts" && !globalThis.__conn ? [] : ((globalThis.__conn = 1), [user.address]);
@@ -47,7 +47,7 @@ if (SHOT) { await p.screenshot({ path: OUT + "/s0.png" }); }
 /* запись кадров (CDP screencast) */
 const cdp = await ctx.newCDPSession(p); const frames = []; let t0 = 0, mark = [];
 cdp.on("Page.screencastFrame", async (f) => { frames.push({ t: f.metadata.timestamp, d: f.data }); cdp.send("Page.screencastFrameAck", { sessionId: f.sessionId }).catch(() => {}); });
-const start = async () => { await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, everyNthFrame: 1, maxWidth: 1170, maxHeight: 2436 }); };
+const start = async () => { await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, everyNthFrame: 1, maxWidth: 1206, maxHeight: 2460 }); };
 const tap = async (sel) => { const bb = await p.locator(sel).first().boundingBox(); await p.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await p.mouse.down(); await p.waitForTimeout(90); await p.mouse.up(); };
 const stamp = (n) => mark.push({ n, t: Date.now() / 1e3 });
 await start(); await p.waitForTimeout(400);
