@@ -825,7 +825,7 @@ body[data-view="landing"] #landing{display:block}
 .ln-run{display:flex}
 .ln-tk{display:flex;align-items:center;gap:8px;padding:14px 26px;background:none;border:0;border-right:1px solid var(--ln-line);color:var(--ln-text);font:500 15px "Manrope",var(--font);cursor:pointer;white-space:nowrap}
 .ln-tk:hover{background:rgba(47,107,255,.10)}
-.ln-tk .coin-ic,.ln-pair .coin-ic{width:22px;height:22px;font-size:11px}
+.ln-tk .coin-ic,.ln-pair .coin-ic{width:22px;height:22px;font-size:9.5px}
 .ln-tk .px{font-variant-numeric:tabular-nums;color:#c3d2ee}
 .landing .up{color:var(--ln-up)} .landing .dn{color:var(--ln-dn)}
 @keyframes ln-run{to{transform:translateX(-50%)}}
@@ -1603,6 +1603,11 @@ body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
   .ln-fast b{font-size:17px}
   .ln-steps{grid-template-columns:1fr}
   .ln-table th:nth-child(4),.ln-table td:nth-child(4),.ln-table th:nth-child(5),.ln-table td:nth-child(5){display:none}
+  /* телефон: вместо слова «Торговать» — компактная стрелка, видна всегда */
+  .ln-table td,.ln-table th{padding-left:8px;padding-right:8px}
+  .ln-table th:last-child,.ln-table td:last-child{width:26px;padding:0 4px 0 0}
+  .ln-trade{opacity:1;vertical-align:middle;display:inline-grid;place-items:center;width:24px;height:24px;border-radius:8px;font-size:0;background:rgba(56,189,248,.12)}
+  .ln-trade::after{content:"";width:7px;height:7px;border-top:2px solid var(--ln-cyan);border-right:2px solid var(--ln-cyan);transform:translateX(-1px) rotate(45deg)}
   .ln-final{margin-top:64px;padding:40px 16px}
   .ln-foot{flex-direction:column;gap:6px;padding:20px 16px}
 }
@@ -1627,3 +1632,222 @@ body.spot-mode .b-tabs [data-b="pos"]{display:none}
 body.is-scrolling .hero-card::before,body.is-scrolling .hero-card::after,body.is-scrolling .rw-card::before,
 body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net-state{animation-play-state:paused}
 @media (max-width:900px){.rw-glow{filter:none}}
+
+/* тема — внутри настроек (одна кнопка в шапке вместо двух) */
+.set-theme{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0}
+.set-theme>span{font-size:13px;color:var(--muted)}
+.set-theme .seg{min-width:190px}
+.set-theme .seg button{padding:6px 10px;font-size:12.5px}
+
+/* аватарка монеты без иконки: объёмный круг своего цвета и две буквы */
+.coin-ic{--h:220;background:radial-gradient(circle at 32% 26%,hsl(var(--h) 95% 72%) 0%,hsl(var(--h) 80% 52%) 45%,hsl(calc(var(--h) + 28) 75% 32%) 100%);
+  box-shadow:inset 0 -2px 4px rgba(0,0,0,.25),inset 0 1px 1px rgba(255,255,255,.35);color:#fff;font-size:9px;letter-spacing:-.02em;text-shadow:0 1px 1px rgba(0,0,0,.35);text-transform:uppercase}
+
+/* ═══ лента трейдеров ═══ */
+.feed-list{display:flex;flex-direction:column;gap:10px}
+.feed-att{font-size:12.5px;color:var(--muted)}
+.fd-post{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--panel);animation:fd-in .35s ease both}
+@keyframes fd-in{from{opacity:0;transform:translateY(6px)}}
+.fd-post header{display:flex;align-items:center;gap:10px}
+.fd-post header div{flex:1;display:flex;flex-direction:column}
+.fd-post header b{font:700 13.5px var(--mono,monospace)}
+.fd-post header small{font-size:11.5px;color:var(--muted)}
+.fd-av{--h:220;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:800 11px var(--mono,monospace);color:#fff;text-transform:uppercase;
+  background:radial-gradient(circle at 30% 25%,hsl(var(--h) 95% 70%),hsl(var(--h) 80% 48%) 50%,hsl(calc(var(--h) + 40) 75% 30%));box-shadow:inset 0 -2px 5px rgba(0,0,0,.3)}
+.fd-post p{margin:10px 0 0;line-height:1.5;font-size:14px;white-space:normal;overflow-wrap:anywhere}
+.fd-del{border:0;background:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px 6px;border-radius:6px}
+.fd-del:hover{color:var(--sell);background:var(--panel2)}
+.fd-pos{margin-top:10px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;cursor:pointer;position:relative;
+  background:linear-gradient(100deg,color-mix(in srgb,var(--buy) 12%,var(--panel2)),var(--panel2) 60%);border:1px solid color-mix(in srgb,var(--buy) 30%,var(--line))}
+.fd-pos.dn{background:linear-gradient(100deg,color-mix(in srgb,var(--sell) 12%,var(--panel2)),var(--panel2) 60%);border-color:color-mix(in srgb,var(--sell) 30%,var(--line))}
+.fd-pos .coin-ic{width:28px;height:28px}
+.fd-pos div{display:flex;flex-direction:column}
+.fd-pos small{font-size:11.5px;color:var(--muted)}
+.fd-pnl{text-align:right}
+.fd-pnl b{font:800 17px "Manrope",var(--font);color:var(--buy)}
+.fd-pos.dn .fd-pnl b{color:var(--sell)}
+.fd-ok{position:absolute;top:-8px;right:10px;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.fd-post footer{margin-top:8px;display:flex}
+.fd-like{display:inline-flex;align-items:center;gap:5px;border:0;background:none;color:var(--muted);cursor:pointer;padding:5px 8px;border-radius:8px;font:600 13px var(--font)}
+.fd-like svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;transition:transform .2s}
+.fd-like:hover{background:var(--panel2)}
+.fd-like.on{color:#f43f5e}.fd-like.on svg{fill:currentColor;animation:fd-pop .35s ease}
+@keyframes fd-pop{50%{transform:scale(1.35)}}
+.fd-more{align-self:center}
+.feed-skel{display:grid;gap:10px}.feed-skel i{height:84px;border-radius:14px;background:linear-gradient(90deg,var(--panel2),color-mix(in srgb,var(--panel2) 50%,var(--panel)),var(--panel2));background-size:200% 100%;animation:rw-sh 1.2s linear infinite}
+
+/* ═══ Лендинг: «Почему безопасно» — живая схема ключа ═══ */
+.kf{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:28px;align-items:center}
+.kf-stages{display:flex;flex-direction:column;gap:6px}
+.kf-st{all:unset;cursor:pointer;display:grid;grid-template-columns:3px 1fr;column-gap:16px;padding:14px 16px;border-radius:16px;transition:background .35s ease}
+.kf-st b{grid-column:2;font:700 19px "Manrope",var(--font);color:var(--ln-muted);transition:color .35s}
+.kf-st span{grid-column:2;font-size:14.5px;line-height:1.5;color:var(--ln-muted);max-height:0;opacity:0;overflow:hidden;transition:max-height .5s ease,opacity .4s ease,margin .4s;margin-top:0}
+.kf-bar{grid-row:1/3;width:3px;border-radius:3px;background:rgba(148,190,255,.15);overflow:hidden;position:relative}
+.kf-bar i{position:absolute;inset:0;transform-origin:top;transform:scaleY(0);background:linear-gradient(#38bdf8,#a78bfa)}
+.kf-st.on{background:rgba(47,107,255,.07)}
+.kf-st.on b{color:var(--ln-text)}
+.kf-st.on span{max-height:90px;opacity:1;margin-top:6px}
+.kf-st.on .kf-bar i{animation:kf-fill 3s linear forwards}
+.kf.paused .kf-st.on .kf-bar i{animation-play-state:paused}
+@keyframes kf-fill{to{transform:scaleY(1)}}
+.kf-viz{position:relative;border-radius:24px;border:1px solid var(--ln-line);background:radial-gradient(120% 90% at 50% 0%,rgba(47,107,255,.14),transparent 60%),#080e22;overflow:hidden}
+.kf-viz::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(148,190,255,.16) 1px,transparent 1.2px);background-size:22px 22px;mask:radial-gradient(70% 70% at 50% 50%,#000,transparent);-webkit-mask:radial-gradient(70% 70% at 50% 50%,#000,transparent)}
+.kf-viz svg{position:relative;display:block;width:100%;height:auto}
+.kf-rail{fill:none;stroke:rgba(148,190,255,.18);stroke-width:2;stroke-dasharray:4 6;transition:stroke .4s}
+.kf-back{stroke-dasharray:3 7}
+.kf-node text,.kf-shield text,.kf-lab{fill:#8fa3c7;font:600 13px "Manrope",sans-serif;text-anchor:middle}
+.kf-lab{font-size:12px;opacity:0;transition:opacity .4s}
+.kf-disc{fill:#0d1733;stroke:rgba(148,190,255,.28);stroke-width:1.5;transition:stroke .4s,fill .4s}
+.kf-ic{fill:none;stroke:#cfe0ff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.kf-dot{fill:#38bdf8}
+.kf-bk{fill:#2f6bff}.kf-bk.b2{fill:#38bdf8}.kf-bk.b3{fill:#a78bfa}
+.kf-halo{opacity:0;transform-box:fill-box;transform-origin:center;transition:opacity .5s}
+.kf-pk{opacity:0;transition:opacity .35s}
+.kf-pk rect,.kf-pk circle{fill:#14224a;stroke:#38bdf8;stroke-width:1.5}
+.kf-pk text{fill:#e9f1ff;font:700 11px "Manrope",sans-serif;text-anchor:middle}
+.kf-pk.buy rect{stroke:#34d399}.kf-pk.sell rect{stroke:#fb7185}
+.kf-pk.coin circle{fill:#34d399;stroke:#a7f3d0}.kf-pk.coin text{fill:#052e1c;font-size:12px}
+.kf-pk.pk4 circle{fill:#fb7185;stroke:#fecdd3}
+.kf-shield{opacity:.25;transition:opacity .4s}
+.kf-shield path:first-child{fill:#0d1733;stroke:#fb7185;stroke-width:2}
+.kf-x{stroke:#fb7185;stroke-width:2.6;stroke-linecap:round}
+/* этапы */
+.kf-viz[data-st="0"] .n1 .kf-halo,.kf-viz[data-st="0"] .n2 .kf-halo{opacity:1;animation:kf-breath 2s ease-in-out infinite}
+.kf-viz[data-st="0"] #kfP1{stroke:#38bdf8;stroke-dasharray:none}
+.kf-viz[data-st="0"] .pk1,.kf-viz[data-st="0"] .l1{opacity:1}
+.kf-viz[data-st="1"] .n2 .kf-halo,.kf-viz[data-st="1"] .n3 .kf-halo{opacity:1;animation:kf-breath 2s ease-in-out infinite}
+.kf-viz[data-st="1"] #kfP2{stroke:#38bdf8;stroke-dasharray:none}
+.kf-viz[data-st="1"] .pk2,.kf-viz[data-st="1"] .pk2b,.kf-viz[data-st="1"] .l2{opacity:1}
+.kf-viz[data-st="1"] .kf-bk{animation:kf-bk 1.5s ease-in-out infinite;transform-box:fill-box;transform-origin:bottom}
+.kf-viz[data-st="1"] .kf-bk.b2{animation-delay:.25s}.kf-viz[data-st="1"] .kf-bk.b3{animation-delay:.5s}
+.kf-viz[data-st="2"] .n1 .kf-halo{opacity:1;animation:kf-breath 2s ease-in-out infinite}
+.kf-viz[data-st="2"] #kfP3{stroke:#34d399;stroke-dasharray:none}
+.kf-viz[data-st="2"] #kfP4{stroke:#fb7185}
+.kf-viz[data-st="2"] .pk3,.kf-viz[data-st="2"] .pk4,.kf-viz[data-st="2"] .l3{opacity:1}
+.kf-viz[data-st="2"] .kf-shield{opacity:1}
+.kf-viz[data-st="2"] .kf-shield path:first-child{animation:kf-hit 1.5s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes kf-breath{50%{transform:scale(1.12)}}
+@keyframes kf-bk{50%{transform:scaleY(.6)}}
+@keyframes kf-hit{0%,52%{transform:none}60%{transform:scale(1.16)}75%{transform:none}}
+
+/* ═══ Полоса цифр «пульс» ═══ */
+.pulse{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;border:1px solid var(--ln-line);border-radius:22px;overflow:hidden;background:linear-gradient(180deg,rgba(47,107,255,.06),transparent)}
+.pu-cell{padding:22px 22px 20px;display:flex;flex-direction:column;gap:6px;border-right:1px solid var(--ln-line);position:relative}
+.pu-cell:last-child{border-right:0}
+.pu-cell small{font-size:12px;color:var(--ln-muted);letter-spacing:.02em}
+.pu-cell b{font:700 30px/1.1 "Unbounded",var(--font);color:var(--ln-text);font-variant-numeric:tabular-nums}
+.pu-cell span{font-size:13px;color:var(--ln-muted)}
+.pu-ping b{color:#34d399}
+.pu-ping svg{width:100%;height:34px;margin-top:2px}
+.pu-ping polyline{fill:none;stroke:#34d399;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.pu-ping::after{content:"";position:absolute;top:24px;right:20px;width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 0 0 rgba(52,211,153,.6);animation:ln-ping 1.8s infinite}
+
+/* ═══ «Как начать» — экран телефона проигрывает шаги ═══ */
+.gs{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:48px;align-items:center}
+.gs-rail{list-style:none;margin:0;padding:0;position:relative;display:flex;flex-direction:column;gap:8px}
+.gs-rail::before{content:"";position:absolute;left:15px;top:22px;bottom:22px;width:2px;background:rgba(148,190,255,.15)}
+.gs-rail::after{content:"";position:absolute;left:15px;top:22px;width:2px;height:calc((100% - 44px) * var(--gsp,0));background:linear-gradient(#38bdf8,#a78bfa);transition:height .8s cubic-bezier(.6,0,.2,1)}
+.gs[data-step="1"] .gs-rail{--gsp:.5}.gs[data-step="2"] .gs-rail{--gsp:1}
+.gs-rail li{position:relative;display:grid;grid-template-columns:32px 1fr;gap:18px;align-items:start;padding:14px 16px 14px 0;cursor:pointer;border-radius:16px}
+.gs-rail li>i{width:32px;height:32px;border-radius:50%;background:#0b1430;border:2px solid rgba(148,190,255,.25);position:relative;z-index:1;transition:all .4s}
+.gs-rail li>i::after{content:"";position:absolute;inset:8px;border-radius:50%;background:#38bdf8;transform:scale(0);transition:transform .4s cubic-bezier(.3,1.6,.5,1)}
+.gs-rail li.on>i,.gs-rail li.done>i{border-color:#38bdf8}
+.gs-rail li.on>i::after,.gs-rail li.done>i::after{transform:scale(1)}
+.gs-rail li.on>i{box-shadow:0 0 0 6px rgba(56,189,248,.12)}
+.gs-rail b{display:block;font:700 19px "Manrope",var(--font);color:var(--ln-muted);transition:color .3s}
+.gs-rail li.on b{color:var(--ln-text)}
+.gs-rail span{display:block;margin-top:4px;font-size:14.5px;line-height:1.5;color:var(--ln-muted)}
+.gs-phone{position:relative;width:300px;height:520px;border-radius:44px;padding:14px;background:linear-gradient(160deg,#1b2650,#0a1128 60%);border:1px solid rgba(148,190,255,.22);box-shadow:0 40px 80px -30px rgba(47,107,255,.45),inset 0 0 0 6px #050915;overflow:hidden;transform:perspective(1200px) rotateY(-10deg) rotateX(4deg);transition:transform .8s ease}
+.gs-phone:hover{transform:perspective(1200px) rotateY(-4deg) rotateX(2deg)}
+.gs-notch{position:absolute;top:14px;left:50%;width:96px;height:24px;margin-left:-48px;border-radius:0 0 14px 14px;background:#050915;z-index:3}
+.gs-scr{position:absolute;inset:14px;border-radius:32px;background:#0a1230;padding:50px 18px 18px;display:flex;flex-direction:column;gap:10px;opacity:0;transform:translateX(30px) scale(.98);transition:opacity .45s ease,transform .55s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.gs[data-step="0"] .s0,.gs[data-step="1"] .s1,.gs[data-step="2"] .s2{opacity:1;transform:none}
+.gs-h{font:700 16px "Manrope",var(--font);color:#e9f1ff;margin-bottom:4px}
+.gs-w{display:flex;align-items:center;gap:10px;padding:12px;border-radius:14px;background:rgba(148,190,255,.06);font:600 14px "Manrope",var(--font);color:#cfe0ff;border:1px solid transparent}
+.gs-w i{width:26px;height:26px;border-radius:8px;background:var(--c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+.gs-w em{margin-left:auto;font-style:normal;font-size:11px;color:#34d399}
+.gs.play[data-step="0"] .gs-w:first-of-type{animation:gs-press 3.2s ease both}
+@keyframes gs-press{0%,30%{border-color:transparent;transform:none}38%{transform:scale(.97);border-color:#38bdf8}46%,100%{transform:none;border-color:#38bdf8;background:rgba(56,189,248,.12)}}
+.gs-ok{margin-top:auto;text-align:center;padding:10px;border-radius:12px;background:rgba(52,211,153,.12);color:#34d399;font:700 13px var(--mono,monospace);opacity:0;transform:translateY(10px)}
+.gs.play[data-step="0"] .gs-ok{animation:gs-up .5s 1.7s ease forwards}
+@keyframes gs-up{to{opacity:1;transform:none}}
+.gs-sign{margin:auto 0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+.gs-sign b{font:700 17px "Manrope",var(--font);color:#e9f1ff}
+.gs-sign span{font-size:13px;color:#8fa3c7}
+.gs-ring svg{width:96px;height:96px}
+.gs-ring circle{fill:none;stroke:#38bdf8;stroke-width:3;stroke-dasharray:164;stroke-dashoffset:164;transform:rotate(-90deg);transform-origin:center}
+.gs-ring path{fill:none;stroke:#34d399;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:40;stroke-dashoffset:40}
+.gs.play[data-step="1"] .gs-ring circle{animation:gs-draw 1.2s .9s ease forwards}
+.gs.play[data-step="1"] .gs-ring path{animation:gs-draw .45s 2.1s ease forwards}
+@keyframes gs-draw{to{stroke-dashoffset:0}}
+.gs-btn{margin-top:8px;padding:12px 34px;border-radius:14px;background:linear-gradient(135deg,#2f6bff,#38bdf8);color:#fff;font:700 14px "Manrope",var(--font)}
+.gs.play[data-step="1"] .gs-btn{animation:gs-tapbtn 3.2s ease both}
+@keyframes gs-tapbtn{0%,22%{transform:none}28%{transform:scale(.94)}34%,100%{transform:none}}
+.gs-tk{display:flex;align-items:baseline;gap:8px;color:#e9f1ff}
+.gs-tk b{font:800 18px "Manrope",var(--font)}
+.gs-px{font:700 18px var(--mono,monospace)}
+.gs-tk em{font-style:normal;color:#34d399;font-size:13px;margin-left:auto}
+.gs-ch{width:100%;height:90px}
+.gs-ch polyline{fill:none;stroke:#34d399;stroke-width:2.5;vector-effect:non-scaling-stroke;stroke-dasharray:400;stroke-dashoffset:400}
+.gs.play[data-step="2"] .gs-ch polyline{animation:gs-draw 1.4s ease forwards}
+.gs-row{display:flex;justify-content:space-between;padding:12px;border-radius:12px;background:rgba(148,190,255,.06);font-size:13px;color:#8fa3c7}
+.gs-row b{color:#e9f1ff}
+.gs-buy{padding:14px;border-radius:14px;text-align:center;background:#16a34a;color:#fff;font:800 15px "Manrope",var(--font)}
+.gs.play[data-step="2"] .gs-buy{animation:gs-tapbtn 3.2s .4s ease both}
+.gs-toast{margin-top:auto;padding:12px;border-radius:12px;background:#052e1c;border:1px solid #34d399;color:#a7f3d0;text-align:center;font:700 13px "Manrope",var(--font);opacity:0;transform:translateY(16px)}
+.gs.play[data-step="2"] .gs-toast{animation:gs-up .45s 1.8s ease forwards}
+.gs-tap{position:absolute;width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.8);background:rgba(255,255,255,.18);z-index:4;opacity:0;pointer-events:none;left:50%;top:50%}
+.gs.play[data-step="0"] .gs-tap{animation:gs-tap0 3.2s ease both}
+.gs.play[data-step="1"] .gs-tap{animation:gs-tap1 3.2s ease both}
+.gs.play[data-step="2"] .gs-tap{animation:gs-tap2 3.2s .4s ease both}
+@keyframes gs-tap0{0%{opacity:0;transform:translate(60px,60px)}20%{opacity:1}36%{opacity:1;transform:translate(-40px,-110px)}40%{transform:translate(-40px,-110px) scale(.7)}48%,100%{opacity:0;transform:translate(-40px,-110px) scale(1.6)}}
+@keyframes gs-tap1{0%{opacity:0;transform:translate(50px,120px)}14%{opacity:1}26%{opacity:1;transform:translate(-19px,58px)}30%{transform:translate(-19px,58px) scale(.7)}38%,100%{opacity:0;transform:translate(-19px,58px) scale(1.6)}}
+@keyframes gs-tap2{0%{opacity:0;transform:translate(60px,160px)}14%{opacity:1}26%{opacity:1;transform:translate(-19px,92px)}30%{transform:translate(-19px,92px) scale(.7)}38%,100%{opacity:0;transform:translate(-19px,92px) scale(1.6)}}
+
+/* ═══ Финал — сцена со знаком ═══ */
+.ln-final{position:relative;overflow:hidden;isolation:isolate;border-top:0!important;padding:120px 24px 110px!important;margin-top:40px!important;text-align:center;display:flex;flex-direction:column;align-items:center}
+.fn-floor{position:absolute;left:-50%;right:-50%;bottom:-10%;height:62%;z-index:-2;transform:perspective(420px) rotateX(64deg);transform-origin:bottom;
+  background-image:linear-gradient(rgba(56,189,248,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.35) 1px,transparent 1px);background-size:56px 56px;
+  mask:linear-gradient(transparent,#000 45%,#000 70%,transparent);-webkit-mask:linear-gradient(transparent,#000 45%,#000 70%,transparent);animation:fn-run 2.4s linear infinite}
+@keyframes fn-run{to{background-position:0 56px}}
+.fn-rays{position:absolute;left:50%;top:150px;width:1100px;height:1100px;margin:-550px 0 0 -550px;z-index:-1;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,rgba(56,189,248,.10) 0deg 6deg,transparent 6deg 22deg);
+  mask:radial-gradient(closest-side,#000 10%,transparent 70%);-webkit-mask:radial-gradient(closest-side,#000 10%,transparent 70%);animation:fn-spin 40s linear infinite}
+@keyframes fn-spin{to{transform:rotate(360deg)}}
+.fn-mark{width:180px;height:180px;display:grid;place-items:center;position:relative}
+.fn-mark::after{content:"";position:absolute;inset:18%;border-radius:50%;background:radial-gradient(closest-side,rgba(56,189,248,.45),transparent);z-index:-1}
+.fn-mark .spin-logo{transform:scale(1.5)}
+.fn-mark.live .spin-logo{display:none}
+.fn-mark canvas{width:100%;height:100%}
+.fn-title{margin:18px auto 14px;max-width:900px;font:700 clamp(30px,4.6vw,56px)/1.08 "Unbounded",var(--font);letter-spacing:-.02em;color:var(--ln-text)}
+.fn-title span{display:inline-block;opacity:0;transform:translateY(26px) rotateX(-40deg);transition:opacity .7s ease,transform .8s cubic-bezier(.2,.8,.2,1)}
+.ln-final.in .fn-title span{opacity:1;transform:none}
+.ln-final.in .fn-title span:nth-child(2){transition-delay:.08s}.ln-final.in .fn-title span:nth-child(3){transition-delay:.16s}
+.ln-final.in .fn-title span:nth-child(4){transition-delay:.24s}.ln-final.in .fn-title span:nth-child(5){transition-delay:.32s}
+.fn-sub{color:var(--ln-muted);font-size:16px;margin:0 0 30px}
+.fn-cta{position:relative;overflow:hidden;padding:18px 40px!important;font-size:17px!important;transition:transform .25s ease}
+.fn-cta i{position:absolute;top:0;bottom:0;left:-40%;width:30%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);animation:fn-shine 3.6s ease-in-out infinite}
+@keyframes fn-shine{0%,60%{left:-40%}100%{left:130%}}
+
+@media (max-width:900px){
+  .kf{grid-template-columns:1fr;gap:14px}
+  .kf-stages{order:2}
+  .kf-st span{font-size:14px}
+  .pulse{grid-template-columns:1fr 1fr}
+  .pu-cell{border-bottom:1px solid var(--ln-line)}
+  .pu-cell:nth-child(2n){border-right:0}
+  .pu-ping{grid-column:1/-1;border-right:0}
+  .pu-cell b{font-size:22px}
+  .gs{grid-template-columns:1fr;gap:26px;justify-items:center}
+  .gs-rail{width:100%}
+  .gs-phone{transform:none;width:270px;height:470px}
+  .gs-phone:hover{transform:none}
+  .ln-final{padding:80px 16px 80px!important}
+  .fn-rays{width:700px;height:700px;margin:-350px 0 0 -350px;top:120px}
+  .fn-mark{width:140px;height:140px}
+}
+@media (prefers-reduced-motion:reduce){.fn-floor,.fn-rays,.fn-cta i,.kf-halo,.kf-bk,.gs *{animation:none!important}.fn-title span{opacity:1;transform:none}}
+
+.pu-ping b span{font:inherit;color:inherit}
+.pu-fee b{font-size:24px;white-space:nowrap}
+@media (max-width:900px){.pu-fee{grid-column:1/-1;border-right:0}.pu-fee b{font-size:22px}}
