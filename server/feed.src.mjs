@@ -140,7 +140,7 @@ export default async function handler(req, res) {
     if (b.act === "profile") {
       /* ник уникальный (без учёта регистра): 3–20 символов — буквы, цифры, _ . - */
       const nick = String(p.nick || "").trim(), bio = clean(p.bio).slice(0, 160);
-      if (!/^[A-Za-zА-Яа-яЁё0-9_.-]{3,20}$/.test(nick)) return send(400, { error: "Ник: 3–20 символов — буквы, цифры, _ . -" });
+      if (nick.length < 3 || nick.length > 20 || !/^[A-Za-zА-Яа-яЁё0-9_.-]+( [A-Za-zА-Яа-яЁё0-9_.-]+)*$/.test(nick)) return send(400, { error: "Ник: 3–20 символов — буквы, цифры, пробел, _ . -" });
       if (/^0x[0-9a-f]{6,}/i.test(nick) || /totum|admin|support|hyperliquid/i.test(nick) && user !== ADMIN) return send(400, { error: "Такой ник занят" });
       const low = nick.toLowerCase(), [owner, pj] = await redis([["GET", `feed:nick:${low}`], ["GET", `feed:u:${user}`]]);
       if (owner && owner !== user) return send(409, { error: "Этот ник уже занят" });

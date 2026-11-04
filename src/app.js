@@ -1512,7 +1512,16 @@ function wcSigner(p, wc = !0) {
       });
       const t0 = performance.now();
       try {
-        return await Promise.race([req, slow, w.p]);
+        try {
+          return await Promise.race([req, slow, w.p]);
+        } catch (e) {
+          /* «Failed to publish payload» — сервер-посредник WalletConnect не принял запрос (связь);
+             переподключаемся и отправляем ещё раз, один раз */
+          if (!wc || !/publish payload|Failed to publish|relay/i.test(String(e?.message || e) + String(e?.cause?.message || ""))) throw e;
+          await new Promise((r) => setTimeout(r, 1500));
+          await wcEnsureRelay();
+          return await Promise.race([p.request(args), slow, w.p]);
+        }
       } finally {
         /* сколько кошелёк держал подпись — видно в консоли (F12), для разбора «долго» */
         console.info(`[подпись] ${args.method}: ${((performance.now() - t0) / 1e3).toFixed(1)} с`);
@@ -7541,7 +7550,7 @@ async function feedProfile(u) {
     $("pfBody").innerHTML = `<div class="pf-head">${feedAvatar(u, d.nick)}<div><b>${esc(d.nick || short(u))}</b><button type="button" class="pf-addr" data-pf="copy" title="Скопировать адрес">${esc(short(u))}</button></div><button type="button" class="pf-x" data-pf="close" aria-label="Закрыть">✕</button></div>
       ${d.bio ? `<p class="pf-bio">${esc(d.bio)}</p>` : ""}
       <div class="pf-stats"><div><b>${d.count}</b><span>постов</span></div><div><b>${d.likes}</b><span>лайков</span></div><div><b>${d.since ? new Date(d.since).toLocaleDateString("ru-RU", { month: "short", year: "numeric" }) : "—"}</b><span>с нами с</span></div></div>
-      ${mine ? `<form class="pf-edit" id="pfForm"><label class="inp"><span>Ник</span><input id="pfNick" maxlength="20" value="${esc(d.nick)}" placeholder="например, btc_scalper"></label><label class="inp pf-bio-in"><span>О себе</span><textarea id="pfBio" maxlength="160" rows="2" placeholder="Что торгуете, какой стиль">${esc(d.bio)}</textarea></label><button class="btn" type="submit" id="pfSave">Сохранить</button><small class="muted">Ник: 3–20 символов — буквы, цифры, _ . -</small></form>` : ""}
+      ${mine ? `<form class="pf-edit" id="pfForm"><label class="inp"><span>Ник</span><input id="pfNick" maxlength="20" value="${esc(d.nick)}" placeholder="например, btc_scalper" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label class="inp pf-bio-in"><span>О себе</span><textarea id="pfBio" maxlength="160" rows="2" placeholder="Что торгуете, какой стиль">${esc(d.bio)}</textarea></label><button class="btn" type="submit" id="pfSave">Сохранить</button><small class="muted">Ник: 3–20 символов — буквы, цифры, пробел, _ . -</small></form>` : ""}
       <div class="pf-posts">${d.posts.length ? d.posts.map(feedPostHtml).join("") : '<p class="muted pad">Постов пока нет</p>'}</div>`;
     fixIcons($("pfBody"));
     $("pfForm") &&
@@ -7763,6 +7772,37 @@ async function feedClick(e) {
     toast(err.message || String(err), "err");
     feedLoad(!1, !0);
   }
+}
+/* ═══ Телефон: каталог инструментов под позициями; выбранный инструмент открывается тут же ═══ */
+const MT = { scalp: ["paneScalp", "scalp", "Скальпинг-стакан"], funding: ["paneTools", "tools", "Сканер фандинга"], arb: ["paneTools", "tools", "Арбитраж"], feed: ["paneFeed", "feed", "Лента трейдеров"], top: ["paneTop", "top", "Лучшие трейдеры"], info: ["paneInfo", "info", "Информация"] };
+var MTS = { pane: null, home: null, next: null };
+function mtShow(on = !0) {
+  $("mTools").hidden = !on;
+  on && requestAnimationFrame(() => $("mTools").scrollIntoView({ behavior: "smooth", block: "start" }));
+  on || mtBack(!0);
+}
+function mtBack(quiet) {
+  if (MTS.pane) (MTS.home.insertBefore(MTS.pane, MTS.next), (MTS.pane = null));
+  $("mtCat").hidden = !1;
+  $("mtBack").hidden = !0;
+  $("mtTitle").textContent = "Инструменты";
+  document.querySelectorAll("[data-mtool]").forEach((b) => b.classList.remove("on"));
+  ["scalp", "tools", "feed", "top", "info"].includes(document.body.dataset.cp) && setCpTab("chart");
+}
+function mtPick(k) {
+  const m = MT[k];
+  if (!m) return;
+  mtBack(!0);
+  $("mTools").hidden = !1;
+  (k === "funding" || k === "arb") && ((TL.tab = k), tlSave?.());
+  const pane = $(m[0]);
+  MTS = { pane, home: pane.parentNode, next: pane.nextSibling };
+  $("mtHost").appendChild(pane);
+  $("mtCat").hidden = !0;
+  $("mtBack").hidden = !1;
+  $("mtTitle").textContent = m[2];
+  setCpTab(m[1]);
+  requestAnimationFrame(() => $("mTools").scrollIntoView({ behavior: "smooth", block: "start" }));
 }
 function setCpTab(i) {
   (!isMobile() && (i === "book" || i === "trades") && (i = "chart"),
@@ -8652,7 +8692,14 @@ function lnLive() {
     px = Number(c.midPx || c.markPx || 0),
     f = FEE_RATE("BTC");
   /* стакан BTC */
-  const b = S.coin === "BTC" ? S.book : null;
+  /* стакан BTC для карточки берём сами раз в 2 с — не ждём, пока загрузится терминал */
+  Date.now() - (LN.bkAt || 0) > 2e3 &&
+    ((LN.bkAt = Date.now()),
+    info
+      .l2Book({ coin: "BTC" })
+      .then((d) => d?.levels && ((LN.bk = { bids: d.levels[0].map((n) => ({ px: +n.px, sz: +n.sz })), asks: d.levels[1].map((n) => ({ px: +n.px, sz: +n.sz })) }), document.body.dataset.view === "landing" && lnLive()))
+      .catch(() => {}));
+  const b = S.coin === "BTC" && S.book ? S.book : LN.bk;
   if (b?.asks?.length && b?.bids?.length) {
     /* та же лестница, что в инструменте «Скальпинг»: цены подряд с постоянным шагом,
        Объём (сделки на этой цене) · Покупки · Цена · Продажи */
@@ -8805,10 +8852,25 @@ function renderLanding() {
     }));
 }
 function bindLanding() {
+  /* «Торговать» на лендинге: сразу терминал с этой монетой (на телефоне — экран сделки), без подключения кошелька */
   let i = (t) => {
     (t && switchCoin(t), setView("app", !0));
+    isMobile() && t && setTimeout(() => document.querySelector(`#mnav [data-app="${isSpot(t) ? "trade" : "futures"}"]`)?.click(), 0);
+  };
+  /* карточки инструментов открывают сам инструмент */
+  const tool = (k) => {
+    const cp = { scalp: "scalp", funding: "tools", arb: "tools", feed: "feed" }[k];
+    (k === "funding" || k === "arb") && ((TL.tab = k), tlSave?.());
+    ["scalp", "risk", "protect"].includes(k) && S.coin !== "BTC" && switchCoin("BTC");
+    setView("app", !0);
+    if (isMobile()) return setTimeout(() => (document.querySelector('#mnav [data-app="futures"]')?.click(), cp ? mtPick(cp === "tools" ? k : cp) : k === "assets" && document.querySelector('#mnav [data-app="markets"]')?.click()), 0);
+    cp ? setCpTab(cp) : setCpTab("chart");
+    k === "risk" && setTimeout(() => { const r = $("riskOn"); r && !r.checked && r.click(); r?.scrollIntoView({ block: "center" }); }, 100);
+    k === "assets" && setTimeout(() => $("pairBtn")?.click(), 50);
   };
   ($("landing").addEventListener("click", (t) => {
+    const tl = t.target.closest("[data-ln-tool]");
+    if (tl) return void tool(tl.dataset.lnTool);
     if (t.target.closest("[data-open-term]")) {
       (t.preventDefault(), i());
       return;
@@ -8871,7 +8933,7 @@ function lnFx() {
       bar.style.animation = "";
     });
     clearTimeout(kt);
-    kon && (kt = setTimeout(() => kset((kst + 1) % 3), 3e3));
+    kon && (kt = setTimeout(() => kset((kst + 1) % 3), 4e3));
   };
   kf && (kf.querySelectorAll(".kf-st").forEach((b) => (b.onclick = () => kset(Number(b.dataset.kf)))),
     seen(kf, (v) => {
@@ -9504,6 +9566,10 @@ function bindSettings() {
     }),
     ($("feedView").onclick = (e) => e.target === $("feedView") && $("feedView").close()),
     ($("feedList").onclick = feedClick),
+    ($("btnTools").onclick = () => ($("mTools").hidden ? mtShow(!0) : mtShow(!1))),
+    ($("mtClose").onclick = () => mtShow(!1)),
+    ($("mtBack").onclick = () => mtBack()),
+    document.querySelectorAll("[data-mtool]").forEach((b) => (b.onclick = () => mtPick(b.dataset.mtool))),
     /* нажатие на позицию (не на её кнопки) — открывает график этой монеты */
     document.addEventListener("click", (e) => {
       const r = e.target.closest("[data-pos-coin]");

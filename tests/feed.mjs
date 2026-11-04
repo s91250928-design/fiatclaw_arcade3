@@ -6,7 +6,7 @@ let agent = null; const posts = []; const signsBefore = { n: 0 };
 const state = { exchange: [], onExchange: (b) => { if (b.action.type === "approveAgent") agent = b.action.agentAddress; return null; },
   onUserInfo: (b) => ({ maxBuilderFee: 25, extraAgents: agent ? [{ address: agent, name: "totum", validUntil: now + 1e9 }] : [], userAbstraction: "disabled", clearinghouseState: { marginSummary: { accountValue: "100", totalMarginUsed: "0" }, crossMarginSummary: { accountValue: "100" }, crossMaintenanceMarginUsed: "0", withdrawable: "100", assetPositions: [{ position: { coin: "BTC", szi: "0.01", entryPx: "70000", positionValue: "700", unrealizedPnl: "42.5", returnOnEquity: "0.31", liquidationPx: "50000", marginUsed: "140", leverage: { type: "isolated", value: 5 }, cumFunding: { sinceOpen: "0" }, maxLeverage: 40 }, type: "oneWay" }] }, spotClearinghouseState: { balances: [] },
     userFills: [{ coin: "ETH", oid: 555, dir: "Close Long", sz: "1", px: "2400", closedPnl: "200", fee: "1", time: now - 864e5, side: "A", tid: 1, hash: "0x1" }] })[b.type] ?? (["frontendOpenOrders", "openOrders", "userFunding", "historicalOrders", "userFillsByTime"].includes(b.type) ? [] : undefined) };
-const { page, errors } = await setupPage(browser, { width: 1440, height: 900 }, state);
+const { page, errors } = await setupPage(browser, { width: 1440, height: 900 }, state, { theme: "dark" });
 let lastSig = null;
 await page.route("**/api/feed**", async (r) => {
   const q = r.request();
@@ -52,11 +52,11 @@ R.ok("в посте закрытая сделка и фото", state.post?.att?
 R.ok("карточка «закрыта» и фото в ленте", (await page.textContent("#feedList")).includes("закрыта") && (await page.locator(".fd-media img").count()) === 1);
 // профиль: задать ник
 await page.click('[data-feed="me"]'); await page.waitForTimeout(700);
-await page.fill("#pfNick", "btc_scalper"); await page.fill("#pfBio", "Скальпинг BTC"); await page.click("#pfSave"); await page.waitForTimeout(1500);
-R.ok("ник сохранён и виден в профиле", state.nick === "btc_scalper" && (await page.textContent("#pfBody")).includes("btc_scalper"));
+await page.fill("#pfNick", "Tyler Durden"); await page.fill("#pfBio", "Скальпинг BTC"); await page.click("#pfSave"); await page.waitForTimeout(1500);
+R.ok("ник сохранён и виден в профиле", state.nick === "Tyler Durden" && (await page.textContent("#pfBody")).includes("Tyler Durden"));
 await page.locator("#profDlg").screenshot({ path: "tests/out-profile.png" });
 await page.click('[data-pf="close"]'); await page.waitForTimeout(800);
-R.ok("ник в ленте вместо адреса", (await page.textContent(".fd-au b")) === "btc_scalper", await page.textContent(".fd-au b"));
+R.ok("ник в ленте вместо адреса", (await page.textContent(".fd-au b")) === "Tyler Durden", await page.textContent(".fd-au b"));
 await page.locator("#paneFeed").screenshot({ path: "tests/out-feed.png" });
 R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();

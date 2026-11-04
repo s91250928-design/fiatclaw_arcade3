@@ -31,7 +31,7 @@ function statusTex() {
 export function mountPhone(host, video) {
   let r;
   try { r = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" }); } catch { return null; }
-  r.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  r.setPixelRatio(Math.min(Math.max(devicePixelRatio || 1, 1.5), 2.5));
   r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.0;
   r.outputColorSpace = THREE.SRGBColorSpace;
   r.domElement.className = "ph3-canvas";
@@ -44,17 +44,26 @@ export function mountPhone(host, video) {
   const rim2 = new THREE.PointLight(0x8b5cf6, 14, 10); rim2.position.set(-2.4, -1.4, 1);
   scene.add(key, rim, rim2);
 
-  const W = 0.78, H = 1.6, D = 0.085, R = 0.13;
+  /* пропорции iPhone 16 Pro: 71,5 × 149,6 × 8,25 мм, радиус углов ~11 мм */
+  const W = 0.765, H = 1.6, D = 0.088, R = 0.118;
   const group = new THREE.Group(); scene.add(group);
-  /* корпус — титан */
-  const body = new THREE.Mesh(new RoundedBoxGeometry(W, H, D, 10, R), new THREE.MeshPhysicalMaterial({ color: 0x3a4357, metalness: 1, roughness: 0.32, clearcoat: 0.6, clearcoatRoughness: 0.25, envMapIntensity: 1.3 }));
+  /* корпус — титан: скруглённый прямоугольник, выдавленный в толщину, с мягкой фаской по краю */
+  const outline = new THREE.Shape(), bx = -W / 2 + 0.012, by = -H / 2 + 0.012, bw = W - 0.024, bh = H - 0.024, br = R - 0.012;
+  outline.moveTo(bx + br, by); outline.lineTo(bx + bw - br, by); outline.absarc(bx + bw - br, by + br, br, -Math.PI / 2, 0);
+  outline.lineTo(bx + bw, by + bh - br); outline.absarc(bx + bw - br, by + bh - br, br, 0, Math.PI / 2);
+  outline.lineTo(bx + br, by + bh); outline.absarc(bx + br, by + bh - br, br, Math.PI / 2, Math.PI);
+  outline.lineTo(bx, by + br); outline.absarc(bx + br, by + br, br, Math.PI, Math.PI * 1.5);
+  const bodyGeo = new THREE.ExtrudeGeometry(outline, { depth: D - 0.024, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 8, curveSegments: 48 });
+  bodyGeo.translate(0, 0, -(D - 0.024) / 2);
+  const body = new THREE.Mesh(bodyGeo, new THREE.MeshPhysicalMaterial({ color: 0x3a4357, metalness: 1, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2, envMapIntensity: 1.35 }));
   group.add(body);
   /* стекло — чёрная рамка экрана */
-  const glass = new THREE.Mesh(roundRect(W - 0.03, H - 0.03, R - 0.015), new THREE.MeshPhysicalMaterial({ color: 0x05070d, metalness: 0, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.6 }));
+  const glass = new THREE.Mesh(roundRect(W - 0.022, H - 0.022, R - 0.012), new THREE.MeshPhysicalMaterial({ color: 0x05070d, metalness: 0, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.6 }));
   glass.position.z = D / 2 + 0.0015; group.add(glass);
   /* экран: запись сайта + строка состояния */
-  const SW = W - 0.075, SH = H - 0.075, SR = R - 0.05, SB = SW * (64 / 540);
+  const SW = W - 0.07, SH = H - 0.07, SR = R - 0.035, SB = SW * (64 / 540);
   const vt = new THREE.VideoTexture(video); vt.colorSpace = THREE.SRGBColorSpace;
+  vt.minFilter = THREE.LinearFilter; vt.magFilter = THREE.LinearFilter; vt.generateMipmaps = false; vt.anisotropy = r.capabilities.getMaxAnisotropy();
   const vidH = SH - SB, vAsp = (video.videoWidth || 540) / (video.videoHeight || 1168);
   /* видео заполняет экран по ширине, лишнее снизу обрезается */
   vt.repeat.set(1, Math.min(1, (SW / vAsp) > 0 ? vidH / (SW / vAsp) : 1)); vt.offset.set(0, 1 - vt.repeat.y);

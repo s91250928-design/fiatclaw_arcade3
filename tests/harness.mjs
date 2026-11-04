@@ -11,7 +11,7 @@ export function makeResults() {
   return { out, ok: (n, c, x = "") => out.push(`${c ? "PASS" : "FAIL"} ${n} ${x}`), print: () => console.log(out.join("\n")) };
 }
 export async function setupPage(browser, vp, state, extra = {}) {
-  const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height }, colorScheme: extra.theme || "light" });
+  const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height }, colorScheme: extra.theme || "light" }); if (extra.theme === "dark") await page.addInitScript(() => { try { localStorage.setItem("totum.theme", "dark"); } catch {} });
   const errors = []; page.on("pageerror", (e) => errors.push(String(e)));
   await page.exposeFunction("__ethReq", async (method, params) => {
     if (method === "eth_requestAccounts" || method === "eth_accounts") return [user.address];
