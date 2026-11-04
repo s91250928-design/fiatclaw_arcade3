@@ -2562,7 +2562,7 @@ class CvRenderer {
         const o = b.originalData,
           v = o.usd || 0,
           rel = Math.sqrt(v / mx),
-          w = Math.max(1.5 * hr, Math.min(sp * 0.86, sp * (0.24 + 0.66 * rel)) * hr),
+          w = Math.max(2 * hr, Math.min(sp * 0.86, sp * (0.34 + 0.56 * rel)) * hr),
           x = Math.round(b.x * hr),
           yo = conv(o.open) * vr,
           yc = conv(o.close) * vr,
@@ -2571,8 +2571,12 @@ class CvRenderer {
           isUp = o.close >= o.open,
           [c1, c2] = isUp ? CV_UP : CV_DN;
         if ([yo, yc, yh, yl].some((y) => !Number.isFinite(y))) continue;
-        let a = Math.max(0.3, Math.min(1, 0.32 + 0.68 * (v / (avg * 1.6))));
-        hov && (a = o.time === hov ? 1 : a * 0.55);
+        /* тихие свечи — не ниже 55% яркости, чтобы их было видно; пики — с сильным свечением */
+        let a = Math.max(0.55, Math.min(1, 0.55 + 0.45 * (v / (avg * 1.4))));
+        hov && (a = o.time === hov ? 1 : a * 0.6);
+        const peak = v > avg * 2.2;
+        c.shadowColor = peak ? c1 : "transparent";
+        c.shadowBlur = peak ? Math.min(28, 10 + (v / avg) * 3) * hr : 0;
         c.globalAlpha = a;
         /* фитиль — тонкая линия со скруглёнными концами */
         c.strokeStyle = c2;
@@ -2590,6 +2594,8 @@ class CvRenderer {
         c.fillStyle = g;
         cvRound(c, x - w / 2, top, w, h, Math.min(w / 2, 4 * hr));
         c.fill();
+        peak && c.fill(); /* второй проход — свечение плотнее */
+        c.shadowBlur = 0;
         /* блик слева на крупных свечах */
         if (w > 7 * hr && h > 8 * vr) {
           c.globalAlpha = a * 0.35;
@@ -2612,8 +2618,8 @@ class CvRenderer {
           c.fill();
         }
         /* всплеск объёма — светящаяся точка */
-        if (v > avg * 2.6) {
-          const r = Math.max(2, Math.min(4, sp / 6)) * hr;
+        if (v > avg * 2.2) {
+          const r = Math.max(2.5, Math.min(5, sp / 5)) * hr;
           c.fillStyle = c2;
           c.globalAlpha = 0.22;
           c.beginPath();
@@ -3652,7 +3658,7 @@ function renderPositions() {
   $("posBody").innerHTML = i.length
     ? i
         .map(
-          (s) => `<tr>
+          (s) => `<tr class="pos-row" data-pos-coin="${esc(s.p.coin)}" title="Открыть график ${esc(pairLabel(s.p.coin))}">
       <td><b>${esc(pairLabel(s.p.coin))}</b><span class="tag ${s.long ? "pos" : "neg"}">${s.long ? "Лонг" : "Шорт"} ${esc(s.lev)}</span>${e(s)}</td>
       <td class="${s.long ? "pos" : "neg"}">${Math.abs(Number(s.p.szi))}</td>
       <td>${fmtPx(s.p.entryPx)}</td><td>${s.c ? fmtPx(s.c.markPx) : "—"}</td>
@@ -3677,7 +3683,7 @@ function renderPositions() {
     ? i
         .map((s) => {
           let r = marginRatio(s.p) * 100;
-          return `<article class="pos-card">
+          return `<article class="pos-card" data-pos-coin="${esc(s.p.coin)}">
       <header><span class="side-ic ${s.long ? "b" : "s"}">${s.long ? "Л" : "Ш"}</span><b>${esc(pairLabel(s.p.coin))}</b><span class="muted small">Бессрочный</span>${e(s, "PnL")}</header>
       <div class="pc-tags"><span class="tag lev">${esc(s.lev)}</span></div>
       <div class="pc-pnl"><span>Нереализованный PnL (USDC)</span><b class="${clsOf(s.pnl)}">${sgnUsd(s.pnl)} (${s.roe >= 0 ? "+" : ""}${s.roe.toFixed(2)}%)</b></div>
@@ -9498,6 +9504,15 @@ function bindSettings() {
     }),
     ($("feedView").onclick = (e) => e.target === $("feedView") && $("feedView").close()),
     ($("feedList").onclick = feedClick),
+    /* нажатие на позицию (не на её кнопки) — открывает график этой монеты */
+    document.addEventListener("click", (e) => {
+      const r = e.target.closest("[data-pos-coin]");
+      if (!r || e.target.closest("button,a,input,select,label,.tpsl-cell,[data-act]")) return;
+      const c = r.dataset.posCoin;
+      c !== S.coin && switchCoin(c);
+      document.body.dataset.cp !== "chart" && setCpTab("chart");
+      isMobile() && document.body.dataset.app !== "futures" && document.querySelector('#mnav [data-app="futures"]')?.click();
+    }),
     ($("feedMe").onclick = feedClick),
     /* обработчик ничего не возвращает: «false» из onkeydown браузер считает отменой нажатия */
     ($("feedText").onkeydown = (e) => {
