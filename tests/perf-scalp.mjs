@@ -1,0 +1,24 @@
+// Телефон, медленный мобильный интернет: через сколько секунд видны цены, стакан и лестница скальпинга.
+import { chromium, URL0 } from "./harness.mjs";
+import pw from "/opt/npm-tools/node_modules/playwright/index.js";
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ ...pw.devices["iPhone 13"] }); const page = await ctx.newPage();
+const cdp = await ctx.newCDPSession(page);
+await cdp.send("Network.enable");
+await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: Number(process.env.RTT || 300), downloadThroughput: (Number(process.env.MBPS || 1.6) * 1e6) / 8, uploadThroughput: 750e3 / 8 });
+await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+const big = []; page.on("response", async (r) => { try { const h = await r.allHeaders(); const n = Number(h["content-length"] || 0); n > 50e3 && big.push(`${(n / 1e3).toFixed(0)} КБ ${r.url().split("?")[0].slice(-60)}`); } catch {} });
+await page.route("**/config.js", (r) => r.fulfill({ contentType: "text/javascript", body: `window.TERM_CONFIG={isTestnet:false,builder:"0xa02a1872ebbf3a5d2f0d8b236ef16f0fe62b16d0",feeTenthBps:25};` }));
+await page.addInitScript(() => { try { localStorage.setItem("totum.consent", "1"); localStorage.setItem("totum.mv", "full"); } catch {} });
+const t0 = Date.now(); const at = {};
+await page.goto(URL0 + "/trade", { waitUntil: "commit" });
+const watch = async (name, fn) => { while (Date.now() - t0 < 60e3) { if (await page.evaluate(fn).catch(() => false)) return (at[name] = ((Date.now() - t0) / 1e3).toFixed(1)); await page.waitForTimeout(150); } at[name] = ">60"; };
+await watch("страница", () => !document.body.classList.contains("boot"));
+await watch("цена в шапке", () => /\d/.test(document.getElementById("mkMark")?.textContent || document.querySelector(".tk b")?.textContent || ""));
+await watch("стакан", () => document.querySelectorAll("#asks .ob-row, #asks > *").length > 3);
+await page.evaluate(() => document.querySelector('[data-cp="scalp"]')?.click());
+const ts = Date.now();
+await watch("лестница скальпинга", () => document.querySelectorAll("#scLadder .sc-row").length > 5);
+console.log(at, "скальпинг после нажатия:", ((Date.now() - ts) / 1e3).toFixed(1), "с");
+console.log("крупные загрузки:\n" + big.join("\n"));
+await browser.close();

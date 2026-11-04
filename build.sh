@@ -15,4 +15,6 @@ echo '[]' > dist/icons.json            # на Vercel заменяется скр
 # сервер выплат: один файл со всем нужным (на Vercel пакеты не ставятся)
 npx esbuild server/payout.src.mjs --bundle --platform=node --format=esm --target=node20 --minify \
   --outfile=deploy/api/payout.mjs --log-level=warning
+npx esbuild server/feed.src.mjs --bundle --platform=node --format=esm --target=node20 --minify \
+  --outfile=deploy/api/feed.mjs --log-level=warning
 echo "⚡ Готово: dist/"

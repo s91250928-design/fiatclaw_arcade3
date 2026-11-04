@@ -55,20 +55,46 @@
   </section>
 
   <section class="ln-sec ln-reveal" id="lnSafe">
-    <div class="ln-sec-head"><h2>Почему это безопасно</h2><p>Totum не хранит твои деньги и не может их вывести. Вот как это устроено.</p></div>
-    <div class="ln-safe">
-      <div><span class="ls-n">1</span><h3>Одна подпись в кошельке</h3><p>Ты подтверждаешь в своём кошельке создание ключа для сделок. Пароли и фразы восстановления не нужны никогда.</p></div>
-      <div><span class="ls-n">2</span><h3>Ключ умеет только торговать</h3><p>Им можно выставить и отменить ордер. Вывести деньги этим ключом нельзя — так устроен Hyperliquid.</p></div>
-      <div><span class="ls-n">3</span><h3>Деньги остаются у тебя</h3><p>Средства лежат на твоём счёте, вывести их может только твой кошелёк. Ключ живёт 180 дней, удалить его можно в любой момент.</p></div>
+    <div class="ln-sec-head"><h2>Почему это безопасно</h2><p>Totum не хранит твои деньги и не может их вывести. Смотри, как это устроено.</p></div>
+    <div class="kf" id="kf">
+      <div class="kf-stages" role="tablist">
+        <button type="button" class="kf-st on" data-kf="0"><i class="kf-bar"><i></i></i><b>Одна подпись</b><span>Кошелёк один раз подписывает ключ для сделок. Пароли и фраза восстановления не нужны.</span></button>
+        <button type="button" class="kf-st" data-kf="1"><i class="kf-bar"><i></i></i><b>Ключ только торгует</b><span>Ключ ставит и снимает заявки за долю секунды, без окон кошелька.</span></button>
+        <button type="button" class="kf-st" data-kf="2"><i class="kf-bar"><i></i></i><b>Вывод — только кошельком</b><span>Вывести деньги ключом нельзя: так устроен Hyperliquid. Деньги на твоём счёте, ключ живёт 180 дней.</span></button>
+      </div>
+      <div class="kf-viz" data-st="0">
+        <svg viewBox="0 0 600 360" aria-hidden="true">
+          <defs>
+            <linearGradient id="kfBeam" x1="0" x2="1"><stop offset="0" stop-color="#2f6bff" stop-opacity="0"/><stop offset=".5" stop-color="#38bdf8"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/></linearGradient>
+            <radialGradient id="kfGlow"><stop offset="0" stop-color="#38bdf8" stop-opacity=".55"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></radialGradient>
+          </defs>
+          <path id="kfP1" class="kf-rail" d="M110 150 C 190 150, 220 150, 300 150"/>
+          <path id="kfP2" class="kf-rail" d="M300 150 C 380 150, 410 150, 490 150"/>
+          <path id="kfP3" class="kf-rail kf-back" d="M490 175 C 470 300, 130 300, 110 175"/>
+          <path id="kfP4" class="kf-rail kf-try" d="M300 172 C 300 220, 300 230, 300 246"/>
+          <g class="kf-node n1" transform="translate(110 150)"><circle r="62" fill="url(#kfGlow)" class="kf-halo"/><circle r="40" class="kf-disc"/><path class="kf-ic" d="M-16 -9h28a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4h-28a4 4 0 0 1-4-4v-18a4 4 0 0 1 4-4zM-20 -1h-0M8 4h10"/><circle cx="12" cy="4" r="2.4" class="kf-dot"/><text y="66">Твой кошелёк</text></g>
+          <g class="kf-node n2" transform="translate(300 150)"><circle r="62" fill="url(#kfGlow)" class="kf-halo"/><circle r="40" class="kf-disc"/><circle cx="-7" cy="0" r="8" class="kf-ic"/><path class="kf-ic" d="M1 0h20M15 0v7M20 0v5"/><text y="66">Ключ для сделок</text></g>
+          <g class="kf-node n3" transform="translate(490 150)"><circle r="62" fill="url(#kfGlow)" class="kf-halo"/><circle r="40" class="kf-disc"/><rect x="-16" y="-12" width="9" height="24" rx="2" class="kf-bk b1"/><rect x="-4" y="-18" width="9" height="30" rx="2" class="kf-bk b2"/><rect x="8" y="-6" width="9" height="18" rx="2" class="kf-bk b3"/><text y="66">Hyperliquid</text></g>
+          <g class="kf-shield" transform="translate(300 268)"><path d="M0 -22 L18 -14 V2 C18 14 9 21 0 25 C-9 21 -18 14 -18 2 V-14 Z"/><path class="kf-x" d="M-7 -5 L7 9 M7 -5 L-7 9"/><text y="44">ключ не может вывести</text></g>
+          <text class="kf-lab l1" x="205" y="136">подпись</text>
+          <text class="kf-lab l2" x="395" y="136">заявки</text>
+          <text class="kf-lab l3" x="300" y="318">вывод — только в твой кошелёк</text>
+          <g class="kf-pk pk1"><rect x="-22" y="-10" width="44" height="20" rx="10"/><text y="4">✍</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s" keyPoints="0;1;1" keyTimes="0;.55;1" calcMode="linear"><mpath href="#kfP1"/></animateMotion></g>
+          <g class="kf-pk pk2 buy"><rect x="-26" y="-10" width="52" height="20" rx="10"/><text y="4">Купить</text><animateMotion dur="1.5s" repeatCount="indefinite" begin="0s"><mpath href="#kfP2"/></animateMotion></g>
+          <g class="kf-pk pk2b sell"><rect x="-28" y="-10" width="56" height="20" rx="10"/><text y="4">Продать</text><animateMotion dur="1.5s" repeatCount="indefinite" begin=".75s"><mpath href="#kfP2"/></animateMotion></g>
+          <g class="kf-pk pk3 coin"><circle r="11"/><text y="4">$</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s" keyPoints="0;1;1" keyTimes="0;.7;1" calcMode="linear"><mpath href="#kfP3"/></animateMotion></g>
+          <g class="kf-pk pk4"><circle r="8"/><animateMotion dur="1.5s" repeatCount="indefinite" begin="0s" keyPoints="0;1;0" keyTimes="0;.6;1" calcMode="spline" keySplines=".4 0 .2 1;.4 0 .2 1"><mpath href="#kfP4"/></animateMotion></g>
+        </svg>
+      </div>
     </div>
   </section>
 
   <section class="ln-sec ln-reveal" id="lnFast">
-    <div class="ln-fast">
-      <div><b>~1 сек</b><span>сделка без окон кошелька</span></div>
-      <div><b>1 подпись</b><span>один раз — на 180 дней</span></div>
-      <div><b>Телефон и компьютер</b><span>кошелёк запоминается, вход не слетает</span></div>
-      <div><b id="lnFee">0,07% / 0,04%</b><span>вся комиссия: по рынку / лимитом</span></div>
+    <div class="pulse">
+      <div class="pu-cell pu-ping"><small>Задержка до биржи — у тебя сейчас</small><b><span id="puPing">—</span> мс</b><svg viewBox="0 0 160 34" preserveAspectRatio="none"><polyline id="puLine" points=""/></svg></div>
+      <div class="pu-cell"><small>Сделка без окон кошелька</small><b class="pu-odo" data-odo="1">~1</b><span>секунда от клика до биржи</span></div>
+      <div class="pu-cell"><small>Подпись кошельком</small><b class="pu-odo" data-odo="1">1</b><span>раз — и ключ работает 180 дней</span></div>
+      <div class="pu-cell pu-fee"><small>Вся комиссия</small><b id="lnFee">0,07% / 0,04%</b><span>по рынку / лимитом · половина — тебе</span></div>
     </div>
   </section>
 
@@ -79,18 +105,45 @@
   </section>
 
   <section class="ln-sec" id="lnStart">
-    <div class="ln-sec-head"><h2>Как начать</h2><p>Три шага, около минуты.</p></div>
-    <ol class="ln-steps">
-      <li><h3>Подключите кошелёк</h3><p>OKX, MetaMask, Rabby и другие — расширением в браузере или по QR-коду с телефона.</p></li>
-      <li><h3>Включите торговлю</h3><p>Одна подпись в кошельке создаёт торговый ключ. Ордера дальше выставляются без подтверждений в кошельке.</p></li>
-      <li><h3>Пополните счёт и торгуйте</h3><p id="lnStep3">Переведите USDC на свой счёт Hyperliquid и откройте первую сделку.</p></li>
-    </ol>
+    <div class="ln-sec-head"><h2>Как начать</h2><p>Около минуты. Смотри, как это выглядит.</p></div>
+    <div class="gs" id="gs" data-step="0">
+      <ol class="gs-rail">
+        <li class="on" data-gs="0"><i></i><div><b>Подключи кошелёк</b><span>OKX, MetaMask, Rabby — расширением или QR-кодом с телефона.</span></div></li>
+        <li data-gs="1"><i></i><div><b>Включи торговлю</b><span>Одна подпись создаёт ключ для сделок. Дальше без подтверждений.</span></div></li>
+        <li data-gs="2"><i></i><div><b>Пополни и торгуй</b><span id="lnStep3">Переведи USDC на свой счёт Hyperliquid и открой первую сделку.</span></div></li>
+      </ol>
+      <div class="gs-phone" aria-hidden="true">
+        <div class="gs-notch"></div>
+        <div class="gs-scr s0">
+          <div class="gs-h">Выберите кошелёк</div>
+          <div class="gs-w"><i style="--c:#111"></i>OKX Wallet<em>Найден</em></div>
+          <div class="gs-w"><i style="--c:#f6851b"></i>MetaMask</div>
+          <div class="gs-w"><i style="--c:#7c83fd"></i>Rabby</div>
+          <div class="gs-w"><i style="--c:#3b99fc"></i>Телефон · QR-код</div>
+          <div class="gs-ok">Подключено · 0x7a3f…91c2</div>
+        </div>
+        <div class="gs-scr s1">
+          <div class="gs-sign"><div class="gs-ring"><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26"/><path d="M19 31 l8 8 l15 -17"/></svg></div><b>Подписать ключ для сделок</b><span>Вывод денег этим ключом невозможен</span><div class="gs-btn">Подтвердить</div></div>
+        </div>
+        <div class="gs-scr s2">
+          <div class="gs-tk"><b>BTC</b><span class="gs-px">78 052</span><em>+1,6%</em></div>
+          <svg class="gs-ch" viewBox="0 0 200 70" preserveAspectRatio="none"><polyline points="0,52 18,48 34,54 52,40 70,44 88,30 106,36 124,22 142,28 160,16 178,20 200,8"/></svg>
+          <div class="gs-row"><span>Сумма</span><b>100 USDC</b></div>
+          <div class="gs-buy">Купить BTC</div>
+          <div class="gs-toast">✓ Исполнено за 0,4 с</div>
+        </div>
+        <div class="gs-tap"></div>
+      </div>
+    </div>
   </section>
 
-  <section class="ln-final">
-    <img src="brand/mark-128.webp" alt="" width="72" height="72">
-    <h2>Торгуй с инструментами профи и получай долю биржи</h2>
-    <a class="ln-btn big" href="/trade" data-open-term>Открыть терминал</a>
+  <section class="ln-final" id="lnFinal">
+    <div class="fn-floor" aria-hidden="true"></div>
+    <div class="fn-rays" aria-hidden="true"></div>
+    <div class="fn-mark" id="fnMark"><div class="spin-logo"></div></div>
+    <h2 class="fn-title"><span>Торгуй</span> <span>с инструментами</span> <span>профи</span> <span>и получай</span> <span class="ln-grad">долю биржи</span></h2>
+    <p class="fn-sub" id="fnSub">Фьючерсы, спот и акции · ликвидность Hyperliquid · половина комиссии — тебе</p>
+    <a class="ln-btn big fn-cta" href="/trade" data-open-term><span>Открыть терминал</span><i></i></a>
   </section>
   <footer class="ln-foot"><span>© Totum</span><span>Торговля с плечом связана с высоким риском потери средств.</span></footer>
 </div>
@@ -124,7 +177,6 @@
   </div>
   <div class="wallet">
     <button id="btnShare" class="btn ghost small desk-share" type="button" hidden title="50% комиссии Totum возвращается трейдерам">Твоя доля</button>
-    <button id="btnTheme" class="btn ghost icon" title="Светлая / тёмная тема">☾</button>
     <button id="btnSettings" class="btn ghost icon set-btn" title="Настройки" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 2.9a3.4 3.4 0 0 1 3.4 0l5.3 3.1a3.4 3.4 0 0 1 1.7 2.9v6.2a3.4 3.4 0 0 1-1.7 2.9l-5.3 3.1a3.4 3.4 0 0 1-3.4 0L5 18a3.4 3.4 0 0 1-1.7-2.9V8.9A3.4 3.4 0 0 1 5 6z"/><circle cx="12" cy="12" r="3"/><path d="M12 9V6.5"/></svg></button>
     <div id="settingsPop" class="settings-pop" hidden>
       <b>Настройки</b>
@@ -132,7 +184,7 @@
       <label class="chk"><input type="checkbox" id="setConfirm"> Показывать окно подтверждения перед сделкой</label>
       <label class="chk"><input type="checkbox" id="setSound"> Звук сделок</label>
       <label class="chk"><input type="checkbox" id="setAdl"> Предупреждать о риске ADL (уведомление и звук)</label>
-      <button id="setThemeBtn" class="btn ghost small m-theme" type="button">Светлая / тёмная тема</button>
+      <div class="set-theme"><span>Тема</span><div class="seg" id="setThemeSeg"><button type="button" data-theme-set="dark">Тёмная</button><button type="button" data-theme-set="light">Светлая</button></div></div>
       <button id="setForget" class="btn ghost small">Удалить ключ для сделок с устройства</button>
     </div>
     <button id="btnConnect" class="btn" title="Нажмите ещё раз, чтобы отключить">Подключить кошелёк</button>
@@ -207,10 +259,11 @@
     <div class="cp-pane" id="paneInfo"><div class="inf-tabs" id="infTabs"></div><div id="infoBody"></div></div>
     <div class="cp-pane" id="paneFeed">
       <div class="feed-compose">
-        <textarea id="feedText" rows="3" placeholder="Поделитесь профитом, сделкой или идеей…" disabled></textarea>
-        <div class="row between"><span class="muted small">Пост подписывается вашим кошельком — подделать автора нельзя</span><button class="btn small" type="button" disabled>Опубликовать</button></div>
+        <textarea id="feedText" rows="3" maxlength="600" placeholder="Поделитесь профитом, сделкой или идеей…"></textarea>
+        <label class="chk feed-att" id="feedAttRow" hidden><input type="checkbox" id="feedAtt"><span class="box"></span> <span id="feedAttTxt">Приложить позицию</span></label>
+        <div class="row between"><span class="muted small" id="feedHint">Пост подписывается вашим ключом для сделок — подделать автора нельзя, окна кошелька не будет</span><button class="btn small" type="button" id="feedGo">Опубликовать</button></div>
       </div>
-      <div class="empty-state"><b>Лента скоро заработает</b><p>Стена трейдеров: профиты, сделки, идеи, комментарии. Интерфейс готов — для публикаций нужен сервер с базой данных.</p></div>
+      <div id="feedList" class="feed-list"><div class="feed-skel"><i></i><i></i><i></i></div></div>
     </div>
     <div class="cp-pane" id="paneTop">
       <div class="empty-state"><b>Лучшие трейдеры</b><p>Рейтинг трейдеров Totum по прибыли и копитрейдинг появятся, когда на платформе наберётся достаточно трейдеров.</p></div>

@@ -28,15 +28,18 @@ export function mountMobius(host) {
 
   // лента Мёбиуса с плоским овальным сечением — та же форма, что в логотипе
   const R = 1.62, a = 0.58, b = 0.13, NU = 300, NV = 40, pos = [], idx = [];
-  for (let i = 0; i <= NU; i++) {
+  /* без повторяющихся точек: шов склейки сшит (после полного круга сечение повёрнуто
+     на пол-оборота — точка j стыкуется с j + NV/2), поэтому свет на стыке гладкий */
+  for (let i = 0; i < NU; i++) {
     const u = i / NU * Math.PI * 2, ang = u / 2, cu = Math.cos(u), su = Math.sin(u);
-    for (let j = 0; j <= NV; j++) {
+    for (let j = 0; j < NV; j++) {
       const t = j / NV * Math.PI * 2, ex = Math.cos(t) * a, ey = Math.sin(t) * b;
       const dx = ex * Math.cos(ang) - ey * Math.sin(ang), dy = ex * Math.sin(ang) + ey * Math.cos(ang);
       pos.push((R + dx) * cu, (R + dx) * su, dy);
     }
   }
-  for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) { const A = i * (NV + 1) + j, B = A + NV + 1; idx.push(A, B, A + 1, B, B + 1, A + 1); }
+  const V = (i, j) => (i < NU ? i * NV + (j % NV) : ((j + NV / 2) % NV));
+  for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) { const A = V(i, j), B = V(i + 1, j), C = V(i, j + 1), D = V(i + 1, j + 1); idx.push(A, B, C, B, D, C); }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
   const tilt = new THREE.Group(), spin = new THREE.Mesh(g, chrome);

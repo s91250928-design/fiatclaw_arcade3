@@ -1312,7 +1312,7 @@ async function subscribeCoin() {
         coin: i,
       },
       (n) => {
-        n.coin === S.coin && ((S.live.book = !0), onBook(n.levels));
+        n.coin === S.coin && ((S.live.book = !0), (S.bookAt = Date.now()), onBook(n.levels));
       },
     ),
   ),
@@ -1341,7 +1341,7 @@ async function pollBook() {
     let i = await info.l2Book({
       coin: S.coin,
     });
-    i && i.coin === S.coin && onBook(i.levels);
+    i && i.coin === S.coin && ((S.bookAt = Date.now()), onBook(i.levels));
   } catch {}
 }
 async function pollTrades() {
@@ -1384,7 +1384,33 @@ async function getWalletConnect() {
     }
   return i;
 }
+/* Telegram: модуль WalletConnect открывает кошелёк «в новой вкладке» (ссылка okx://main/…),
+   и Telegram оставлял пустую белую вкладку «main». Открываем приложение кошелька прямо
+   с этой страницы; если за 1,5 с оно не открылось — как раньше, новой вкладкой. */
+function tgOpenFix() {
+  const tg = !!(window.TelegramWebviewProxy || window.TelegramWebviewProxyProto || window.Telegram);
+  if (!tg || window.__tgOpenFix) return;
+  window.__tgOpenFix = 1;
+  const orig = window.open.bind(window);
+  window.open = (url, target, feat) => {
+    const u = String(url || "");
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(u) || /^(https?|about|blob|data|javascript):/i.test(u)) return orig(url, target, feat);
+    let left = !1;
+    const off = () => (left = !0);
+    addEventListener("blur", off, { once: !0 });
+    document.addEventListener("visibilitychange", off, { once: !0 });
+    try {
+      location.href = u;
+    } catch {}
+    setTimeout(() => {
+      removeEventListener("blur", off);
+      left || document.hidden || orig(url, target, feat);
+    }, 1500);
+    return null;
+  };
+}
 async function initWalletConnect() {
+  tgOpenFix();
   if (!wcProvider) {
     let { EthereumProvider: i } = await import("@walletconnect/ethereum-provider");
     ((wcProvider = await i.init({
@@ -1974,9 +2000,16 @@ var ICON_LOCAL = null,
       i && Array.isArray(i.names) && i.names.length && (ICON_LOCAL = new Set(i.names));
     })
     .catch(() => {}),
-  coinIcon = (i) => {
+  /* у каждой монеты свой цвет аватарки (по названию) — пока иконка грузится и если её нет нигде */
+  icHue = (t) => {
+    let h = 0;
+    for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360;
+    return h;
+  },
+  coinIcon = (i) => coinIcon0(i).replaceAll('<span class="coin-ic"', `<span class="coin-ic" style="--h:${icHue(baseOf(i))}"`),
+  coinIcon0 = (i) => {
     let t = baseOf(i),
-      e = esc(t.replace(/^k/, "").slice(0, 1));
+      e = esc(t.replace(/^k(?=[A-Z])/, "").replace(/^U(?=[A-Z]{3})/, "").slice(0, 2));
     /* HIP-3: иконка лежит под полным именем «биржа:монета» (файл xyz__GOLD.svg) */
     if (i && String(i).includes(":"))
       return ICON_LOCAL && ICON_LOCAL.has(i)
@@ -4677,7 +4710,8 @@ async function scSubscribe() {
   document.querySelectorAll("#scAgg [data-scagg]").forEach((b) => b.classList.toggle("on", Number(b.dataset.scagg) === SC.agg));
   const p = SC_AGG[SC.agg][1],
     key = p ? `${S.coin}|${JSON.stringify(p)}` : "";
-  if (SC.subKey === key && (SC.sub || !p)) return;
+  /* стакан «точно» — тот же, что уже загружен: показываем сразу, не ждём следующего обновления */
+  if (SC.subKey === key && (SC.sub || !p)) return void (!p && S.book && (scBook(S.book), scRender()));
   scUnsub();
   SC.subKey = key;
   if (!p) return (S.book && scBook(S.book), scRender());
@@ -7190,6 +7224,144 @@ function toggleInlineChart(i) {
     $("btnChartToggle").classList.toggle("on", t),
     t && S.interval !== "15m" && !S.userPickedIv && pickInterval("15m"));
 }
+/* ═══════════ Лента трейдеров ═══════════
+   Пост подписывается ключом для сделок (он уже на устройстве) — окна кошелька нет.
+   Сервер проверяет на Hyperliquid, что ключ выдан этим кошельком. Позицию к посту
+   сервер тоже берёт с Hyperliquid сам — нарисовать прибыль нельзя. */
+var FEED = { posts: [], more: !1, busy: 0, t: 0, nodb: !1, err: "" };
+const agoRu = (t) => {
+  const s = Math.max(1, Math.floor((Date.now() - t) / 1e3));
+  return s < 60 ? "только что" : s < 3600 ? `${Math.floor(s / 60)} мин назад` : s < 86400 ? `${Math.floor(s / 3600)} ч назад` : new Date(t).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+};
+function feedOpen() {
+  feedCompose();
+  feedLoad();
+  clearInterval(FEED.t);
+  FEED.t = setInterval(() => document.body.dataset.cp === "feed" && !document.hidden && feedLoad(!1, !0), 2e4);
+}
+function feedCompose() {
+  const p = S.positions.find((x) => x.coin === S.coin);
+  $("feedAttRow").hidden = !p;
+  p && ($("feedAttTxt").textContent = `Приложить позицию ${dexBase(p.coin)} (${Number(p.szi) > 0 ? "лонг" : "шорт"}) — цифры возьмём с Hyperliquid`);
+  $("feedHint").textContent = !S.user
+    ? "Подключите кошелёк, чтобы писать в ленту"
+    : !S.agent
+      ? "Включите торговлю — пост подписывается ключом для сделок, без окна кошелька"
+      : "Пост подписан вашим ключом — подделать автора нельзя";
+}
+async function feedLoad(more = !1, quiet = !1) {
+  if (FEED.busy) return;
+  FEED.busy = 1;
+  try {
+    const r = await fetch(`/api/feed?from=${more ? FEED.posts.length : 0}&me=${S.user || ""}`, { signal: AbortSignal.timeout(12e3) });
+    if (r.status === 503 || r.status === 404) FEED.nodb = !0;
+    else {
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.status);
+      FEED.nodb = !1;
+      FEED.err = "";
+      FEED.posts = more ? [...FEED.posts, ...d.posts] : d.posts;
+      FEED.more = d.more;
+    }
+  } catch (e) {
+    quiet || (FEED.err = "Лента не загрузилась — проверьте интернет");
+  }
+  FEED.busy = 0;
+  feedRender();
+}
+async function feedSigned(act, payload) {
+  if (!S.user) throw new Error("Подключите кошелёк");
+  if (!S.agent) throw new Error("Включите торговлю: пост подписывается ключом для сделок");
+  const ts = Date.now(),
+    msg = `Totum feed\n${act}\n${S.user.toLowerCase()}\n${ts}\n${payload}`,
+    sig = await S.agent.signMessage({ message: msg });
+  const r = await fetch("/api/feed", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ user: S.user, agent: S.agent.address, ts, sig, act, payload }) });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 503) throw new Error("Лента ещё не подключена к базе");
+  if (!r.ok) throw new Error(d.error || `Ошибка ${r.status}`);
+  return d;
+}
+function feedAvatar(u) {
+  return `<span class="fd-av" style="--h:${icHue(u)}">${esc(u.slice(2, 4))}</span>`;
+}
+function feedPos(p) {
+  if (!p) return "";
+  const long = Number(p.szi) > 0,
+    pnl = Number(p.pnl),
+    roe = Number(p.roe) * 100;
+  return `<div class="fd-pos ${pnl >= 0 ? "up" : "dn"}" data-go="${esc(p.coin)}">
+    ${coinIcon(p.coin)}<div><b>${esc(dexBase(p.coin))}</b><small>${long ? "Лонг" : "Шорт"} ${p.lev ? `${esc(p.lev)}x` : ""} · вход ${fmtPx(p.entry)}</small></div>
+    <div class="fd-pnl"><b>${pnl >= 0 ? "+" : ""}${roe.toFixed(1)}%</b><small>${sgnUsd(pnl)}</small></div>
+    <span class="fd-ok" title="Цифры взяты с Hyperliquid в момент публикации">✓ Hyperliquid</span></div>`;
+}
+function feedRender() {
+  const el = $("feedList");
+  if (!el) return;
+  if (FEED.nodb) return void (el.innerHTML = '<div class="empty-state"><b>Лента почти готова</b><p>Осталось подключить базу данных — тогда посты начнут сохраняться.</p></div>');
+  if (FEED.err && !FEED.posts.length) return void (el.innerHTML = `<div class="empty-state"><b>${esc(FEED.err)}</b><p><button class="btn small ghost" type="button" data-feed="reload">Повторить</button></p></div>`);
+  if (!FEED.posts.length) return void (el.innerHTML = '<div class="empty-state"><b>Здесь пока пусто</b><p>Будьте первым: расскажите о сделке или идее. Приложенная позиция покажет настоящий PnL с Hyperliquid.</p></div>');
+  const me = (S.user || "").toLowerCase();
+  morphInto(
+    el,
+    FEED.posts
+      .map(
+        (p) => `<article class="fd-post" data-id="${esc(p.id)}">
+      <header>${feedAvatar(p.user)}<div><b>${esc(short(p.user))}</b><small>${agoRu(p.ts)}</small></div>${p.user === me ? `<button class="fd-del" type="button" data-feed="del" title="Удалить пост">✕</button>` : ""}</header>
+      <p>${esc(p.text).replace(/\n/g, "<br>")}</p>
+      ${feedPos(p.pos)}
+      <footer><button type="button" class="fd-like${p.liked ? " on" : ""}" data-feed="like"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>${p.likes || ""}</span></button></footer>
+    </article>`,
+      )
+      .join("") + (FEED.more ? '<button class="btn ghost small fd-more" type="button" data-feed="more">Показать ещё</button>' : ""),
+  ) && fixIcons(el);
+}
+async function feedPublish() {
+  const t = $("feedText").value.trim(),
+    b = $("feedGo");
+  if (t.length < 2) return toast("Напишите хотя бы пару слов", "err");
+  setBusy(b, !0, "Публикуем…");
+  try {
+    const coin = !$("feedAttRow").hidden && $("feedAtt").checked ? S.coin : "";
+    const d = await feedSigned("post", JSON.stringify({ text: t, coin }));
+    $("feedText").value = "";
+    $("feedAtt").checked = !1;
+    FEED.posts = [d.post, ...FEED.posts.filter((x) => x.id !== d.post.id)];
+    FEED.nodb = !1;
+    feedRender();
+  } catch (e) {
+    toast(e.message || String(e), "err");
+  }
+  setBusy(b, !1);
+}
+async function feedClick(e) {
+  const a = e.target.closest("[data-feed]"),
+    go = e.target.closest("[data-go]");
+  if (!a) return void (go && switchCoin(go.dataset.go));
+  const id = a.closest("[data-id]")?.dataset.id,
+    k = a.dataset.feed;
+  if (k === "more") return feedLoad(!0);
+  if (k === "reload") return feedLoad();
+  const p = FEED.posts.find((x) => x.id === id);
+  if (!p) return;
+  try {
+    if (k === "like") {
+      p.liked = !p.liked;
+      p.likes = (p.likes || 0) + (p.liked ? 1 : -1);
+      feedRender();
+      const d = await feedSigned("like", JSON.stringify({ id }));
+      Object.assign(p, { likes: d.likes, liked: d.liked });
+      feedRender();
+    }
+    if (k === "del" && confirm("Удалить пост?")) {
+      await feedSigned("delete", JSON.stringify({ id }));
+      FEED.posts = FEED.posts.filter((x) => x.id !== id);
+      feedRender();
+    }
+  } catch (err) {
+    toast(err.message || String(err), "err");
+    feedLoad(!1, !0);
+  }
+}
 function setCpTab(i) {
   (!isMobile() && (i === "book" || i === "trades") && (i = "chart"),
     (document.body.dataset.cp = i),
@@ -7198,6 +7370,7 @@ function setCpTab(i) {
     i === "info" && renderInfo(),
     i === "tools" && renderTools(!0),
     i === "scalp" ? scOpen() : scUnsub(),
+    i === "feed" ? feedOpen() : clearInterval(FEED.t),
     i === "book" && renderBook(),
     i === "chart" && S.chartView === "depth" && requestAnimationFrame(renderDepth));
 }
@@ -8243,7 +8416,97 @@ function bindLanding() {
     lnReveal());
 }
 /* блоки лендинга плавно появляются при прокрутке */
+/* Живые разделы лендинга: схема ключа, задержка до биржи, экран «Как начать», финальная сцена.
+   Каждый работает только пока виден на экране. */
+function lnFx() {
+  if (LN.fx) return;
+  LN.fx = 1;
+  const seen = (el, on) => {
+    if (!el) return;
+    if (!("IntersectionObserver" in window)) return on(!0);
+    new IntersectionObserver(([x]) => on(x.isIntersecting), { threshold: 0.25 }).observe(el);
+  };
+  /* схема ключа: этапы сменяются каждые 3 с, по нажатию — сразу */
+  const kf = $("kf"),
+    viz = kf?.querySelector(".kf-viz"),
+    svg = viz?.querySelector("svg");
+  let kst = 0, kt = 0, kon = !1;
+  const kset = (n) => {
+    kst = n;
+    viz.dataset.st = n;
+    kf.querySelectorAll(".kf-st").forEach((b, k) => {
+      b.classList.toggle("on", k === n);
+      const bar = b.querySelector(".kf-bar i");
+      bar.style.animation = "none";
+      bar.offsetWidth;
+      bar.style.animation = "";
+    });
+    clearTimeout(kt);
+    kon && (kt = setTimeout(() => kset((kst + 1) % 3), 3e3));
+  };
+  kf && (kf.querySelectorAll(".kf-st").forEach((b) => (b.onclick = () => kset(Number(b.dataset.kf)))),
+    seen(kf, (v) => {
+      kon = v;
+      kf.classList.toggle("paused", !v);
+      v ? (svg.unpauseAnimations?.(), kset(kst)) : (clearTimeout(kt), svg.pauseAnimations?.());
+    }));
+  /* задержка до биржи — меряем прямо у посетителя крошечным запросом */
+  const pg = [];
+  let pt = 0;
+  const ping = async () => {
+    const t0 = performance.now();
+    try {
+      await fetch(`${CFG.isTestnet ? "https://api.hyperliquid-testnet.xyz" : "https://api.hyperliquid.xyz"}/info`, { method: "POST", headers: { "content-type": "application/json" }, body: '{"type":"exchangeStatus"}', cache: "no-store" });
+      pg.push(performance.now() - t0);
+      pg.length > 24 && pg.shift();
+      const last = pg.slice(-5).sort((a, b) => a - b),
+        med = last[Math.floor(last.length / 2)];
+      $("puPing") && ($("puPing").textContent = Math.round(med));
+      const mx = Math.max(...pg) * 1.15,
+        mn = Math.min(...pg) * 0.85;
+      $("puLine")?.setAttribute("points", pg.map((v, k) => `${(k / Math.max(1, pg.length - 1)) * 160},${30 - ((v - mn) / (mx - mn || 1)) * 26}`).join(" "));
+    } catch {}
+  };
+  seen($("lnFast"), (v) => (clearInterval(pt), v && (ping(), (pt = setInterval(ping, 1500)))));
+  /* «Как начать»: экран телефона проигрывает шаги */
+  const gs = $("gs");
+  let gst = 0, gt = 0, gon = !1;
+  const gset = (n) => {
+    gst = n;
+    gs.classList.remove("play");
+    gs.dataset.step = n;
+    gs.querySelectorAll("[data-gs]").forEach((li, k) => (li.classList.toggle("on", k === n), li.classList.toggle("done", k < n)));
+    gs.offsetWidth;
+    gs.classList.add("play");
+    clearTimeout(gt);
+    gon && (gt = setTimeout(() => gset((gst + 1) % 3), 3600));
+  };
+  gs && (gs.querySelectorAll("[data-gs]").forEach((li) => (li.onclick = () => gset(Number(li.dataset.gs)))),
+    seen(gs, (v) => ((gon = v), v ? gset(gst) : clearTimeout(gt))));
+  /* финал: слова заголовка по очереди, живой 3D-знак на компьютере, кнопка тянется за курсором */
+  const fin = $("lnFinal");
+  seen(fin, (v) => {
+    v && fin.classList.add("in");
+    if (v && !isMobile() && !LN.fnMob)
+      ((LN.fnMob = 1),
+        import("./mobius.js")
+          .then(({ mountMobius: m }) => m($("fnMark")) && $("fnMark").classList.add("live"))
+          .catch(() => {}));
+  });
+  const cta = fin?.querySelector(".fn-cta");
+  cta &&
+    matchMedia("(hover:hover)").matches &&
+    (fin.addEventListener("pointermove", (e) => {
+      const r = cta.getBoundingClientRect(),
+        dx = e.clientX - (r.left + r.width / 2),
+        dy = e.clientY - (r.top + r.height / 2),
+        d = Math.hypot(dx, dy);
+      cta.style.transform = d < 220 ? `translate(${dx * 0.18}px,${dy * 0.25}px)` : "";
+    }),
+    fin.addEventListener("pointerleave", () => (cta.style.transform = "")));
+}
 function lnReveal() {
+  lnFx();
   const els = document.querySelectorAll(".ln-reveal");
   if (!("IntersectionObserver" in window)) return els.forEach((e) => e.classList.add("in"));
   const io = new IntersectionObserver((list) => list.forEach((x) => x.isIntersecting && (x.target.classList.add("in"), io.unobserve(x.target))), { threshold: 0.15 });
@@ -8541,6 +8804,11 @@ async function pnlCopy() {
     toast("Браузер не дал скопировать картинку — используйте «Скачать PNG»", "err");
   }
 }
+/* сторож стакана: живое соединение может тихо оборваться — если свежего стакана нет 3 с,
+   берём его запросом раз в 1,5 с, пока соединение не вернётся */
+setInterval(() => {
+  document.hidden || document.body.dataset.view === "landing" || (isMobile() && ["home", "markets", "assets"].includes(document.body.dataset.app)) || (Date.now() - (S.bookAt || 0) > 3e3 && !S.bookBusy && ((S.bookBusy = 1), pollBook().finally(() => (S.bookBusy = 0))));
+}, 1500);
 function startLoop() {
   (clearInterval(S.timer),
     (S.timer = setInterval(async () => {
@@ -8592,7 +8860,7 @@ function setTheme(i) {
   try {
     localStorage.setItem("totum.theme", i);
   } catch {}
-  (($("btnTheme").textContent = i === "dark" ? "☀" : "☾"), applyChartTheme());
+  (document.querySelectorAll("[data-theme-set]").forEach((b) => b.classList.toggle("on", b.dataset.themeSet === i)), applyChartTheme());
 }
 function initSettings() {
   (($("setRemember").checked = SET.remember),
@@ -8681,7 +8949,7 @@ function bindSettings() {
     window.addEventListener("resize", () => {
       S.chartView === "depth" && renderDepth();
     }),
-    ($("btnTheme").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark")),
+    document.querySelectorAll("[data-theme-set]").forEach((b) => (b.onclick = () => setTheme(b.dataset.themeSet))),
     ($("btnConnect").onclick = () => (S.user ? disconnectWallet() : connectWallet())),
     ($("btnConnect2").onclick = connectWallet),
     ($("btnEnable").onclick = enableTrading),
@@ -8750,6 +9018,9 @@ function bindSettings() {
       i && (($("closePx").value = Number(i.midPx).toFixed(pxDecimals(i.midPx))), updateCloseInfo());
     }),
     ($("closeCancel").onclick = () => $("closeDialog").close()),
+    ($("feedGo").onclick = feedPublish),
+    ($("feedList").onclick = feedClick),
+    ($("feedText").onkeydown = (e) => (e.ctrlKey || e.metaKey) && e.key === "Enter" && feedPublish()),
     document.querySelectorAll("#closeTabs [data-ct]").forEach((i) => (i.onclick = () => setCloseType(i.dataset.ct))),
     ($("btnCloseAll").onclick = closeAll),
     document.querySelectorAll("[data-sside]").forEach((i) => (i.onclick = () => setSpotSide(i.dataset.sside))),
@@ -8905,7 +9176,7 @@ function bindSettings() {
         i.target.closest("#ddMargin") || ($("ddMargin").querySelector(".dd-menu").hidden = !0),
         !i.target.closest("#settingsPop") && !i.target.closest("#btnSettings") && ($("settingsPop").hidden = !0));
     }),
-    ($("setThemeBtn").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark")),
+
     ($("feeLabel").textContent = FEE_PCT),
     ($("termsFee").textContent = FEE_PCT),
     paintRange($("pct")),
