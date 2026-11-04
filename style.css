@@ -1952,3 +1952,87 @@ body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net
 .cv-legend{position:absolute;left:10px;top:8px;z-index:4;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font:600 12px var(--font);color:var(--muted);pointer-events:none;background:color-mix(in srgb,var(--panel) 80%,transparent);padding:4px 8px;border-radius:8px}
 .cv-legend b{color:var(--text);font-family:var(--mono,monospace)}
 .cv-legend[hidden]{display:none}
+
+/* подсказка графика Original */
+.cv-legend{display:none!important}
+.cv-tip{position:absolute;top:8px;z-index:5;width:228px;padding:10px 12px;border-radius:14px;pointer-events:none;
+  background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);box-shadow:0 12px 30px rgba(2,6,23,.35);font:500 12px var(--font);color:var(--muted)}
+.cv-tip[hidden]{display:none}
+.cv-tip::after{content:"";position:absolute;left:var(--ax);top:100%;width:1px;height:var(--ah);background:linear-gradient(var(--line),transparent)}
+.cv-tip header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.cv-tip header b{font:700 13px var(--mono,monospace)}
+.cvt-v{display:flex;justify-content:space-between;align-items:baseline}
+.cvt-v b{font:800 17px "Manrope",var(--font);color:var(--text)}
+.cvt-bar{height:6px;border-radius:3px;background:linear-gradient(90deg,#fda4af,#e11d48);margin:8px 0 5px;overflow:hidden}
+.cvt-bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#5eead4,#10b981)}
+.cvt-bs{display:flex;justify-content:space-between;font-size:11px;font-weight:700}
+.cvt-d{margin-top:5px;font-size:11.5px}.cvt-d b{font-weight:700}
+.cvt-na{margin-top:6px;font-size:11px;line-height:1.35}
+.cvt-o{display:flex;justify-content:space-between;margin-top:7px;padding-top:6px;border-top:1px solid var(--line);font:500 10.5px var(--mono,monospace)}
+.chart-attr{font-size:11px;color:var(--muted);margin-top:6px}
+.chart-attr a{color:inherit}
+
+.cv-tip{width:auto;min-width:250px;max-width:320px;padding:7px 10px;border-radius:12px}
+.cvt-r1{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.cvt-r1 b{font:700 12.5px var(--mono,monospace)}
+.cvt-vol{margin-left:auto}.cvt-vol b{font:800 14px "Manrope",var(--font);color:var(--text)}
+.cvt-r2{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:6px;margin-top:5px;font-size:11px;font-weight:700;white-space:nowrap}
+.cvt-r2 .cvt-bar{margin:0}
+.cvt-d{margin-top:3px;font-size:11px}
+.cvt-na{margin-top:3px}
+
+/* ═══ профиль трейдера ═══ */
+.feed-me{margin-bottom:8px}
+.fm-btn{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:6px 14px 6px 6px;border-radius:999px;cursor:pointer;text-align:left}
+.fm-btn .fd-av{width:30px;height:30px;font-size:10px}
+.fm-btn b{display:block;font-size:13px}.fm-btn small{font-size:11px;color:var(--muted)}
+.fd-au{display:flex;align-items:center;gap:10px;flex:1;border:0;background:none;color:inherit;padding:0;cursor:pointer;text-align:left}
+.fd-au span{display:flex;flex-direction:column}
+.fd-au b{font:700 13.5px var(--font)}
+.fd-au small{font-size:11.5px;color:var(--muted)}
+.fd-au:hover b{color:var(--accent)}
+.pf-dlg{width:min(560px,calc(100% - 24px));max-height:86vh;overflow:auto}
+.pf-head{display:flex;align-items:center;gap:14px}
+.pf-head .fd-av{width:60px;height:60px;font-size:18px}
+.pf-head>div{flex:1}
+.pf-head b{display:block;font:800 20px "Manrope",var(--font)}
+.pf-addr{border:0;background:var(--panel2);color:var(--muted);font:600 12px var(--mono,monospace);padding:3px 8px;border-radius:999px;cursor:pointer;margin-top:4px}
+.pf-x{border:0;background:var(--panel2);color:var(--muted);width:32px;height:32px;border-radius:50%;cursor:pointer}
+.pf-bio{margin:12px 0 0;line-height:1.5}
+.pf-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.pf-stats div{background:var(--panel2);border-radius:12px;padding:10px;text-align:center}
+.pf-stats b{display:block;font:800 17px "Manrope",var(--font)}
+.pf-stats span{font-size:11.5px;color:var(--muted)}
+.pf-edit{display:grid;gap:8px;margin-bottom:14px;padding:12px;border:1px dashed var(--line);border-radius:14px}
+.pf-bio-in textarea{width:100%;border:0;background:transparent;color:inherit;font:inherit;resize:vertical;outline:0}
+.pf-posts{display:flex;flex-direction:column;gap:10px}
+
+/* лендинг: мини-лестница скальпинга — как в инструменте */
+#lvBook .lv-body{font:600 11px var(--mono,monospace);display:flex;flex-direction:column;gap:1px;margin-top:6px}
+.ll-h,.ll-r{display:grid;grid-template-columns:1fr 1.2fr .95fr 1.2fr;align-items:center}
+.ll-h{font:700 9.5px "Manrope",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6f84ab;padding-bottom:3px;text-align:center}
+.ll-h .b{color:#34d399}.ll-h .s{color:#fb7185}
+.ll-r{height:15px}
+.ll-r>span{position:relative;height:100%;display:flex;align-items:center;overflow:hidden}
+.ll-r i{position:absolute;top:1px;bottom:1px;border-radius:2px}
+.ll-r em{position:relative;font-style:normal;padding:0 4px;color:#e9f1ff;font-size:10.5px}
+.ll-r .v{justify-content:flex-end}.ll-r .v i{right:0;background:rgba(148,190,255,.22)}
+.ll-r .bb{justify-content:flex-end}.ll-r .bb i{right:0;background:rgba(52,211,153,.4)}
+.ll-r .ss i{left:0;background:rgba(251,113,133,.42)}
+.ll-r .pc{justify-content:center;font-weight:700}
+.ll-r.a .pc{color:#fb7185;background:rgba(251,113,133,.06)}
+.ll-r.b .pc{color:#34d399;background:rgba(52,211,153,.06)}
+.ll-r.a .ss{background:rgba(251,113,133,.05)}.ll-r.b .bb{background:rgba(52,211,153,.05)}
+.ll-r.last .pc{box-shadow:inset 0 0 0 1px #e9f1ff;border-radius:3px}
+
+/* 3D-телефон: холст больше рамки, чтобы при повороте корпус не обрезался */
+.gs-phone.is3d{background:none;box-shadow:none;transform:none!important;overflow:visible}
+.gs-phone.is3d>:not(.ph3-canvas){opacity:0;pointer-events:none}
+.gs-phone.is3d .gs-glass{position:absolute;inset:0;width:2px;height:2px;overflow:hidden}
+.ph3-canvas{position:absolute;inset:-60px -90px;width:calc(100% + 180px)!important;height:calc(100% + 120px)!important;z-index:2}
+.gs-phone.is3d::after{content:"";position:absolute;left:14%;right:14%;bottom:2px;height:30px;border-radius:50%;background:radial-gradient(closest-side,rgba(47,107,255,.45),transparent);z-index:1}
+
+/* схема ключа: 3D-модели поверх, плоские значки прячем */
+.kf3-canvas{position:absolute;inset:0;width:100%!important;height:100%!important;pointer-events:none;z-index:2}
+.kf-viz.is3d .kf-node .kf-i,.kf-viz.is3d .kf-shield .sh,.kf-viz.is3d .kf-sh-bg{opacity:0}
+.kf-viz.is3d .kf-tile{fill:rgba(13,23,51,.55)}
