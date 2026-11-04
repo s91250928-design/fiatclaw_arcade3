@@ -2036,3 +2036,9 @@ body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net
 .kf3-canvas{position:absolute;inset:0;width:100%!important;height:100%!important;pointer-events:none;z-index:2}
 .kf-viz.is3d .kf-node .kf-i,.kf-viz.is3d .kf-shield .sh,.kf-viz.is3d .kf-sh-bg{opacity:0}
 .kf-viz.is3d .kf-tile{fill:rgba(13,23,51,.55)}
+
+/* скальпинг: подсказка с правилами крупнее; позиции — кликабельны */
+.sc-hint{font-size:13px;color:color-mix(in srgb,var(--text) 72%,var(--muted));line-height:1.45}
+.sc-tk-h{font-size:12px}.sc-tk-h small{font-size:11.5px}
+.pos-row,.pos-card[data-pos-coin]{cursor:pointer}
+.pos-row:hover td{background:color-mix(in srgb,var(--accent) 6%,transparent)}
