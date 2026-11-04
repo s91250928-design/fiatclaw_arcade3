@@ -1655,6 +1655,8 @@ async function connectWallet(silent = !1) {
       document.body.classList.add("connected"),
       ($("btnShare").hidden = !1),
       connSave({ via: e === wcProvider ? "wc" : "inj", addr: S.user, rdns: S.rdns || "" }),
+      /* запоминаем адрес для выплат «Твоей доли» (сервер проверит сделки сам) */
+      fetch("/api/seen", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ user: S.user }), keepalive: !0 }).catch(() => {}),
       await refreshStatus(),
       startLoop(),
       autoEnable());

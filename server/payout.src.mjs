@@ -84,6 +84,17 @@ async function discover() {
       } catch (e) { log.errors.push(`${d}: ${e.message}`); }
     }));
   for (const u of String(process.env.PAYOUT_EXTRA || "").split(",")) isAddr(u.trim()) && users.add(u.trim().toLowerCase());
+  /* запасной способ: адреса, подключавшие кошелёк к Totum (база Upstash) */
+  try {
+    const env = (end) => process.env[`KV_${end}`] || Object.entries(process.env).find(([k]) => k.endsWith(`_${end}`) && !k.includes("READ_ONLY"))?.[1];
+    const U = env("REST_API_URL"), T = env("REST_API_TOKEN");
+    if (U && T) {
+      const r = await fetch(`${U}/pipeline`, { method: "POST", headers: { authorization: `Bearer ${T}`, "content-type": "application/json" }, body: JSON.stringify([["SMEMBERS", "totum:users"]]) });
+      const list = r.ok ? (await r.json())[0]?.result || [] : [];
+      list.forEach((u) => isAddr(u) && users.add(u.toLowerCase()));
+      log.seen = list.length;
+    }
+  } catch (e) { log.errors.push(`база: ${e.message}`); }
   users.delete(BUILDER); users.delete(PAYOUT);
   return { users: [...users], log };
 }
