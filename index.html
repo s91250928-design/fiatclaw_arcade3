@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1793783805">
+<link rel="stylesheet" href="style.css?v=1793788109">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -63,27 +63,43 @@
         <button type="button" class="kf-st" data-kf="2"><i class="kf-bar"><i></i></i><b>Вывод — только кошельком</b><span>Вывести деньги ключом нельзя: так устроен Hyperliquid. Деньги на твоём счёте, ключ живёт 180 дней.</span></button>
       </div>
       <div class="kf-viz" data-st="0">
-        <svg viewBox="0 0 600 360" aria-hidden="true">
+        <svg viewBox="0 0 720 440" aria-hidden="true">
           <defs>
-            <linearGradient id="kfBeam" x1="0" x2="1"><stop offset="0" stop-color="#2f6bff" stop-opacity="0"/><stop offset=".5" stop-color="#38bdf8"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/></linearGradient>
-            <radialGradient id="kfGlow"><stop offset="0" stop-color="#38bdf8" stop-opacity=".55"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></radialGradient>
+            <linearGradient id="kfTile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a2b5c"/><stop offset="1" stop-color="#0b1430"/></linearGradient>
+            <linearGradient id="kfRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".5" stop-color="#818cf8"/><stop offset="1" stop-color="#2fd6f0"/></linearGradient>
+            <radialGradient id="kfGlow"><stop offset="0" stop-color="#38bdf8" stop-opacity=".35"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></radialGradient>
           </defs>
-          <path id="kfP1" class="kf-rail" d="M110 150 C 190 150, 220 150, 300 150"/>
-          <path id="kfP2" class="kf-rail" d="M300 150 C 380 150, 410 150, 490 150"/>
-          <path id="kfP3" class="kf-rail kf-back" d="M490 175 C 470 300, 130 300, 110 175"/>
-          <path id="kfP4" class="kf-rail kf-try" d="M300 172 C 300 220, 300 230, 300 246"/>
-          <g class="kf-node n1" transform="translate(110 150)"><circle r="62" fill="url(#kfGlow)" class="kf-halo"/><circle r="40" class="kf-disc"/><path class="kf-ic" d="M-16 -9h28a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4h-28a4 4 0 0 1-4-4v-18a4 4 0 0 1 4-4zM-20 -1h-0M8 4h10"/><circle cx="12" cy="4" r="2.4" class="kf-dot"/><text y="66">Твой кошелёк</text></g>
-          <g class="kf-node n2" transform="translate(300 150)"><circle r="62" fill="url(#kfGlow)" class="kf-halo"/><circle r="40" class="kf-disc"/><circle cx="-7" cy="0" r="8" class="kf-ic"/><path class="kf-ic" d="M1 0h20M15 0v7M20 0v5"/><text y="66">Ключ для сделок</text></g>
-          <g class="kf-node n3" transform="translate(490 150)"><circle r="62" fill="url(#kfGlow)" class="kf-halo"/><circle r="40" class="kf-disc"/><rect x="-16" y="-12" width="9" height="24" rx="2" class="kf-bk b1"/><rect x="-4" y="-18" width="9" height="30" rx="2" class="kf-bk b2"/><rect x="8" y="-6" width="9" height="18" rx="2" class="kf-bk b3"/><text y="66">Hyperliquid</text></g>
-          <g class="kf-shield" transform="translate(300 268)"><path d="M0 -22 L18 -14 V2 C18 14 9 21 0 25 C-9 21 -18 14 -18 2 V-14 Z"/><path class="kf-x" d="M-7 -5 L7 9 M7 -5 L-7 9"/><text y="44">ключ не может вывести</text></g>
-          <text class="kf-lab l1" x="205" y="136">подпись</text>
-          <text class="kf-lab l2" x="395" y="136">заявки</text>
-          <text class="kf-lab l3" x="300" y="318">вывод — только в твой кошелёк</text>
-          <g class="kf-pk pk1"><rect x="-22" y="-10" width="44" height="20" rx="10"/><text y="4">✍</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s" keyPoints="0;1;1" keyTimes="0;.55;1" calcMode="linear"><mpath href="#kfP1"/></animateMotion></g>
-          <g class="kf-pk pk2 buy"><rect x="-26" y="-10" width="52" height="20" rx="10"/><text y="4">Купить</text><animateMotion dur="1.5s" repeatCount="indefinite" begin="0s"><mpath href="#kfP2"/></animateMotion></g>
-          <g class="kf-pk pk2b sell"><rect x="-28" y="-10" width="56" height="20" rx="10"/><text y="4">Продать</text><animateMotion dur="1.5s" repeatCount="indefinite" begin=".75s"><mpath href="#kfP2"/></animateMotion></g>
-          <g class="kf-pk pk3 coin"><circle r="11"/><text y="4">$</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s" keyPoints="0;1;1" keyTimes="0;.7;1" calcMode="linear"><mpath href="#kfP3"/></animateMotion></g>
-          <g class="kf-pk pk4"><circle r="8"/><animateMotion dur="1.5s" repeatCount="indefinite" begin="0s" keyPoints="0;1;0" keyTimes="0;.6;1" calcMode="spline" keySplines=".4 0 .2 1;.4 0 .2 1"><mpath href="#kfP4"/></animateMotion></g>
+          <path id="kfP1" class="kf-rail" d="M160 150 L 310 150"/>
+          <path id="kfP2" class="kf-rail" d="M410 150 L 560 150"/>
+          <path id="kfP3" class="kf-rail kf-back" d="M610 262 C 590 440, 130 440, 110 262"/>
+          <path id="kfP4" class="kf-rail kf-try" d="M360 258 L 360 290"/>
+          <g class="kf-node n1" transform="translate(110 150)">
+      <circle class="kf-halo" r="70"/>
+      <rect class="kf-tile" x="-46" y="-46" width="92" height="92" rx="26"/>
+      <rect class="kf-ring" x="-52" y="-52" width="104" height="104" rx="31" pathLength="100"/>
+      <g class="kf-i " transform="translate(-22.0 -22.0) scale(0.171875)"><path d="M224,80V192a8,8,0,0,1-8,8H56a16,16,0,0,1-16-16V56A16,16,0,0,0,56,72H216A8,8,0,0,1,224,80Z" opacity="0.2"/><path d="M216,64H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,56V184a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V80A16,16,0,0,0,216,64Zm0,128H56a8,8,0,0,1-8-8V78.63A23.84,23.84,0,0,0,56,80H216Zm-48-60a12,12,0,1,1,12,12A12,12,0,0,1,168,132Z"/></g>
+      <text class="kf-t" y="76">Твой кошелёк</text><text class="kf-s" y="96">хранит деньги</text>
+    </g>
+          <g class="kf-node n2" transform="translate(360 150)">
+      <circle class="kf-halo" r="70"/>
+      <rect class="kf-tile" x="-46" y="-46" width="92" height="92" rx="26"/>
+      <rect class="kf-ring" x="-52" y="-52" width="104" height="104" rx="31" pathLength="100"/>
+      <g class="kf-i " transform="translate(-22.0 -22.0) scale(0.171875)"><path d="M232,98.36C230.73,136.92,198.67,168,160.09,168a71.68,71.68,0,0,1-26.92-5.17h0L120,176H96v24H72v24H40a8,8,0,0,1-8-8V187.31a8,8,0,0,1,2.34-5.65l58.83-58.83h0A71.68,71.68,0,0,1,88,95.91c0-38.58,31.08-70.64,69.64-71.87A72,72,0,0,1,232,98.36Z" opacity="0.2"/><path d="M216.57,39.43A80,80,0,0,0,83.91,120.78L28.69,176A15.86,15.86,0,0,0,24,187.31V216a16,16,0,0,0,16,16H72a8,8,0,0,0,8-8V208H96a8,8,0,0,0,8-8V184h16a8,8,0,0,0,5.66-2.34l9.56-9.57A79.73,79.73,0,0,0,160,176h.1A80,80,0,0,0,216.57,39.43ZM224,98.1c-1.09,34.09-29.75,61.86-63.89,61.9H160a63.7,63.7,0,0,1-23.65-4.51,8,8,0,0,0-8.84,1.68L116.69,168H96a8,8,0,0,0-8,8v16H72a8,8,0,0,0-8,8v16H40V187.31l58.83-58.82a8,8,0,0,0,1.68-8.84A63.72,63.72,0,0,1,96,95.92c0-34.14,27.81-62.8,61.9-63.89A64,64,0,0,1,224,98.1ZM192,76a12,12,0,1,1-12-12A12,12,0,0,1,192,76Z"/></g>
+      <text class="kf-t" y="76">Ключ для сделок</text><text class="kf-s" y="96">только заявки</text>
+    </g>
+          <g class="kf-node n3" transform="translate(610 150)">
+      <circle class="kf-halo" r="70"/>
+      <rect class="kf-tile" x="-46" y="-46" width="92" height="92" rx="26"/>
+      <rect class="kf-ring" x="-52" y="-52" width="104" height="104" rx="31" pathLength="100"/>
+      <g class="kf-i " transform="translate(-22.0 -22.0) scale(0.171875)"><path d="M224,64V208H32V48H208A16,16,0,0,1,224,64Z" opacity="0.2"/><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V156.69l50.34-50.35a8,8,0,0,1,11.32,0L128,132.69,180.69,80H160a8,8,0,0,1,0-16h40a8,8,0,0,1,8,8v40a8,8,0,0,1-16,0V91.31l-58.34,58.35a8,8,0,0,1-11.32,0L96,123.31l-56,56V200H224A8,8,0,0,1,232,208Z"/></g>
+      <text class="kf-t" y="76">Hyperliquid</text><text class="kf-s" y="96">биржа</text>
+    </g>
+          <g class="kf-shield" transform="translate(360 316)"><circle r="24" class="kf-sh-bg"/><g class="kf-i sh" transform="translate(-15.0 -15.0) scale(0.1171875)"><path d="M216,56v56c0,96-88,120-88,120S40,208,40,112V56a8,8,0,0,1,8-8H208A8,8,0,0,1,216,56Z" opacity="0.2"/><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></g><text class="kf-s red" y="44">вывести ключом нельзя</text></g>
+          <g class="kf-pk pk1"><rect x="-56.0" y="-14" width="112" height="28" rx="14"/><g class="kf-i " transform="translate(-48.0 -8.0) scale(0.0625)"><path d="M128,48,68.32,70.38a8,8,0,0,0-5.08,6.17L40,216l139.45-23.24a8,8,0,0,0,6.17-5.08L208,128Zm-4,104a20,20,0,1,1,20-20A20,20,0,0,1,124,152Z" opacity="0.2"/><path d="M248,92.68a15.86,15.86,0,0,0-4.69-11.31L174.63,12.68a16,16,0,0,0-22.63,0L123.57,41.11l-58,21.77A16.06,16.06,0,0,0,55.35,75.23L32.11,214.68A8,8,0,0,0,40,224a8.4,8.4,0,0,0,1.32-.11l139.44-23.24a16,16,0,0,0,12.35-10.17l21.77-58L243.31,104A15.87,15.87,0,0,0,248,92.68Zm-69.87,92.19L63.32,204l47.37-47.37a28,28,0,1,0-11.32-11.32L52,192.7,71.13,77.86,126,57.29,198.7,130ZM112,132a12,12,0,1,1,12,12A12,12,0,0,1,112,132Zm96-15.32L139.31,48l24-24L232,92.68Z"/></g><text x="8" y="4.5">подпись</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s" keyPoints="0;1;1" keyTimes="0;.6;1" calcMode="linear"><mpath href="#kfP1"/></animateMotion></g>
+          <g class="kf-pk pk2 buy"><rect x="-52.0" y="-14" width="104" height="28" rx="14"/><g class="kf-i " transform="translate(-44.0 -8.0) scale(0.0625)"><path d="M96,240l16-80L48,136,160,16,144,96l64,24Z" opacity="0.2"/><path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"/></g><text x="8" y="4.5">Купить</text><animateMotion dur="1.6s" repeatCount="indefinite" begin="0s"><mpath href="#kfP2"/></animateMotion></g>
+          <g class="kf-pk pk2b sell"><rect x="-55.0" y="-14" width="110" height="28" rx="14"/><g class="kf-i " transform="translate(-47.0 -8.0) scale(0.0625)"><path d="M96,240l16-80L48,136,160,16,144,96l64,24Z" opacity="0.2"/><path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"/></g><text x="8" y="4.5">Продать</text><animateMotion dur="1.6s" repeatCount="indefinite" begin=".8s"><mpath href="#kfP2"/></animateMotion></g>
+          <g class="kf-pk pk3 coin"><rect x="-52.0" y="-14" width="104" height="28" rx="14"/><g class="kf-i " transform="translate(-44.0 -8.0) scale(0.0625)"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-68a28,28,0,0,1-28,28h-4v8a8,8,0,0,1-16,0v-8H104a8,8,0,0,1,0-16h36a12,12,0,0,0,0-24H116a28,28,0,0,1,0-56h4V72a8,8,0,0,1,16,0v8h16a8,8,0,0,1,0,16H116a12,12,0,0,0,0,24h24A28,28,0,0,1,168,148Z"/></g><text x="8" y="4.5">вывод</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s" keyPoints="0;1;1" keyTimes="0;.7;1" calcMode="linear"><mpath href="#kfP3"/></animateMotion></g>
+          <g class="kf-pk pk4"><circle r="15"/><g class="kf-i " transform="translate(-9.0 -9.0) scale(0.0703125)"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm88,104a87.56,87.56,0,0,1-20.41,56.28L71.72,60.4A88,88,0,0,1,216,128ZM40,128A87.56,87.56,0,0,1,60.41,71.72L184.28,195.6A88,88,0,0,1,40,128Z"/></g><animateMotion dur="1.6s" repeatCount="indefinite" begin="0s" keyPoints="0;1;0" keyTimes="0;.55;1" calcMode="spline" keySplines=".5 0 .9 .6;.1 .4 .5 1"><mpath href="#kfP4"/></animateMotion></g>
         </svg>
       </div>
     </div>
@@ -113,33 +129,19 @@
         <li data-gs="2"><i></i><div><b>Пополни и торгуй</b><span id="lnStep3">Переведи USDC на свой счёт Hyperliquid и открой первую сделку.</span></div></li>
       </ol>
       <div class="gs-phone" aria-hidden="true">
-        <div class="gs-notch"></div>
-        <div class="gs-scr s0">
-          <div class="gs-h">Выберите кошелёк</div>
-          <div class="gs-w"><i style="--c:#111"></i>OKX Wallet<em>Найден</em></div>
-          <div class="gs-w"><i style="--c:#f6851b"></i>MetaMask</div>
-          <div class="gs-w"><i style="--c:#7c83fd"></i>Rabby</div>
-          <div class="gs-w"><i style="--c:#3b99fc"></i>Телефон · QR-код</div>
-          <div class="gs-ok">Подключено · 0x7a3f…91c2</div>
+        <i class="gs-btn-l"></i><i class="gs-btn-r"></i>
+        <div class="gs-glass">
+          <div class="gs-status"><b>9:41</b><span class="gs-island"></span><span class="gs-sig"><i></i><i></i><i></i><i></i><em></em></span></div>
+          <video id="gsVid" muted playsinline loop preload="none" poster="brand/howto.webp" data-src="brand/howto.mp4" data-marks="3.4,6.9"></video>
+          <div class="gs-glare"></div>
         </div>
-        <div class="gs-scr s1">
-          <div class="gs-sign"><div class="gs-ring"><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26"/><path d="M19 31 l8 8 l15 -17"/></svg></div><b>Подписать ключ для сделок</b><span>Вывод денег этим ключом невозможен</span><div class="gs-btn">Подтвердить</div></div>
-        </div>
-        <div class="gs-scr s2">
-          <div class="gs-tk"><b>BTC</b><span class="gs-px">78 052</span><em>+1,6%</em></div>
-          <svg class="gs-ch" viewBox="0 0 200 70" preserveAspectRatio="none"><polyline points="0,52 18,48 34,54 52,40 70,44 88,30 106,36 124,22 142,28 160,16 178,20 200,8"/></svg>
-          <div class="gs-row"><span>Сумма</span><b>100 USDC</b></div>
-          <div class="gs-buy">Купить BTC</div>
-          <div class="gs-toast">✓ Исполнено за 0,4 с</div>
-        </div>
-        <div class="gs-tap"></div>
       </div>
     </div>
   </section>
 
   <section class="ln-final" id="lnFinal">
     <div class="fn-floor" aria-hidden="true"></div>
-    <div class="fn-rays" aria-hidden="true"></div>
+    <div class="fn-rays-w" aria-hidden="true"><div class="fn-rays"></div></div>
     <div class="fn-mark" id="fnMark"><div class="spin-logo"></div></div>
     <h2 class="fn-title"><span>Торгуй</span> <span>с инструментами</span> <span>профи</span> <span>и получай</span> <span class="ln-grad">долю биржи</span></h2>
     <p class="fn-sub" id="fnSub">Фьючерсы, спот и акции · ликвидность Hyperliquid · половина комиссии — тебе</p>
@@ -226,7 +228,7 @@
           <label class="chk"><input type="checkbox" data-ind="macd"><span class="box"></span> MACD 12, 26, 9</label>
         </div>
       </div>
-      <div class="view-tabs"><button data-view="candles" class="on" type="button">Обычный</button><button data-view="depth" type="button">Глубина</button></div>
+      <div class="view-tabs"><button data-view="candles" class="on" type="button">Обычный</button><button data-view="original" type="button" class="vt-orig" title="Свечи Totum: ширина и яркость — от объёма, под свечой — покупки и продажи">Original</button><button data-view="depth" type="button">Глубина</button></div>
     </div>
     <div class="chart-wrap">
       <div class="draw-bar" id="drawBar">
@@ -260,8 +262,13 @@
     <div class="cp-pane" id="paneFeed">
       <div class="feed-compose">
         <textarea id="feedText" rows="3" maxlength="600" placeholder="Поделитесь профитом, сделкой или идеей…"></textarea>
-        <label class="chk feed-att" id="feedAttRow" hidden><input type="checkbox" id="feedAtt"><span class="box"></span> <span id="feedAttTxt">Приложить позицию</span></label>
-        <div class="row between"><span class="muted small" id="feedHint">Пост подписывается вашим ключом для сделок — подделать автора нельзя, окна кошелька не будет</span><button class="btn small" type="button" id="feedGo">Опубликовать</button></div>
+        <div class="fc-atts" id="feedAtts"></div>
+        <div class="fc-bar">
+          <button type="button" class="fc-tool" id="feedPosBtn" title="Поделиться позицией"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V156.69l50.34-50.35a8,8,0,0,1,11.32,0L128,132.69,180.69,80H160a8,8,0,0,1,0-16h40a8,8,0,0,1,8,8v40a8,8,0,0,1-16,0V91.31l-58.34,58.35a8,8,0,0,1-11.32,0L96,123.31l-56,56V200H224A8,8,0,0,1,232,208Z"/></svg><span>Позиция</span></button>
+          <label class="fc-tool" title="Фото или видео"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"/></svg><span>Фото/видео</span><input type="file" id="feedFile" accept="image/*,video/mp4,video/webm,video/quicktime" multiple hidden></label>
+          <span class="muted small fc-hint" id="feedHint">Пост подписан вашим ключом — подделать автора нельзя</span>
+          <button class="btn small" type="button" id="feedGo">Опубликовать</button>
+        </div>
       </div>
       <div id="feedList" class="feed-list"><div class="feed-skel"><i></i><i></i><i></i></div></div>
     </div>
@@ -529,6 +536,14 @@
   </div>
   <div class="row"><button id="pnlDownload" class="btn grow" type="button">Скачать PNG</button><button id="pnlShare" class="btn ghost grow" type="button">Поделиться</button><button id="pnlCopy" class="btn ghost grow" type="button">Копировать</button></div>
 </dialog>
+<dialog id="feedPick" class="sheet-dlg fp-dlg">
+  <h2>Какой позицией поделиться</h2>
+  <div class="seg" id="fpTabs"><button type="button" data-fp="open" class="on">Открытые</button><button type="button" data-fp="closed">Закрытые</button></div>
+  <div id="fpList" class="fp-list"></div>
+  <p class="muted small">Цифры сервер возьмёт с Hyperliquid сам — в посте будет отметка «✓ Hyperliquid».</p>
+  <div class="row"><button class="btn ghost grow" type="button" id="fpCancel">Отмена</button></div>
+</dialog>
+<dialog id="feedView" class="fv-dlg"><button type="button" class="fv-x" id="fvClose" aria-label="Закрыть"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button><div id="fvBody"></div></dialog>
 <dialog id="transferDialog" class="sheet-dlg">
   <h2>Перевод USDC</h2>
   <p class="muted small">Деньги для спота и для фьючерсов лежат на разных счетах Hyperliquid. Перевод бесплатный и мгновенный. Нажмите на стрелку, чтобы поменять направление.</p>
@@ -549,6 +564,6 @@
 </dialog>
 
 <script src="config.js"></script>
-<script type="module" src="app.js?v=1793783805"></script>
+<script type="module" src="app.js?v=1793788109"></script>
 </body>
 </html>
