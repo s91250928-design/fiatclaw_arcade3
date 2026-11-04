@@ -1,0 +1,25 @@
+# Выкладка сборщика покупок/продаж (Cloudflare Worker) при изменении папки delta-worker.
+# Нужны секреты репозитория: CLOUDFLARE_API_TOKEN и CLOUDFLARE_ACCOUNT_ID.
+name: delta-worker
+on:
+  push:
+    branches: [main]
+    paths: ["delta-worker/**", ".github/workflows/delta-worker.yml"]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Проверка ядра
+        run: node delta-worker/test-core.mjs
+      - name: Выкладка в Cloudflare
+        if: ${{ env.CF_TOKEN != '' }}
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: delta-worker
+        run: npx -y wrangler@4 deploy
