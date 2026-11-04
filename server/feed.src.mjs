@@ -71,14 +71,36 @@ export default async function handler(req, res) {
       res.setHeader("cache-control", "public, max-age=31536000, immutable");
       return res.status(200).send(Buffer.from(d, "base64"));
     }
+    if (req.method === "GET" && q.get("u")) {
+      /* профиль трейдера: ник, описание, его посты */
+      const u = q.get("u").toLowerCase(), me = (q.get("me") || "").toLowerCase();
+      if (!isAddr(u)) return send(400, { error: "адрес" });
+      const [pj, ids, n] = await redis([["GET", `feed:u:${u}`], ["LRANGE", `feed:uids:${u}`, "0", String(PAGE - 1)], ["LLEN", `feed:uids:${u}`]]);
+      const prof = pj ? JSON.parse(pj) : {};
+      let posts = [], likes = 0;
+      if (ids?.length) {
+        const r = await redis([["MGET", ...ids.map((id) => `feed:p:${id}`)], ["HMGET", "feed:lc", ...ids], ...(isAddr(me) ? [["SMISMEMBER", `feed:ul:${me}`, ...ids]] : [])]);
+        posts = r[0].map((j, k) => (j ? { ...JSON.parse(j), nick: prof.nick || "", likes: Number(r[1]?.[k] || 0), liked: isAddr(me) ? !!r[2]?.[k] : false } : null)).filter(Boolean);
+        likes = posts.reduce((a, p) => a + p.likes, 0);
+      }
+      return send(200, { user: u, nick: prof.nick || "", bio: prof.bio || "", since: prof.since || posts.at(-1)?.ts || null, posts, count: Number(n || 0), likes });
+    }
     if (req.method === "GET") {
       const from = Math.max(0, Number(q.get("from")) || 0), me = (q.get("me") || "").toLowerCase();
       const [ids] = await redis([["LRANGE", "feed:ids", String(from), String(from + PAGE - 1)]]);
       if (!ids?.length) return send(200, { posts: [], more: false });
       /* 3–4 команды базы на страницу (лайки — в одном хеше, «мои лайки» — в одном наборе) */
       const r = await redis([["MGET", ...ids.map((id) => `feed:p:${id}`)], ["HMGET", "feed:lc", ...ids], ...(isAddr(me) ? [["SMISMEMBER", `feed:ul:${me}`, ...ids]] : [])]);
-      const posts = r[0].map((j, k) => (j ? { ...JSON.parse(j), likes: Number(r[1]?.[k] || 0), liked: isAddr(me) ? !!r[2]?.[k] : false } : null)).filter(Boolean);
-      return send(200, { posts, more: ids.length === PAGE, video: !!BLOB });
+      let posts = r[0].map((j, k) => (j ? { ...JSON.parse(j), likes: Number(r[1]?.[k] || 0), liked: isAddr(me) ? !!r[2]?.[k] : false } : null)).filter(Boolean);
+      /* ники авторов — одним запросом */
+      const au = [...new Set(posts.map((p) => p.user))];
+      if (au.length) {
+        const [nk] = await redis([["HMGET", "feed:nicks", ...au]]);
+        const m = Object.fromEntries(au.map((a, k) => [a, nk?.[k] || ""]));
+        posts = posts.map((p) => ({ ...p, nick: m[p.user] }));
+      }
+      const myNick = isAddr(me) ? (await redis([["HGET", "feed:nicks", me]]))[0] || "" : "";
+      return send(200, { posts, more: ids.length === PAGE, video: !!BLOB, myNick });
     }
     if (req.method !== "POST") return send(405, { error: "method" });
     const b = typeof req.body === "object" && req.body ? req.body : JSON.parse(req.body || "{}");
@@ -112,8 +134,26 @@ export default async function handler(req, res) {
       const att = p.att?.kind === "closed" ? await closedTrade(user, p.att.oid).catch(() => null) : p.att?.kind === "open" || p.coin ? await openPos(user, p.att?.coin || p.coin).catch(() => null) : null;
       const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       const post = { id, user, text, ts: Date.now(), pos: att, media };
-      await redis([["SET", `feed:p:${id}`, JSON.stringify(post)], ["LPUSH", "feed:ids", id], ["LTRIM", "feed:ids", "0", String(KEEP - 1)]]);
-      return send(200, { post: { ...post, likes: 0, liked: false } });
+      const [, , , , nk] = await redis([["SET", `feed:p:${id}`, JSON.stringify(post)], ["LPUSH", "feed:ids", id], ["LTRIM", "feed:ids", "0", String(KEEP - 1)], ["LPUSH", `feed:uids:${user}`, id], ["HGET", "feed:nicks", user]]);
+      return send(200, { post: { ...post, nick: nk || "", likes: 0, liked: false } });
+    }
+    if (b.act === "profile") {
+      /* ник уникальный (без учёта регистра): 3–20 символов — буквы, цифры, _ . - */
+      const nick = String(p.nick || "").trim(), bio = clean(p.bio).slice(0, 160);
+      if (!/^[A-Za-zА-Яа-яЁё0-9_.-]{3,20}$/.test(nick)) return send(400, { error: "Ник: 3–20 символов — буквы, цифры, _ . -" });
+      if (/^0x[0-9a-f]{6,}/i.test(nick) || /totum|admin|support|hyperliquid/i.test(nick) && user !== ADMIN) return send(400, { error: "Такой ник занят" });
+      const low = nick.toLowerCase(), [owner, pj] = await redis([["GET", `feed:nick:${low}`], ["GET", `feed:u:${user}`]]);
+      if (owner && owner !== user) return send(409, { error: "Этот ник уже занят" });
+      const old = pj ? JSON.parse(pj) : {};
+      const [got] = await redis([["SET", `feed:nick:${low}`, user, "NX"]]);
+      if (got !== "OK" && owner !== user) return send(409, { error: "Этот ник уже занят" });
+      const prof = { nick, bio, since: old.since || Date.now() };
+      await redis([
+        ...(old.nick && old.nick.toLowerCase() !== low ? [["DEL", `feed:nick:${old.nick.toLowerCase()}`]] : []),
+        ["SET", `feed:u:${user}`, JSON.stringify(prof)],
+        ["HSET", "feed:nicks", user, nick],
+      ]);
+      return send(200, prof);
     }
     if (b.act === "like") {
       const id = String(p.id || "");
@@ -127,7 +167,7 @@ export default async function handler(req, res) {
       const [j] = await redis([["GET", `feed:p:${id}`]]);
       if (!j) return send(404, { error: "нет поста" });
       if (JSON.parse(j).user !== user && user !== ADMIN) return send(403, { error: "можно удалить только свой пост" });
-      await redis([["DEL", `feed:p:${id}`], ["HDEL", "feed:lc", id], ["LREM", "feed:ids", "0", id]]);
+      await redis([["DEL", `feed:p:${id}`], ["HDEL", "feed:lc", id], ["LREM", "feed:ids", "0", id], ["LREM", `feed:uids:${JSON.parse(j).user}`, "0", id]]);
       return send(200, { ok: true });
     }
     send(400, { error: "act" });

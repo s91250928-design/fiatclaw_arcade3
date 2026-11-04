@@ -637,6 +637,7 @@ function initChart() {
     autoSize: !0,
     layout: {
       fontSize: 11,
+      attributionLogo: !1,
     },
     crosshair: {
       mode: CrosshairMode.Normal,
@@ -1329,7 +1330,7 @@ async function subscribeCoin() {
           coin: i,
         },
         (n) => {
-          ((S.live.trades = !0), onTrades(n));
+          ((S.live.trades = !0), (S.tradesAt = Date.now()), onTrades(n));
         },
       ),
     ),
@@ -1356,7 +1357,7 @@ async function pollTrades() {
     let i = await info.recentTrades({
       coin: S.coin,
     });
-    ((S.trades = []), onTrades(i || []));
+    ((S.tradesAt = Date.now()), (S.trades = []), onTrades(i || []));
   } catch {}
 }
 var PROVIDERS = [];
@@ -2527,6 +2528,19 @@ function cvDeltaAdd(list) {
   CV.delta.size > 3e3 && CV.delta.delete(CV.delta.keys().next().value);
 }
 const cvCompact = (v) => (v >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(v >= 1e4 ? 0 : 1)}K` : v.toFixed(0));
+/* свечи Original: скруглённые «капсулы» с переливом; ширина и яркость — от объёма */
+const CV_UP = ["#5eead4", "#10b981"],
+  CV_DN = ["#fda4af", "#e11d48"];
+function cvRound(c, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
 class CvRenderer {
   draw(target, conv) {
     const d = this.d;
@@ -2539,59 +2553,81 @@ class CvRenderer {
         mx = Math.max(...vols, 1),
         avg = vols.reduce((a, v) => a + v, 0) / vols.length || 1,
         sp = d.barSpacing * (d.conflationFactor || 1),
-        up = this.o.upColor,
-        dn = this.o.downColor;
+        hov = CV.hover;
       c.save();
+      c.lineCap = "round";
       for (const b of vis) {
         const o = b.originalData,
           v = o.usd || 0,
           rel = Math.sqrt(v / mx),
-          w = Math.max(1, Math.min(sp * 0.92, sp * (0.22 + 0.7 * rel))) * hr,
+          w = Math.max(1.5 * hr, Math.min(sp * 0.86, sp * (0.24 + 0.66 * rel)) * hr),
           x = Math.round(b.x * hr),
           yo = conv(o.open) * vr,
           yc = conv(o.close) * vr,
           yh = conv(o.high) * vr,
           yl = conv(o.low) * vr,
           isUp = o.close >= o.open,
-          a = Math.max(0.28, Math.min(1, 0.3 + 0.7 * (v / (avg * 1.6))));
+          [c1, c2] = isUp ? CV_UP : CV_DN;
         if ([yo, yc, yh, yl].some((y) => !Number.isFinite(y))) continue;
+        let a = Math.max(0.3, Math.min(1, 0.32 + 0.68 * (v / (avg * 1.6))));
+        hov && (a = o.time === hov ? 1 : a * 0.55);
         c.globalAlpha = a;
-        c.fillStyle = c.strokeStyle = isUp ? up : dn;
-        c.fillRect(x - Math.max(1, hr) / 2, Math.min(yh, yl), Math.max(1, hr), Math.abs(yl - yh));
+        /* фитиль — тонкая линия со скруглёнными концами */
+        c.strokeStyle = c2;
+        c.lineWidth = Math.max(1, hr * (sp > 14 ? 1.4 : 1));
+        c.beginPath();
+        c.moveTo(x, yh);
+        c.lineTo(x, yl);
+        c.stroke();
+        /* тело — капсула с вертикальным переливом */
         const top = Math.min(yo, yc),
-          h = Math.max(Math.abs(yc - yo), 1 * vr);
-        c.fillRect(x - w / 2, top, w, h);
+          h = Math.max(Math.abs(yc - yo), 2 * vr),
+          g = c.createLinearGradient(0, top, 0, top + h);
+        g.addColorStop(0, c1);
+        g.addColorStop(1, c2);
+        c.fillStyle = g;
+        cvRound(c, x - w / 2, top, w, h, Math.min(w / 2, 4 * hr));
+        c.fill();
+        /* блик слева на крупных свечах */
+        if (w > 7 * hr && h > 8 * vr) {
+          c.globalAlpha = a * 0.35;
+          c.fillStyle = "#fff";
+          cvRound(c, x - w / 2 + w * 0.14, top + 2 * vr, Math.max(1, w * 0.16), h - 4 * vr, 2 * hr);
+          c.fill();
+        }
         c.globalAlpha = 1;
         /* покупки / продажи под свечой */
         const dl = CV.delta.get(o.time);
         if (dl && dl.b + dl.s > 0 && sp > 4) {
-          const bw = Math.max(w, 3 * hr),
-            yb = yl + 4 * vr,
+          const bw = Math.max(w, 4 * hr),
+            yb = yl + 5 * vr,
             fb = dl.b / (dl.b + dl.s);
-          c.fillStyle = up;
-          c.fillRect(x - bw / 2, yb, bw * fb, 3 * vr);
-          c.fillStyle = dn;
-          c.fillRect(x - bw / 2 + bw * fb, yb, bw * (1 - fb), 3 * vr);
+          c.fillStyle = CV_UP[1];
+          cvRound(c, x - bw / 2, yb, Math.max(1, bw * fb), 3 * vr, 1.5 * vr);
+          c.fill();
+          c.fillStyle = CV_DN[1];
+          cvRound(c, x - bw / 2 + bw * fb, yb, Math.max(1, bw * (1 - fb)), 3 * vr, 1.5 * vr);
+          c.fill();
         }
-        /* всплеск объёма */
+        /* всплеск объёма — светящаяся точка */
         if (v > avg * 2.6) {
           const r = Math.max(2, Math.min(4, sp / 6)) * hr;
-          c.fillStyle = isUp ? up : dn;
-          c.globalAlpha = 0.25;
+          c.fillStyle = c2;
+          c.globalAlpha = 0.22;
           c.beginPath();
-          c.arc(x, yh - 9 * vr, r * 2.2, 0, Math.PI * 2);
+          c.arc(x, yh - 9 * vr, r * 2.4, 0, Math.PI * 2);
           c.fill();
           c.globalAlpha = 1;
+          c.fillStyle = c1;
           c.beginPath();
           c.arc(x, yh - 9 * vr, r, 0, Math.PI * 2);
           c.fill();
         }
-        /* сумма объёма — когда свечи крупные */
-        if (sp >= 30 && v > 0) {
-          c.font = `${10 * vr}px "Manrope",system-ui,sans-serif`;
+        if (sp >= 34 && v > 0) {
+          c.font = `600 ${10 * vr}px "Manrope",system-ui,sans-serif`;
           c.textAlign = "center";
           c.fillStyle = this.o.textColor;
-          c.fillText(`$${cvCompact(v)}`, x, yh - (v > avg * 2.6 ? 18 : 6) * vr);
+          c.fillText(`$${cvCompact(v)}`, x, yh - (v > avg * 2.6 ? 19 : 7) * vr);
         }
       }
       c.restore();
@@ -2624,20 +2660,36 @@ function cvVolOf(t) {
   const v = S.vols?.length && S.vols.at(-1).time === t ? S.vols.at(-1) : S.vols?.find((x) => x.time === t);
   return v ? v.value : 0;
 }
-/* подсказка над графиком: объём, покупки/продажи, число сделок */
+/* подсказка при наведении: карточка в полосе над свечами, напротив свечи, с тонкой линией к ней —
+   свечи не закрывает. Покупки/продажи есть для свечей, пока открыт сайт (у биржи нет истории сторон). */
 function cvLegend(p) {
-  let el = $("cvLegend");
-  if (chartType !== "original") return el && (el.hidden = !0);
-  el || ((el = document.createElement("div")), (el.id = "cvLegend"), (el.className = "cv-legend"), $("chart").appendChild(el));
-  const b = p?.time ? S.bars?.find((x) => x.time === p.time) : S.bars?.at(-1);
-  if (!b) return void (el.hidden = !0);
+  let el = $("cvTip");
+  const box = $("chart");
+  if (chartType !== "original" || !box) return el && (el.hidden = !0);
+  el || ((el = document.createElement("div")), (el.id = "cvTip"), (el.className = "cv-tip"), box.appendChild(el));
+  const t = p?.time ?? null,
+    b = t != null ? S.bars?.find((x) => x.time === t) : null;
+  if (CV.hover !== (b ? b.time : null)) ((CV.hover = b ? b.time : null), candleSeries?.applyOptions({}));
+  if (!b || !p?.point) return void (el.hidden = !0);
   const v = cvVolOf(b.time) * ((b.high + b.low) / 2),
     dl = CV.delta.get(b.time),
-    ch = (b.close / b.open - 1) * 100;
+    ch = (b.close / b.open - 1) * 100,
+    fb = dl && dl.b + dl.s ? dl.b / (dl.b + dl.s) : null,
+    dt = new Date(b.time * 1e3).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+  el.innerHTML = `<div class="cvt-r1"><span>${dt}</span><b class="${ch >= 0 ? "pos" : "neg"}">${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b><span class="cvt-vol">Объём <b>$${cvCompact(v)}</b></span></div>
+    ${
+      fb != null
+        ? `<div class="cvt-r2"><span class="pos">${Math.round(fb * 100)}% · $${cvCompact(dl.b)}</span><div class="cvt-bar"><i style="width:${(fb * 100).toFixed(1)}%"></i></div><span class="neg">$${cvCompact(dl.s)} · ${Math.round((1 - fb) * 100)}%</span></div><div class="cvt-d">${dl.b >= dl.s ? "Покупатели" : "Продавцы"} сильнее на <b class="${dl.b >= dl.s ? "pos" : "neg"}">$${cvCompact(Math.abs(dl.b - dl.s))}</b> · ${dl.n} сделок</div>`
+        : '<div class="cvt-na">Покупки/продажи — для свечей с момента, как открыт сайт</div>'
+    }`;
   el.hidden = !1;
-  el.innerHTML = `<b class="${ch >= 0 ? "pos" : "neg"}">${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b><span>Объём <b>$${cvCompact(v)}</b></span>${
-    dl ? `<span>Покупки <b class="pos">$${cvCompact(dl.b)}</b></span><span>Продажи <b class="neg">$${cvCompact(dl.s)}</b></span><span>Сделок <b>${dl.n}</b></span>` : '<span class="muted">покупки/продажи появятся по живым сделкам</span>'
-  }`;
+  const W = box.clientWidth,
+    w = el.offsetWidth,
+    x = Math.max(6, Math.min(W - w - 70, p.point.x - w / 2)),
+    yh = candleSeries.priceToCoordinate(b.high) ?? 0;
+  el.style.left = `${x}px`;
+  el.style.setProperty("--ax", `${p.point.x - x}px`);
+  el.style.setProperty("--ah", `${Math.max(0, yh - el.offsetHeight - 14)}px`);
 }
 function createMainSeries() {
   let i = {
@@ -2646,13 +2698,16 @@ function createMainSeries() {
   };
   if (chartType === "original") {
     candleSeries = chart.addCustomSeries(new CvView(), { ...i, upColor: UP_COLOR, downColor: DOWN_COLOR });
+    /* сверху место под подсказку — она не закрывает свечи */
+    candleSeries.priceScale().applyOptions({ scaleMargins: { top: 0.24, bottom: 0.08 } });
     S.priceFormat && candleSeries.applyOptions({ priceFormat: S.priceFormat });
     try {
       candleSeries.attachPrimitive(drawPrimitive);
     } catch {}
     return void cvLegend();
   }
-  $("cvLegend") && ($("cvLegend").hidden = !0);
+  $("cvTip") && ($("cvTip").hidden = !0);
+  CV.hover = null;
   switch (chartType) {
     case "hollow":
       candleSeries = chart.addSeries(CandlestickSeries, {
@@ -2853,7 +2908,7 @@ function setSeriesData() {
       }));
 }
 function updateSeriesBar(i) {
-  if (chartType === "original") return candleSeries.update(cvRow(i, i.v ?? cvVolOf(i.time))), cvLegend();
+  if (chartType === "original") return candleSeries.update(cvRow(i, i.v ?? cvVolOf(i.time)));
   if (["candles", "hollow", "bars"].includes(chartType)) candleSeries.update(i);
   else if (chartType === "heikin") {
     let t = heikinAshi(S.bars || [i]);
@@ -4843,6 +4898,10 @@ function scOpen() {
   }
   scVolsUi();
   scSubscribe();
+  /* сразу то, что уже есть: накопленные сделки и 10 последних с биржи */
+  scTrades(S.trades || []);
+  scTapeRender();
+  info.recentTrades({ coin: S.coin }).then((d) => d && scTrades(d)).catch(() => {});
   scRender();
   scSideRender(!0);
 }
@@ -4907,16 +4966,29 @@ function scBook(b) {
   SC.book = b;
   scRender();
 }
+/* сделки копятся для скальпинга всегда (не только когда он открыт) — открыл инструмент,
+   а лента и пузыри уже заполнены; повторы (из запроса и из живого потока) отсекаются */
 function scTrades(list) {
-  if (!scOn() || SC.coin !== S.coin) return;
-  for (const t of list) {
-    if (t.coin !== S.coin) continue;
+  if (SC.coin !== S.coin) ((SC.coin = S.coin), (SC.tape = []), (SC.ticks = []), (SC.seen = new Set()), SC.tv.clear());
+  SC.seen || (SC.seen = new Set());
+  const key = (t) => t.tid ?? `${t.time}|${t.px}|${t.sz}|${t.side}`,
+    fresh = list.filter((t) => t.coin === S.coin && !SC.seen.has(key(t))).sort((a, b) => a.time - b.time);
+  if (!fresh.length) return;
+  SC.seen.size > 5e3 && (SC.seen = new Set([...SC.seen].slice(-2e3)));
+  for (const t of fresh) {
+    SC.seen.add(key(t));
     const px = +t.px,
-      usd = px * +t.sz;
-    SC.tape.unshift({ px, usd, b: t.side === "B", time: t.time });
+      usd = px * +t.sz,
+      b = t.side === "B";
+    /* лента — новые сверху; если пришла более старая сделка, ставим её на своё место по времени */
+    const ti = SC.tape.findIndex((x) => x.time <= t.time);
+    SC.tape.splice(ti < 0 ? SC.tape.length : ti, 0, { px, usd, b, time: t.time });
     /* для окна сделок: подряд идущие сделки по одной цене и стороне — один кружок */
     const lt = SC.ticks[SC.ticks.length - 1];
-    lt && lt.px === px && lt.b === (t.side === "B") && t.time - lt.t < 300 ? (lt.usd += usd) : SC.ticks.push({ px, usd, b: t.side === "B", t: t.time });
+    if (lt && t.time < lt.t) {
+      const k = SC.ticks.findIndex((x) => x.t > t.time);
+      SC.ticks.splice(k < 0 ? SC.ticks.length : k, 0, { px, usd, b, t: t.time });
+    } else lt && lt.px === px && lt.b === b && t.time - lt.t < 300 ? (lt.usd += usd) : SC.ticks.push({ px, usd, b, t: t.time });
     if (SC.step) {
       const k = scKey(px),
         o = SC.tv.get(k) || { b: 0, s: 0 };
@@ -4927,8 +4999,7 @@ function scTrades(list) {
   }
   SC.tape.length > 150 && (SC.tape.length = 150);
   SC.ticks.length > 600 && SC.ticks.splice(0, SC.ticks.length - 600);
-  scTapeRender();
-  scRender();
+  scOn() && (scTapeRender(), scRender());
 }
 function scTapeRender() {
   const el = $("scTape");
@@ -5822,7 +5893,7 @@ function bxDraw() {
     fX = bxFund(h.x?.f, X.row.ih, from);
   const c = createChart(box, {
     autoSize: !0,
-    layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: th.text, fontSize: 11, panes: { separatorColor: th.grid, separatorHoverColor: th.grid } },
+    layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: th.text, fontSize: 11, attributionLogo: !1, panes: { separatorColor: th.grid, separatorHoverColor: th.grid } },
     grid: { vertLines: { color: th.grid }, horzLines: { color: th.grid } },
     rightPriceScale: { borderVisible: !1 },
     timeScale: { borderVisible: !1, timeVisible: !0, secondsVisible: !1, rightOffset: 4 },
@@ -7392,6 +7463,7 @@ const agoRu = (t) => {
 };
 function feedOpen() {
   feedCompose();
+  feedMeRender();
   feedLoad();
   clearInterval(FEED.t);
   FEED.t = setInterval(() => document.body.dataset.cp === "feed" && !document.hidden && feedLoad(!1, !0), 2e4);
@@ -7417,6 +7489,8 @@ async function feedLoad(more = !1, quiet = !1) {
       FEED.err = "";
       FEED.posts = more ? [...FEED.posts, ...d.posts] : d.posts;
       FEED.video = !!d.video;
+      FEED.myNick = d.myNick || "";
+      feedMeRender();
       FEED.more = d.more;
     }
   } catch (e) {
@@ -7437,8 +7511,51 @@ async function feedSigned(act, payload, extra = {}) {
   if (!r.ok) throw new Error(d.error || `Ошибка ${r.status}`);
   return d;
 }
-function feedAvatar(u) {
-  return `<span class="fd-av" style="--h:${icHue(u)}">${esc(u.slice(2, 4))}</span>`;
+function feedAvatar(u, nick = "") {
+  return `<span class="fd-av" style="--h:${icHue(u)}">${esc(nick ? nick.slice(0, 2) : u.slice(2, 4))}</span>`;
+}
+/* ═══ профиль трейдера ═══ */
+function feedMeRender() {
+  const el = $("feedMe");
+  if (!el) return;
+  el.innerHTML = S.user
+    ? `<button type="button" class="fm-btn" data-feed="me">${feedAvatar(S.user.toLowerCase(), FEED.myNick)}<span><b>${esc(FEED.myNick || "Задайте ник")}</b><small>${FEED.myNick ? "Мой профиль" : "чтобы вас узнавали в ленте"}</small></span></button>`
+    : "";
+}
+async function feedProfile(u) {
+  $("pfBody").innerHTML = '<div class="feed-skel"><i></i><i></i></div>';
+  $("profDlg").open || $("profDlg").showModal();
+  try {
+    const d = await (await fetch(`/api/feed?u=${u}&me=${S.user || ""}`)).json();
+    if (d.error) throw new Error(d.error);
+    const mine = S.user && u === S.user.toLowerCase();
+    FEED.prof = d;
+    $("pfBody").innerHTML = `<div class="pf-head">${feedAvatar(u, d.nick)}<div><b>${esc(d.nick || short(u))}</b><button type="button" class="pf-addr" data-pf="copy" title="Скопировать адрес">${esc(short(u))}</button></div><button type="button" class="pf-x" data-pf="close" aria-label="Закрыть">✕</button></div>
+      ${d.bio ? `<p class="pf-bio">${esc(d.bio)}</p>` : ""}
+      <div class="pf-stats"><div><b>${d.count}</b><span>постов</span></div><div><b>${d.likes}</b><span>лайков</span></div><div><b>${d.since ? new Date(d.since).toLocaleDateString("ru-RU", { month: "short", year: "numeric" }) : "—"}</b><span>с нами с</span></div></div>
+      ${mine ? `<form class="pf-edit" id="pfForm"><label class="inp"><span>Ник</span><input id="pfNick" maxlength="20" value="${esc(d.nick)}" placeholder="например, btc_scalper"></label><label class="inp pf-bio-in"><span>О себе</span><textarea id="pfBio" maxlength="160" rows="2" placeholder="Что торгуете, какой стиль">${esc(d.bio)}</textarea></label><button class="btn" type="submit" id="pfSave">Сохранить</button><small class="muted">Ник: 3–20 символов — буквы, цифры, _ . -</small></form>` : ""}
+      <div class="pf-posts">${d.posts.length ? d.posts.map(feedPostHtml).join("") : '<p class="muted pad">Постов пока нет</p>'}</div>`;
+    fixIcons($("pfBody"));
+    $("pfForm") &&
+      ($("pfForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const b = $("pfSave");
+        setBusy(b, !0, "Сохраняем…");
+        try {
+          const r = await feedSigned("profile", JSON.stringify({ nick: $("pfNick").value.trim(), bio: $("pfBio").value }));
+          FEED.myNick = r.nick;
+          feedMeRender();
+          toast("Профиль сохранён", "ok");
+          feedLoad(!1, !0);
+          feedProfile(u);
+        } catch (err) {
+          toast(err.message || String(err), "err");
+        }
+        setBusy(b, !1);
+      });
+  } catch (e) {
+    $("pfBody").innerHTML = `<p class="muted pad">Профиль не загрузился: ${esc(e.message || e)}</p>`;
+  }
 }
 function feedMedia(m) {
   if (!m?.length) return "";
@@ -7465,6 +7582,15 @@ function feedPos(p) {
     <div class="fd-pnl"><b>${pnl >= 0 ? "+" : ""}${roe.toFixed(1)}%</b><small>${sgnUsd(pnl)}</small></div>
     <span class="fd-ok" title="Цифры взяты с Hyperliquid в момент публикации">✓ Hyperliquid</span></div>`;
 }
+function feedPostHtml(p) {
+  const me = (S.user || "").toLowerCase();
+  return `<article class="fd-post" data-id="${esc(p.id)}">
+      <header><button type="button" class="fd-au" data-feed="prof">${feedAvatar(p.user, p.nick)}<span><b>${esc(p.nick || short(p.user))}</b><small>${p.nick ? `${esc(short(p.user))} · ` : ""}${agoRu(p.ts)}</small></span></button>${p.user === me ? `<button class="fd-del" type="button" data-feed="del" title="Удалить пост">✕</button>` : ""}</header>
+      ${p.text ? `<p>${esc(p.text).replace(/\n/g, "<br>")}</p>` : ""}
+      ${feedPos(p.pos)}${feedMedia(p.media)}
+      <footer><button type="button" class="fd-like${p.liked ? " on" : ""}" data-feed="like"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>${p.likes || ""}</span></button></footer>
+    </article>`;
+}
 function feedRender() {
   const el = $("feedList");
   if (!el) return;
@@ -7475,14 +7601,7 @@ function feedRender() {
   morphInto(
     el,
     FEED.posts
-      .map(
-        (p) => `<article class="fd-post" data-id="${esc(p.id)}">
-      <header>${feedAvatar(p.user)}<div><b>${esc(short(p.user))}</b><small>${agoRu(p.ts)}</small></div>${p.user === me ? `<button class="fd-del" type="button" data-feed="del" title="Удалить пост">✕</button>` : ""}</header>
-      ${p.text ? `<p>${esc(p.text).replace(/\n/g, "<br>")}</p>` : ""}
-      ${feedPos(p.pos)}${feedMedia(p.media)}
-      <footer><button type="button" class="fd-like${p.liked ? " on" : ""}" data-feed="like"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>${p.likes || ""}</span></button></footer>
-    </article>`,
-      )
+      .map(feedPostHtml)
       .join("") + (FEED.more ? '<button class="btn ghost small fd-more" type="button" data-feed="more">Показать ещё</button>' : ""),
   ) && fixIcons(el);
 }
@@ -7613,9 +7732,11 @@ async function feedClick(e) {
     k = a.dataset.feed;
   if (k === "view") return feedView(a.src);
   if (k === "more") return feedLoad(!0);
+  if (k === "me") return S.user && feedProfile(S.user.toLowerCase());
   if (k === "reload") return feedLoad();
-  const p = FEED.posts.find((x) => x.id === id);
+  const p = FEED.posts.find((x) => x.id === id) || FEED.prof?.posts?.find((x) => x.id === id);
   if (!p) return;
+  if (k === "prof") return feedProfile(p.user);
   try {
     if (k === "like") {
       p.liked = !p.liked;
@@ -7972,7 +8093,7 @@ async function infHistory(m, c) {
   const ch = createChart(box, {
     height: 260,
     autoSize: !0,
-    layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: th.text, fontSize: 11 },
+    layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: th.text, fontSize: 11, attributionLogo: !1 },
     grid: { vertLines: { visible: !1 }, horzLines: { color: th.grid } },
     rightPriceScale: { borderVisible: !1 },
     timeScale: { borderVisible: !1, timeVisible: !0 },
@@ -8525,11 +8646,38 @@ function lnLive() {
   /* стакан BTC */
   const b = S.coin === "BTC" ? S.book : null;
   if (b?.asks?.length && b?.bids?.length) {
-    const a3 = b.asks.slice(0, 3).reverse(),
-      b3 = b.bids.slice(0, 3),
-      mx = Math.max(...a3.concat(b3).map((x) => x.px * x.sz), 1),
-      row = (x, cls) => `<div class="lv-r ${cls}"><i style="width:${Math.min(100, ((x.px * x.sz) / mx) * 100).toFixed(0)}%"></i><span>${fmtPx(x.px)}</span><span>$${compactUsd(x.px * x.sz)}</span></div>`;
-    set("lvBook", a3.map((x) => row(x, "a")).join("") + `<div class="lv-mid">${fmtPx((b.asks[0].px + b.bids[0].px) / 2)}</div>` + b3.map((x) => row(x, "b")).join(""));
+    /* та же лестница, что в инструменте «Скальпинг»: цены подряд с постоянным шагом,
+       Объём (сделки на этой цене) · Покупки · Цена · Продажи */
+    const ps = [...b.asks.slice(0, 8), ...b.bids.slice(0, 8)].map((x) => x.px).sort((x, y) => x - y);
+    let st = Infinity;
+    for (let k = 1; k < ps.length; k++) ps[k] - ps[k - 1] > 1e-9 && (st = Math.min(st, ps[k] - ps[k - 1]));
+    if (Number.isFinite(st)) {
+      const ask = b.asks[0].px,
+        bid = b.bids[0].px,
+        key = (p) => Math.round(p / st),
+        A = new Map(b.asks.map((x) => [key(x.px), x.px * x.sz])),
+        B = new Map(b.bids.map((x) => [key(x.px), x.px * x.sz])),
+        T = new Map();
+      (S.trades || []).forEach((t) => t.coin === "BTC" && T.set(key(+t.px), (T.get(key(+t.px)) || 0) + +t.px * +t.sz));
+      const rows = [];
+      for (let k = 5; k >= 0; k--) rows.push(ask + k * st);
+      for (let k = 0; k < 6; k++) rows.push(bid - k * st);
+      const mx = Math.max(1, ...rows.map((p) => Math.max(A.get(key(p)) || 0, B.get(key(p)) || 0))),
+        tm = Math.max(1, ...T.values()),
+        last = key(+(S.trades?.find((t) => t.coin === "BTC")?.px || 0)),
+        cell = (v, m, cls) => (v ? `<span class="${cls}"><i style="width:${Math.min(100, (v / m) * 100).toFixed(0)}%"></i><em>${compactUsd(v)}</em></span>` : `<span class="${cls}"></span>`);
+      set(
+        "lvBook",
+        `<div class="ll-h"><span>Объём</span><span class="b">Покупки</span><span>Цена</span><span class="s">Продажи</span></div>` +
+          rows
+            .map((p) => {
+              const kk = key(p),
+                isA = p >= ask;
+              return `<div class="ll-r ${isA ? "a" : "b"}${kk === last ? " last" : ""}">${cell(T.get(kk), tm, "v")}${cell(isA ? 0 : B.get(kk), mx, "bb")}<span class="pc">${fmtPx(p)}</span>${cell(isA ? A.get(kk) : 0, mx, "ss")}</div>`;
+            })
+            .join(""),
+      );
+    }
   }
   /* связки по фандингу и арбитраж */
   if (!TL.data && !TL.busy && !LN.fundTried) ((LN.fundTried = !0), loadTools(!0));
@@ -8723,6 +8871,13 @@ function lnFx() {
       kf.classList.toggle("paused", !v);
       v ? (svg.unpauseAnimations?.(), kset(kst)) : (clearTimeout(kt), svg.pauseAnimations?.());
     }));
+  /* 3D-модели в схеме ключа (без WebGL остаются значки) */
+  kf &&
+    seen(kf, (v) => {
+      if (!v || LN.kf3) return;
+      LN.kf3 = 1;
+      import("./keys3d.js").then(({ mountKeys: m }) => m(viz, viz)).catch(() => {});
+    });
   /* задержка до биржи — меряем прямо у посетителя крошечным запросом */
   const pg = [];
   let pt = 0;
@@ -8764,6 +8919,17 @@ function lnFx() {
     }));
     new IntersectionObserver(([x]) => x.isIntersecting && !vid.src && ((vid.src = vid.dataset.src), vid.load()), { rootMargin: "600px" }).observe(gs);
     seen(gs, (v) => (v ? (vid.src || ((vid.src = vid.dataset.src), vid.load()), vid.play().catch(() => {})) : vid.pause()));
+    /* настоящий 3D-телефон: запись сайта — текстура экрана (если WebGL нет — остаётся рамка CSS) */
+    seen(gs, (v) => {
+      if (!v || LN.ph3) return;
+      LN.ph3 = 1;
+      import("./phone3d.js")
+        .then(({ mountPhone: m }) => {
+          const go = () => m(gs.querySelector(".gs-phone"), vid);
+          vid.readyState >= 1 ? go() : vid.addEventListener("loadedmetadata", go, { once: !0 });
+        })
+        .catch(() => {});
+    });
   }
   /* финал: слова заголовка по очереди, живой 3D-знак на компьютере, кнопка тянется за курсором */
   const fin = $("lnFinal");
@@ -9089,7 +9255,10 @@ async function pnlCopy() {
 /* сторож стакана: живое соединение может тихо оборваться — если свежего стакана нет 3 с,
    берём его запросом раз в 1,5 с, пока соединение не вернётся */
 setInterval(() => {
-  document.hidden || document.body.dataset.view === "landing" || (isMobile() && ["home", "markets", "assets"].includes(document.body.dataset.app)) || (Date.now() - (S.bookAt || 0) > 3e3 && !S.bookBusy && ((S.bookBusy = 1), pollBook().finally(() => (S.bookBusy = 0))));
+  if (document.hidden || document.body.dataset.view === "landing" || (isMobile() && ["home", "markets", "assets"].includes(document.body.dataset.app))) return;
+  Date.now() - (S.bookAt || 0) > 3e3 && !S.bookBusy && ((S.bookBusy = 1), pollBook().finally(() => (S.bookBusy = 0)));
+  /* лента сделок: живой поток замолчал на 4 с — берём последние сделки запросом */
+  scOn() && Date.now() - (S.tradesAt || 0) > 4e3 && !S.trBusy && ((S.trBusy = 1), pollTrades().finally(() => (S.trBusy = 0)));
 }, 1500);
 function startLoop() {
   (clearInterval(S.timer),
@@ -9319,8 +9488,15 @@ function bindSettings() {
       feedAttsRender();
     }),
     ($("fvClose").onclick = () => $("feedView").close()),
+    ($("pfBody").onclick = (e) => {
+      const k = e.target.closest("[data-pf]")?.dataset.pf;
+      k === "close" && $("profDlg").close();
+      k === "copy" && FEED.prof && (navigator.clipboard?.writeText(FEED.prof.user), toast("Адрес скопирован", "ok"));
+      k || feedClick(e);
+    }),
     ($("feedView").onclick = (e) => e.target === $("feedView") && $("feedView").close()),
     ($("feedList").onclick = feedClick),
+    ($("feedMe").onclick = feedClick),
     /* обработчик ничего не возвращает: «false» из onkeydown браузер считает отменой нажатия */
     ($("feedText").onkeydown = (e) => {
       (e.ctrlKey || e.metaKey) && e.key === "Enter" && feedPublish();

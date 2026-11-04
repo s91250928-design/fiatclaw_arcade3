@@ -10,13 +10,15 @@ const { page, errors } = await setupPage(browser, { width: 1440, height: 900 }, 
 let lastSig = null;
 await page.route("**/api/feed**", async (r) => {
   const q = r.request();
-  if (q.method() === "GET") return r.fulfill({ contentType: "application/json", body: JSON.stringify({ posts, more: false }) });
+  if (q.method() === "GET" && q.url().includes("u=")) return r.fulfill({ contentType: "application/json", body: JSON.stringify({ user: posts[0]?.user || "0x1", nick: state.nick || "", bio: state.bio || "", since: Date.now(), posts: posts.map((x) => ({ ...x, nick: state.nick })), count: posts.length, likes: 1 }) });
+  if (q.method() === "GET") return r.fulfill({ contentType: "application/json", body: JSON.stringify({ posts: posts.map((x) => ({ ...x, nick: state.nick || "" })), more: false, myNick: state.nick || "" }) });
   const b = JSON.parse(q.postData()); lastSig = b;
   const okSig = await verifyMessage({ address: b.agent, message: `Totum feed\n${b.act}\n${b.user.toLowerCase()}\n${b.ts}\n${b.payload}`, signature: b.sig });
   if (!okSig) return r.fulfill({ status: 400, contentType: "application/json", body: '{"error":"подпись не сходится"}' });
   const p = JSON.parse(b.payload);
   if (b.act === "upload") { state.up = b; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ k: "img", u: "/brand/howto.webp" }) }); }
   if (b.act === "post") { state.post = p; const pos = p.att?.kind === "closed" ? { kind: "closed", coin: "ETH", dir: "Close Long", sz: "1", px: "2400", entry: "2200", pnl: "199", roe: "0.09", at: Date.now() - 864e5 } : { kind: "open", coin: "BTC", szi: "0.01", entry: "70000", lev: 5, pnl: "42.5", roe: "0.31" }; const post = { id: "abc123def" + posts.length, user: b.user.toLowerCase(), text: p.text, ts: Date.now(), pos, media: p.media, likes: 0, liked: false }; posts.unshift(post); return r.fulfill({ contentType: "application/json", body: JSON.stringify({ post }) }); }
+  if (b.act === "profile") { state.nick = p.nick; state.bio = p.bio; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ nick: p.nick, bio: p.bio, since: Date.now() }) }); }
   if (b.act === "like") return r.fulfill({ contentType: "application/json", body: '{"likes":1,"liked":true}' });
   r.fulfill({ contentType: "application/json", body: '{"ok":true}' });
 });
@@ -48,6 +50,13 @@ R.ok("фото сжато и загружено (WebP, подписано клю
 await page.click("#feedGo"); await page.waitForTimeout(1500);
 R.ok("в посте закрытая сделка и фото", state.post?.att?.kind === "closed" && state.post.att.oid === 555 && state.post.media?.length === 1, JSON.stringify(state.post));
 R.ok("карточка «закрыта» и фото в ленте", (await page.textContent("#feedList")).includes("закрыта") && (await page.locator(".fd-media img").count()) === 1);
+// профиль: задать ник
+await page.click('[data-feed="me"]'); await page.waitForTimeout(700);
+await page.fill("#pfNick", "btc_scalper"); await page.fill("#pfBio", "Скальпинг BTC"); await page.click("#pfSave"); await page.waitForTimeout(1500);
+R.ok("ник сохранён и виден в профиле", state.nick === "btc_scalper" && (await page.textContent("#pfBody")).includes("btc_scalper"));
+await page.locator("#profDlg").screenshot({ path: "tests/out-profile.png" });
+await page.click('[data-pf="close"]'); await page.waitForTimeout(800);
+R.ok("ник в ленте вместо адреса", (await page.textContent(".fd-au b")) === "btc_scalper", await page.textContent(".fd-au b"));
 await page.locator("#paneFeed").screenshot({ path: "tests/out-feed.png" });
 R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
 await browser.close(); R.print();

@@ -11,7 +11,8 @@ const run = ([op, k, ...a]) => { switch (op) {
   case "LPUSH": db.set(k, [a[0], ...L(k)]); return 1; case "LTRIM": return "OK"; case "INCR": { const v = (Number(db.get(k)) || 0) + 1; db.set(k, v); return v; } case "EXPIRE": return 1;
   case "SADD": { const s = St(k), had = s.has(a[0]); s.add(a[0]); db.set(k, s); return had ? 0 : 1; } case "SREM": { const s = St(k); s.delete(a[0]); return 1; }
   case "HINCRBY": { const h = H(k); h[a[0]] = (Number(h[a[0]]) || 0) + Number(a[1]); db.set(k, h); return h[a[0]]; } case "HDEL": { const h = H(k); delete h[a[0]]; return 1; }
-  case "DEL": db.delete(k); return 1; case "LREM": db.set(k, L(k).filter((x) => x !== a[1])); return 1; } };
+  case "DEL": db.delete(k); a.forEach((x) => db.delete(x)); return 1; case "LLEN": return L(k).length;
+  case "HSET": { const h = H(k); h[a[0]] = a[1]; db.set(k, h); return 1; } case "HGET": return H(k)[a[0]] ?? null; case "LREM": db.set(k, L(k).filter((x) => x !== a[1])); return 1; } };
 globalThis.fetch = async (url, o = {}) => { const b = JSON.parse(o.body || "{}"); const j = (x) => new Response(JSON.stringify(x), { status: 200, headers: { "content-type": "application/json" } });
   if (String(url).startsWith("http://kv")) return j(b.map((c) => ({ result: run(c) })));
   if (b.type === "extraAgents") return j(b.user.toLowerCase() === user.address.toLowerCase() ? [{ name: "totum ab", address: agent.address, validUntil: now + 1e9 }] : []);
@@ -35,3 +36,8 @@ r = await call("POST", await sign(agent, "like", JSON.stringify({ id }))); ok("�
 r = await call("GET", null, `/api/feed?me=${user.address}`); ok("лента: 1 лайк, «я лайкнул»", r.posts[0].likes === 1 && r.posts[0].liked === true);
 r = await call("POST", await sign(agent, "like", JSON.stringify({ id }))); ok("снять лайк", r.likes === 0 && !r.liked);
 r = await call("POST", await sign(evil, "post", JSON.stringify({ text: "подделка" }))); ok("чужой ключ — отказ", r.code === 400);
+r = await call("POST", await sign(agent, "profile", JSON.stringify({ nick: "Семён_трейдер", bio: "Скальпинг BTC" }))); ok("ник сохранён", r.code === 200 && r.nick === "Семён_трейдер", r.error);
+r = await call("POST", await sign(agent, "profile", JSON.stringify({ nick: "a" }))); ok("короткий ник — отказ", r.code === 400);
+r = await call("GET", null, `/api/feed?me=${user.address}`); ok("ник виден в ленте и «мой ник»", r.posts[0].nick === "Семён_трейдер" && r.myNick === "Семён_трейдер", JSON.stringify([r.posts[0]?.nick, r.myNick]));
+r = await call("GET", null, `/api/feed?u=${user.address}`); ok("профиль: ник, описание, посты", r.nick === "Семён_трейдер" && r.bio === "Скальпинг BTC" && r.count === 1 && r.posts.length === 1, JSON.stringify({ n: r.nick, c: r.count }));
+db.set("feed:nick:занят", "0xother"); r = await call("POST", await sign(agent, "profile", JSON.stringify({ nick: "Занят" }))); ok("чужой ник занять нельзя", r.code === 409, r.error);

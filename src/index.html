@@ -188,6 +188,7 @@
       <label class="chk"><input type="checkbox" id="setAdl"> Предупреждать о риске ADL (уведомление и звук)</label>
       <div class="set-theme"><span>Тема</span><div class="seg" id="setThemeSeg"><button type="button" data-theme-set="dark">Тёмная</button><button type="button" data-theme-set="light">Светлая</button></div></div>
       <button id="setForget" class="btn ghost small">Удалить ключ для сделок с устройства</button>
+      <p class="chart-attr">Графики: <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a></p>
     </div>
     <button id="btnConnect" class="btn" title="Нажмите ещё раз, чтобы отключить">Подключить кошелёк</button>
   </div>
@@ -260,6 +261,7 @@
     <div class="cp-pane" id="paneTools"><div class="tl-tabs" id="tlTabs"><button type="button" data-tl="funding" class="on">Сканер фандинга</button><button type="button" data-tl="arb">Арбитраж фьючерсов</button></div><div id="tlBody"></div></div>
     <div class="cp-pane" id="paneInfo"><div class="inf-tabs" id="infTabs"></div><div id="infoBody"></div></div>
     <div class="cp-pane" id="paneFeed">
+      <div class="feed-me" id="feedMe"></div>
       <div class="feed-compose">
         <textarea id="feedText" rows="3" maxlength="600" placeholder="Поделитесь профитом, сделкой или идеей…"></textarea>
         <div class="fc-atts" id="feedAtts"></div>
@@ -543,6 +545,7 @@
   <p class="muted small">Цифры сервер возьмёт с Hyperliquid сам — в посте будет отметка «✓ Hyperliquid».</p>
   <div class="row"><button class="btn ghost grow" type="button" id="fpCancel">Отмена</button></div>
 </dialog>
+<dialog id="profDlg" class="sheet-dlg pf-dlg"><div id="pfBody"></div></dialog>
 <dialog id="feedView" class="fv-dlg"><button type="button" class="fv-x" id="fvClose" aria-label="Закрыть"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button><div id="fvBody"></div></dialog>
 <dialog id="transferDialog" class="sheet-dlg">
   <h2>Перевод USDC</h2>
