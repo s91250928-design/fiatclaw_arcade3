@@ -1,9 +1,10 @@
 /* Totum: сборщик покупок/продаж для графика Original.
    Один «вечно живой» объект (Durable Object) держит WebSocket к Hyperliquid, слушает сделки
-   самых торгуемых монет и складывает их по минутам во встроенную базу SQLite (30 дней).
+   самых торгуемых монет и складывает их по минутам: текущий час — в памяти, закрытые часы —
+   во встроенную базу SQLite (30 дней), раз в минуту — страховочная копия памяти.
    GET /delta?coin=BTC&i=900&from=...&to=...  →  [[начало свечи, куплено $, продано $, сделок], ...] */
 import { DurableObject } from "cloudflare:workers";
-import { addTrades, flush, query, SCHEMA } from "./core.js";
+import { addTrades, flushHours, checkpoint, restore, prune, query, setup, stats } from "./core.js";
 
 const HL = "https://api.hyperliquid.xyz";
 const ALWAYS = ["BTC", "ETH", "SOL", "HYPE"], TOP = 60, KEEP_DAYS = 30;
@@ -12,8 +13,11 @@ export class Collector extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
-    this.sql.exec(SCHEMA);
     this.buf = new Map();
+    setup(this.sql);
+    this.notBefore = restore(this.sql, this.buf);
+    this.dirty = false;
+    this.ckAt = Date.now();
     this.seen = new Set();
     this.ws = null;
     this.coins = [];
@@ -45,7 +49,7 @@ export class Collector extends DurableObject {
       this.lastMsg = Date.now();
       try {
         const m = JSON.parse(e.data);
-        m.channel === "trades" && addTrades(this.buf, this.seen, m.data);
+        m.channel === "trades" && addTrades(this.buf, this.seen, m.data, this.notBefore) && (this.dirty = true);
       } catch {}
     });
     const drop = () => this.ws === ws && (this.ws = null);
@@ -56,11 +60,17 @@ export class Collector extends DurableObject {
     this.lastMsg = Date.now();
   }
   async tick() {
-    flush(this.sql, this.buf);
+    const now = Date.now();
+    const closed = flushHours(this.sql, this.buf, now / 1e3); /* закрытый час ушёл в базу — страховку обновить сразу, иначе он посчитается дважды */
+    if (closed || (this.dirty && now - this.ckAt >= 6e4)) {
+      checkpoint(this.sql, this.buf, now);
+      this.ckAt = now;
+      this.dirty = false;
+    }
     try { this.ws?.readyState === 1 && this.ws.send('{"method":"ping"}'); } catch {}
     await this.connect().catch(() => {});
     if (Date.now() - this.prunedAt > 36e5) {
-      this.sql.exec("DELETE FROM m WHERE t < ?", Math.floor(Date.now() / 1e3) - KEEP_DAYS * 86400);
+      prune(this.sql, Math.floor(Date.now() / 1e3) - KEEP_DAYS * 86400);
       this.prunedAt = Date.now();
     }
     const a = await this.ctx.storage.getAlarm();
@@ -77,10 +87,10 @@ export class Collector extends DurableObject {
       const coin = u.searchParams.get("coin") || "", i = Number(u.searchParams.get("i") || 60), now = Math.floor(Date.now() / 1e3);
       const from = Number(u.searchParams.get("from") || now - 86400), to = Number(u.searchParams.get("to") || now + 60);
       if (!/^[A-Za-z0-9:@._-]{1,30}$/.test(coin)) return Response.json({ error: "coin" }, { status: 400 });
-      return Response.json({ coin, i, rows: query(this.sql, coin, i, from, to), tracked: this.coins.includes(coin) });
+      return Response.json({ coin, i, rows: query(this.sql, this.buf, coin, i, from, to), tracked: this.coins.includes(coin) });
     }
-    const [{ c, oldest }] = this.sql.exec("SELECT COUNT(*) AS c, MIN(t) AS oldest FROM m").toArray();
-    return Response.json({ ok: true, coins: this.coins.length, ws: this.ws?.readyState === 1, lastMsgAgo: Math.round((Date.now() - this.lastMsg) / 1e3), rows: c, since: oldest });
+    const st = stats(this.sql), all = [st.since, ...[...this.buf.values()].map((o) => o.t)].filter((x) => x != null);
+    return Response.json({ ok: true, coins: this.coins.length, ws: this.ws?.readyState === 1, lastMsgAgo: Math.round((Date.now() - this.lastMsg) / 1e3), memMinutes: this.buf.size, hourRows: st.hourRows, since: all.length ? Math.min(...all) : null });
   }
 }
 
