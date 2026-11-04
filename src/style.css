@@ -719,7 +719,7 @@ body:not(.connected) #trRow{display:none}
   .quick svg{width:21px;height:21px}
   .quick button:active i{transform:scale(.94)}
   .hc-cta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
-  .hc-btn{display:flex;align-items:center;justify-content:center;gap:6px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);color:#fff;font:700 14px "Manrope",var(--font);cursor:pointer;backdrop-filter:blur(6px)}
+  .hc-btn{display:flex;align-items:center;justify-content:center;gap:6px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);color:#fff;font:700 14px "Manrope",var(--font);cursor:pointer}
   .hc-btn.main{background:#fff;color:#0f172a;border-color:#fff;box-shadow:0 6px 18px rgba(2,6,23,.25)}
   .hc-btn i{display:grid;place-items:center} .hc-btn svg{width:17px;height:17px}
   .card-block{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}
@@ -1622,3 +1622,8 @@ body.spot-mode .b-tabs [data-b="pos"]{display:none}
 .tr-swap b{font-size:14px}
 .tr-swap i{font-style:normal;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;font-size:17px;transition:transform .25s}
 .tr-swap:hover i{transform:rotate(180deg)}
+
+/* прокрутка на телефоне: украшения на паузе, чтобы iPhone не перерисовывал их каждый кадр */
+body.is-scrolling .hero-card::before,body.is-scrolling .hero-card::after,body.is-scrolling .rw-card::before,
+body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net-state{animation-play-state:paused}
+@media (max-width:900px){.rw-glow{filter:none}}

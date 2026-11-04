@@ -1,0 +1,24 @@
+// Телефон: иконки спота берутся с фьючерсов; во время прокрутки списки не перерисовываются.
+import { chromium, URL0, makeResults } from "./harness.mjs";
+import pw from "/opt/npm-tools/node_modules/playwright/index.js";
+const R = makeResults(); const browser = await chromium.launch();
+const ctx = await browser.newContext({ ...pw.devices["iPhone 13"] }); const page = await ctx.newPage();
+const errors = []; page.on("pageerror", (e) => errors.push(String(e)));
+await page.route("**/config.js", (r) => r.fulfill({ contentType: "text/javascript", body: `window.TERM_CONFIG={isTestnet:false,builder:"0xa02a1872ebbf3a5d2f0d8b236ef16f0fe62b16d0",feeTenthBps:25,debug:true};` }));
+await page.route("**/icons.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ names: ["BTC", "ETH", "XMR", "FARTCOIN", "xyz:NVDA", "HYPE"] }) }));
+await page.addInitScript(() => { try { localStorage.setItem("totum.consent", "1"); } catch {} });
+await page.goto(URL0 + "/trade"); await page.waitForTimeout(6000);
+const ic = await page.evaluate(() => { const T = window.__totum, S = T.S; const add = (b) => S.spot.push({ name: "@" + b, label: b + "/USDC", base: b, quote: "USDC", szDecimals: 2, index: 1e4, spot: !0 }); ["UBTC", "XMR1", "UFART", "NVDAX", "ZZZQ"].forEach(add); return Object.fromEntries(["UBTC", "XMR1", "UFART", "NVDAX", "ZZZQ"].map((b) => [b, (T.coinIcon("@" + b).match(/src="([^"]+)"/) || [])[1] || "буква"])); });
+console.log(ic);
+R.ok("UBTC → иконка BTC", ic.UBTC === "icons/BTC.svg"); R.ok("XMR1 → XMR", ic.XMR1 === "icons/XMR.svg"); R.ok("UFART → FARTCOIN", ic.UFART === "icons/FARTCOIN.svg");
+R.ok("NVDAX → акция xyz:NVDA", ic.NVDAX === "icons/xyz__NVDA.svg"); R.ok("незнакомый — как раньше (иконка Hyperliquid/буква)", !String(ic.ZZZQ).startsWith("icons/"));
+await page.evaluate(() => document.querySelector('#mnav [data-app="home"]')?.click()); await page.waitForTimeout(1500);
+const base = await page.evaluate(async () => { let n = 0; const ob = new MutationObserver((l) => (n += l.length)); ob.observe(document.getElementById("pgHome"), { subtree: true, childList: true, characterData: true }); await new Promise((r) => setTimeout(r, 4000)); ob.disconnect(); return n; });
+console.log("без касаний за 4 с изменений:", base);
+const muts = await page.evaluate(async () => { let n = 0; const ob = new MutationObserver((l) => (n += l.length)); ob.observe(document.getElementById("pgHome"), { subtree: true, childList: true, characterData: true }); const end = Date.now() + 4000; while (Date.now() < end) { dispatchEvent(new Event("touchmove")); window.scrollBy(0, 3); await new Promise((r) => setTimeout(r, 100)); } const during = n; await new Promise((r) => setTimeout(r, 2500)); ob.disconnect(); return { during, after: n - during, cls: document.body.classList.contains("is-scrolling") }; });
+console.log(muts);
+R.ok("пока листают — главная не перерисовывается", muts.during === 0, JSON.stringify(muts));
+R.ok("без касаний главная живая (иначе проверка пустая)", base > 0, String(base));
+R.ok("после прокрутки — обновилась и пауза снята", muts.after > 0 && !muts.cls, JSON.stringify(muts));
+R.ok("без ошибок", errors.length === 0, errors.join(" | ").slice(0, 300));
+await browser.close(); R.print();

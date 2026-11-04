@@ -271,8 +271,22 @@ var perpCtxLite = (i) => ({
     circulatingSupply: i.circulatingSupply,
     spot: !0,
   });
+/* Hyperliquid отдаёт списки рынков несжатыми (только спот ~360 КБ) и издалека.
+   Наш сервер на Vercel берёт их, сжимает в ~6 раз и держит копию рядом с человеком.
+   Не ответил за 8 с — идём напрямую к Hyperliquid, как раньше. */
+async function cdnInfo(type, direct) {
+  if (CFG.isTestnet) return direct();
+  try {
+    const r = await fetch(`/api/hl?type=${type}`, { signal: AbortSignal.timeout(8e3) });
+    if (!r.ok) throw new Error(String(r.status));
+    return await r.json();
+  } catch (e) {
+    console.warn("[рынки через сервер]", type, e?.message || e);
+    return direct();
+  }
+}
 async function loadSpotMarkets() {
-  let [i, t] = await infoHeavy.spotMetaAndAssetCtxs(),
+  let [i, t] = await cdnInfo("spotMetaAndAssetCtxs", () => infoHeavy.spotMetaAndAssetCtxs()),
     e = new Map(i.tokens.map((s) => [s.index, s])),
     _tn = (S.tokenNames = Object.fromEntries(i.tokens.map((s) => [s.index, s.name]))),
     n = new Map(t.map((s) => [s.coin, s]));
@@ -304,9 +318,9 @@ const DEX_META_MS = 10 * 6e4;
 async function loadPerpMarkets() {
   const needDex = !S.dexMetaAt || Date.now() - S.dexMetaAt > DEX_META_MS;
   const [[i, t], all, cats] = await Promise.all([
-    infoHeavy.metaAndAssetCtxs(),
-    needDex ? infoHeavy.allPerpMetas().catch((e) => (console.warn("[hip3]", e?.message || e), null)) : Promise.resolve(null),
-    S.cats ? Promise.resolve(null) : info.perpCategories().catch(() => null),
+    cdnInfo("metaAndAssetCtxs", () => infoHeavy.metaAndAssetCtxs()),
+    needDex ? cdnInfo("allPerpMetas", () => infoHeavy.allPerpMetas()).catch((e) => (console.warn("[hip3]", e?.message || e), null)) : Promise.resolve(null),
+    S.cats ? Promise.resolve(null) : cdnInfo("perpCategories", () => info.perpCategories()).catch(() => null),
   ]);
   if (cats) S.cats = Object.fromEntries(cats);
   S.mtables = S.mtables || {};
@@ -450,6 +464,23 @@ async function refreshMarkets() {
     i - S.loadedAt.spot > (e ? SPOT_REFRESH_MS : n ? 3e4 : SPOT_REFRESH_MS) && s.push(loadSpotMarkets()),
     s.length && (await Promise.allSettled(s), afterMarkets(), saveMarketsCache()));
 }
+/* Пока палец на экране или страница прокручивается, списки не перерисовываем
+   (строки «Растут/Падают» прыгали под пальцем) и ставим украшения на паузу. */
+var UI = { until: 0, t: 0, pending: 0 };
+function uiHold() {
+  UI.until = performance.now() + 700;
+  UI.t || (document.body.classList.add("is-scrolling"), (UI.t = setTimeout(uiIdle, 750)));
+}
+function uiIdle() {
+  if (performance.now() < UI.until) return void (UI.t = setTimeout(uiIdle, 200));
+  UI.t = 0;
+  document.body.classList.remove("is-scrolling");
+  UI.pending && ((UI.pending = 0), renderAppPage());
+}
+["touchstart", "touchmove", "scroll", "wheel"].forEach((ev) => addEventListener(ev, uiHold, { passive: !0, capture: !0 }));
+function renderAppPageLive() {
+  performance.now() < UI.until ? (UI.pending = 1) : renderAppPage();
+}
 var ctxBatchAt = 0;
 function onCtxBatch() {
   let i = Date.now();
@@ -457,7 +488,7 @@ function onCtxBatch() {
     ((ctxBatchAt = i),
     renderTicker(),
     $("pairPop").hidden || updatePairPrices(),
-    ["home", "markets"].includes(document.body.dataset.app) && renderAppPage(),
+    ["home", "markets"].includes(document.body.dataset.app) && renderAppPageLive(),
     document.body.dataset.view === "landing" && renderLanding());
 }
 async function subscribeRetry(i, t, e = 0) {
@@ -1924,6 +1955,18 @@ function rememberIconFail(i) {
       } catch {}
     }, 1500)));
 }
+const SPOT_ICON = { UFART: "FARTCOIN", HPENGU: "PENGU", FXRP: "XRP", ONEAR: "NEAR", USDT0: "USDT", KHYPE: "HYPE" };
+function spotIconName(t) {
+  if (!ICON_LOCAL) return null;
+  const c = [SPOT_ICON[t], t.replace(/^U(?=[A-Z0-9]{2})/, ""), t.replace(/\d+$/, ""), t.replace(/^EQ(?=[A-Z])/, ""), t.replace(/X$/, "")];
+  for (const x of c) if (x && x !== t && ICON_LOCAL.has(x)) return x;
+  /* токены акций (NVDAX, EQGOOG) — иконка с площадки акций HIP-3 */
+  for (const x of c.slice(3)) {
+    if (!x || x.length < 2) continue;
+    for (const n of ICON_LOCAL) if (n.endsWith(`:${x}`)) return n;
+  }
+  return null;
+}
 var ICON_LOCAL = null,
   iconsReady = fetch("icons.json")
     .then((i) => (i.ok ? i.json() : null))
@@ -1944,7 +1987,10 @@ var ICON_LOCAL = null,
     return ICON_LOCAL
       ? ICON_LOCAL.has(t)
         ? `<span class="coin-ic" data-letter="${e}"><img alt="" decoding="async" src="icons/${encodeURIComponent(t)}.svg"></span>`
-        : /* спот-токена нет в скачанном списке — пробуем иконку спота прямо у Hyperliquid, потом букву */
+        : /* спот-токен: сначала иконка той же монеты с фьючерсов (UBTC → BTC) */
+          isSpot(i) && spotIconName(t)
+          ? `<span class="coin-ic" data-letter="${e}"><img alt="" decoding="async" src="icons/${encodeURIComponent(spotIconName(t).replace(":", "__"))}.svg"></span>`
+          : /* иначе иконка спота прямо у Hyperliquid, потом буква */
           isSpot(i) && !ICON_FAIL.has(`${t}_spot`)
           ? `<span class="coin-ic" data-letter="${e}" data-name="${esc(t)}_spot"><img alt="" loading="lazy" decoding="async" src="${ICON_CDN}${encodeURIComponent(t)}_spot.svg"></span>`
           : `<span class="coin-ic">${e}</span>`
@@ -3102,7 +3148,7 @@ async function refreshAccount(i = {}) {
         S.crossValue = Number(e.crossMarginSummary?.accountValue ?? e.marginSummary.accountValue) || 0;
       }
       $("accValue").textContent = usd(S.accountValue);
-      (["home", "assets"].includes(document.body.dataset.app) && renderAppPage(),
+      (["home", "assets"].includes(document.body.dataset.app) && renderAppPageLive(),
         Date.now() - fundingAt > 6e4 && loadFundingAccrued(),
         updateAdlMoves(),
         loadFills(!i.light),
@@ -8896,6 +8942,7 @@ async function init() {
         S: S,
         onTrades: (t) => onTrades(t),
         chart: () => chart,
+        coinIcon: (c) => coinIcon(c),
         priceToY: (s) => candleSeries.priceToCoordinate(s),
         lines: () =>
           chartLines.map((s) => ({
