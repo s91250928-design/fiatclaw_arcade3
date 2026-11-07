@@ -236,7 +236,7 @@ dialog .row{margin-top:12px}
 .pair-btn{display:flex;align-items:center;gap:8px;background:transparent;border:0;padding:4px 2px;font-size:17px}
 .pair-btn .chev{margin-left:2px}
 .coin-ic{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:800;color:#fff;background:linear-gradient(135deg,#60a5fa,#1d4ed8);flex:none}
-.pair-pop{position:absolute;left:0;top:calc(100% + 8px);width:400px;max-height:min(560px,75vh);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:12;display:flex;flex-direction:column;padding:10px;gap:8px}
+.pair-pop{position:absolute;left:0;top:calc(100% + 8px);width:min(760px,calc(100vw - 24px));max-height:min(560px,75vh);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:12;display:flex;flex-direction:column;padding:10px;gap:8px}
 .pair-pop::before{content:"";position:absolute;left:0;right:0;top:-10px;height:10px}
 .pp-search{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:0 10px;height:36px}
 .pp-search:focus-within{border-color:var(--accent)}
@@ -628,7 +628,7 @@ dialog.page-dlg{background:var(--bg)}
 .tag.wait{background:color-mix(in srgb,#d97706 15%,transparent);color:#d97706}
 
 /* ===== Карточка PnL ===== */
-dialog#pnlDialog{width:min(880px,calc(100vw - 32px)) !important;max-width:calc(100vw - 16px) !important;min-width:0 !important;box-sizing:border-box;max-height:min(94vh,980px);padding:14px;overflow-x:hidden !important;overflow-y:auto}
+dialog#pnlDialog{width:min(1200px,calc(100vw - 32px),calc((100vh - 210px) * 1.78)) !important;max-width:calc(100vw - 16px) !important;min-width:0 !important;box-sizing:border-box;max-height:min(94vh,980px);padding:14px;overflow-x:hidden !important;overflow-y:auto}
 .pnl-frame{position:relative;width:100%;max-width:100%;min-width:0;aspect-ratio:1200 / 675;overflow:hidden;border-radius:12px;background:#000}
 #pnlCanvas{position:absolute;inset:0;width:100% !important;height:100% !important;max-width:none !important;min-width:0 !important;display:block}
 .pnl-opts{display:flex;gap:14px;flex-wrap:wrap;margin:10px 2px}
@@ -903,6 +903,8 @@ body.unified #trRow,body.unified [data-act="transfer"]{display:none!important}
 .adl.lv1 i.on{background:#16a34a}.adl.lv2 i.on{background:#84cc16}.adl.lv3 i.on{background:#eab308}.adl.lv4 i.on{background:#f97316}.adl.lv5 i.on{background:#e11d48}
 .pc-grid .adl+small{margin-left:4px;font-weight:500;color:var(--muted)}
 .mk-tabs{flex:none;min-height:36px}
+.pair-pop .mk-tabs{flex-wrap:wrap;overflow:visible;row-gap:4px}
+.pair-pop .mk-tabs button{flex:1 1 auto;text-align:center}
 .pp-l1 b{flex:0 1 auto;min-width:0}
 .pp-l1 .tag{flex:none}
 .pp-sub{display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden}
