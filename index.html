@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1793821444">
+<link rel="stylesheet" href="style.css?v=1794070100">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -374,10 +374,19 @@
         <p class="risk-hint" id="riskHint"></p>
       </div>
       <div class="unit-seg" data-unit-for="ord"><button data-unit="px" class="on" type="button">Цена</button><button data-unit="pct" type="button">%</button></div>
-      <label class="inp"><span>Тейк-профит</span><input id="tp" type="number" inputmode="decimal" step="any" placeholder="цена"><button class="inp-btn pick" data-pick="tp" type="button" title="Взять цену с графика">⌖</button><em class="u">USDC</em></label>
+      <label class="inp"><span id="tpLab">Тейк-профит</span><input id="tp" type="number" inputmode="decimal" step="any" placeholder="цена"><button class="inp-btn pick" data-pick="tp" type="button" title="Взять цену с графика">⌖</button><em class="u">USDC</em></label>
       <p class="tpsl-hint" id="tpHint"></p>
       <label class="inp"><span>Стоп-лосс</span><input id="sl" type="number" inputmode="decimal" step="any" placeholder="цена"><button class="inp-btn pick" data-pick="sl" type="button" title="Взять цену с графика">⌖</button><em class="u">USDC</em></label>
       <p class="tpsl-hint" id="slHint"></p>
+      <label class="chk" id="ladderToggle" title="После первого тейка стоп сам переезжает в плюс, остаток закрывает второй тейк"><input type="checkbox" id="ladderOn"><span class="box"></span> Лестница</label>
+      <div id="ladderBox" hidden>
+        <p class="muted small ladder-note">Стоп на всю позицию и первый тейк на часть встают сразу. Когда цена доходит до первого тейка, биржа включает стоп уже в плюсе и ведёт его за ценой — назад он не опускается. Остаток закрывает второй тейк. Это ордера Hyperliquid, вкладку можно закрыть.</p>
+        <div class="rr-chips" id="ladderFrac"><span>Доля первого тейка</span><button data-frac="0.25" type="button">25%</button><button data-frac="0.5" class="on" type="button">50%</button><button data-frac="0.75" type="button">75%</button></div>
+        <label class="inp"><span>Стоп в плюсе</span><input id="ladP" type="number" inputmode="decimal" step="any" placeholder="цена"><button class="inp-btn pick" data-pick="ladP" type="button" title="Взять цену с графика">⌖</button><em class="u">USDC</em></label>
+        <p class="tpsl-hint" id="ladPHint"></p>
+        <label class="inp"><span>Второй тейк</span><input id="ladTp2" type="number" inputmode="decimal" step="any" placeholder="цена"><button class="inp-btn pick" data-pick="ladTp2" type="button" title="Взять цену с графика">⌖</button><em class="u">USDC</em></label>
+        <p class="tpsl-hint" id="ladderLive"></p>
+      </div>
     </div>
 
     <!-- Включение торговли: согласие + 2 бесплатные подписи за один раз -->
@@ -575,6 +584,7 @@
 </dialog>
 
 <script src="config.js"></script>
-<script type="module" src="app.js?v=1793821444"></script>
+<script type="module" src="app.js?v=1794070100"></script>
+<script type="module" src="ladder.js?v=1794070100"></script>
 </body>
 </html>

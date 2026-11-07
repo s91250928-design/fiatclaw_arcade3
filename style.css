@@ -344,6 +344,10 @@ dialog .row{margin-top:12px}
 .th-chip{display:inline-flex;gap:6px;align-items:center;background:var(--panel2);border-radius:6px;padding:4px 8px;font-size:12px;font-weight:500;color:var(--muted);font-family:"Manrope",var(--font)}
 .th-chip b{font-family:var(--mono);font-weight:700}
 .tpsl-hint b.pos{color:var(--buy)} .tpsl-hint b.neg{color:var(--sell)}
+#ladderBox{display:flex;flex-direction:column;gap:4px;margin-top:6px;padding:8px 10px;border-radius:10px;background:var(--panel2)}
+#ladderBox[hidden]{display:none!important}
+.ladder-note{margin:0 0 2px;line-height:1.45}
+#ladderToggle{margin-top:2px}
 #tpslDialog .unit-seg{margin:6px 0}
 .chart.dragging,.chart.drag-hover{cursor:ns-resize}
 
