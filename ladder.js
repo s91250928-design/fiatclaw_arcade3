@@ -22,6 +22,41 @@ export function validateLadder({ long, entry, sl, tp1, profit, tp2, notional, fr
   return "";
 }
 
+// Уже открытая позиция: стоп сверяем с текущей ценой, «в плюсе» — с ценой входа.
+export function validatePositionLadder({ long, entry, mark, sl, tp1, profit, tp2, notional, frac }) {
+  if (!(entry > 0 && mark > 0)) return "Нет цены позиции";
+  if (!(frac > 0 && frac < 1)) return "Доля первого тейка должна быть между 0 и 100%";
+  const part = notional * frac, rest = notional * (1 - frac);
+  if (!(part >= 10 && rest >= 10)) return `Каждая часть лестницы минимум $10. Сейчас первый тейк $${part.toFixed(2)}, остаток $${rest.toFixed(2)}`;
+  if (!(sl > 0 && tp1 > 0 && profit > 0 && tp2 > 0)) return "Заполните стоп, оба тейка и стоп в плюсе";
+  if (long) {
+    if (!(sl < mark)) return "Стоп должен быть ниже текущей цены";
+    if (!(tp1 > mark)) return "Первый тейк должен быть выше текущей цены";
+    if (!(profit > entry)) return "Стоп в плюсе должен быть выше цены входа";
+    if (!(profit < tp1)) return "Стоп в плюсе должен быть ниже первого тейка";
+    if (!(tp2 > tp1)) return "Второй тейк должен быть выше первого";
+  } else {
+    if (!(sl > mark)) return "Стоп должен быть выше текущей цены";
+    if (!(tp1 < mark)) return "Первый тейк должен быть ниже текущей цены";
+    if (!(profit < entry)) return "Стоп в плюсе должен быть ниже цены входа";
+    if (!(profit > tp1)) return "Стоп в плюсе должен быть выше первого тейка";
+    if (!(tp2 < tp1)) return "Второй тейк должен быть ниже первого";
+  }
+  return "";
+}
+
+export function legOrder(asset, long, kind, triggerPx, sz, fmtPx, slip) {
+  const worse = triggerPx * (long ? 1 - slip * 3 : 1 + slip * 3);
+  return {
+    a: asset.index,
+    b: !long,
+    p: fmtPx(worse, asset),
+    s: sz,
+    r: true,
+    t: { trigger: { isMarket: true, triggerPx: fmtPx(triggerPx, asset), tpsl: kind } },
+  };
+}
+
 export function splitSize(totalStr, frac, decimals) {
   const scale = 10 ** decimals;
   const total = Math.round(Number(totalStr) * scale);
@@ -73,16 +108,7 @@ function boot() {
   };
 
   function trigger(asset, long, kind, triggerPx, sz) {
-    const slip = T.slip();
-    const worse = triggerPx * (long ? 1 - slip * 3 : 1 + slip * 3);
-    return {
-      a: asset.index,
-      b: !long,
-      p: T.fmtPx(worse, asset),
-      s: sz,
-      r: true,
-      t: { trigger: { isMarket: true, triggerPx: T.fmtPx(triggerPx, asset), tpsl: kind } },
-    };
+    return legOrder(asset, long, kind, triggerPx, sz, T.fmtPx, T.slip());
   }
 
   async function one(ex, order) {

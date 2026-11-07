@@ -402,6 +402,16 @@ body:not([data-cp="chart"]) #paneChart .chart-bar,body:not([data-cp="chart"]) #p
 .pc-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
 .pc-actions .btn{border-radius:18px;padding:7px 2px;font-size:12px}
 .btn.flash{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border:0;font-weight:700}
+tr.pos-confirm td{padding:8px 12px 12px;background:color-mix(in srgb,var(--panel2) 88%,transparent)}
+.pos-ask{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;font-family:"Manrope",var(--font)}
+.pos-ask > div:first-child{flex:1;min-width:220px}
+.pos-ask .pa-h{font-weight:700;font-size:13px}
+.pos-ask .pa-sub{color:var(--muted);font-size:12px;line-height:1.4}
+.pos-ask b.num{font-family:var(--mono);font-size:16px;font-weight:700}
+.pos-ask .pa-acts{display:flex;gap:6px;margin-left:auto}
+.pos-card .pos-ask{margin-top:10px;padding:10px;border-radius:12px;background:var(--panel2)}
+#dlgLadderBox{display:flex;flex-direction:column;gap:6px;margin:8px 0;padding:8px;border-radius:10px;background:var(--panel2)}
+#dlgLadderBox[hidden]{display:none!important}
 
 /* Окно подтверждения */
 .kv{display:flex;flex-direction:column;gap:7px;margin:10px 0}
