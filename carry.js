@@ -1,4 +1,4 @@
-/* Кэрри: купить спот и открыть шорт фьючерса того же размера.
+/* Хедж: купить спот и открыть шорт фьючерса того же размера.
    Положительный фандинг получает шорт. Ключ остаётся в браузере. */
 
 export function floorSize(amount, decimals) {
@@ -22,7 +22,7 @@ export function carryNumbers({ notional, perpPx, spotPx, funding, perpFee, spotF
   const roundTrip = (perpN * perpFee + spotN * spotFee) * 2;
   const hours = funding > 0 ? roundTrip / (perpN * funding) : Infinity;
   let warn = "";
-  if (!(funding > 0)) warn = "Фандинг сейчас против кэрри: шорт платит лонгам.";
+  if (!(funding > 0)) warn = "Фандинг сейчас против хеджа: шорт платит лонгам.";
   else if (hours > 24 * 14) warn = "Комиссии отобьются дольше двух недель.";
   return { sz: sized.sz, base, perpN, spotN, hour, day, roundTrip, hours, warn, error: "" };
 }
@@ -44,7 +44,7 @@ function boot() {
   function quote(notional) {
     const spot = twin();
     if (!spot) return { error: "Для этой монеты нет спота к USDC" };
-    if (T.orderType() === "limit") return { error: "Кэрри ставится только по рынку" };
+    if (T.orderType() === "limit") return { error: "Хедж ставится только по рынку" };
     const perp = T.asset();
     if (!perp) return { error: "Рынок ещё не загружен" };
     const dec = Math.min(perp.szDecimals, spot.szDecimals);
@@ -77,11 +77,11 @@ function boot() {
 
   window.__totumCarryRows = (rows, open) => {
     if (!open) {
-      rows.push(["Кэрри", "Продать спот и закрыть шорт фьючерса", "warn"]);
+      rows.push(["Хедж", "Продать спот и закрыть шорт фьючерса", "warn"]);
       return;
     }
     const q = quote(Number(el("size")?.value) || 0);
-    if (q.error) { rows.push(["Кэрри", q.error, "warn"]); return; }
+    if (q.error) { rows.push(["Хедж", q.error, "warn"]); return; }
     const fund = T.funding(T.coin());
     rows.push(["Спот", `купить ${q.sz} ${q.spot.base}`, "pos"]);
     rows.push(["Фьючерс", `шорт ${q.sz} ${T.coin()}`, "neg"]);
@@ -105,8 +105,8 @@ function boot() {
     }
     const buy = el("btnBuy"), sell = el("btnSell");
     if (on && buy && sell) {
-      buy.textContent = "Открыть кэрри";
-      sell.textContent = "Закрыть кэрри";
+      buy.textContent = "Открыть хедж";
+      sell.textContent = "Закрыть хедж";
     }
     const live = el("carryLive");
     if (!on) { if (live) live.innerHTML = ""; return; }
@@ -174,8 +174,8 @@ function boot() {
         return;
       }
       if (Number(shorted) + 1e-8 < Number(bought)) T.toast(`Спот ${bought}, шорт только ${shorted}. Шорт меньше спота.`, "err");
-      else if (Number(bought) + 1e-8 < Number(sz)) T.toast(`Кэрри открыта частично: ${bought} ${spot.base} и шорт ${T.coin()}.`, "ok");
-      else T.toast(`Кэрри открыта: ${bought} ${spot.base} и шорт ${T.coin()}. Вкладку можно закрыть.`, "ok");
+      else if (Number(bought) + 1e-8 < Number(sz)) T.toast(`Хедж открыт частично: ${bought} ${spot.base} и шорт ${T.coin()}.`, "ok");
+      else T.toast(`Хедж открыт: ${bought} ${spot.base} и шорт ${T.coin()}. Вкладку можно закрыть.`, "ok");
     } else {
       const pos = T.pos(T.coin());
       const free = T.spotFree(spot.base);
@@ -206,7 +206,7 @@ function boot() {
         return;
       }
       if (Number(sold) + 1e-8 < Number(closed)) T.toast(`Шорт закрыт на ${closed}, спот продан только ${sold}.`, "err");
-      else T.toast(`Кэрри закрыта: ${sold} ${T.coin()}.`, "ok");
+      else T.toast(`Хедж закрыт: ${sold} ${T.coin()}.`, "ok");
     }
     T.touch();
     await T.refresh();
