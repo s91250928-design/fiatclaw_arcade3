@@ -1,133 +1,29 @@
-/* Подтверждение рыночного закрытия на плашке позиции
-   и лестница для уже открытой позиции (окно TP/SL). */
+/* Лимит Про на уже открытой позиции.
+   Кнопка в строке позиции открывает окно TP/SL с этим режимом.
+   Рыночное закрытие идёт в обычное окно закрытия, не в плашку. */
 
 import { validatePositionLadder, splitSize, legOrder } from "./ladder.js";
-
-export function closePreview(pos, feeRate) {
-  const value = pos.value > 0 ? pos.value : pos.sz * pos.mark;
-  const fee = value * (Number(feeRate) || 0);
-  return { value, fee, net: pos.pnl - fee };
-}
 
 function boot() {
   const T = window.__totumTrade;
   const el = id => document.getElementById(id);
-  if (!T || !el("posBody") || !el("dlgLadder")) return;
-
-  const pending = { coin: null, szi: null };
-  let painting = false;
-
-  function askNode(pos) {
-    const view = closePreview(pos, T.fee(pos.coin));
-    const box = document.createElement("div");
-    box.className = "pos-ask";
-    box.dataset.act = "1";
-    const text = document.createElement("div");
-    const head = document.createElement("div");
-    head.className = "pa-h";
-    head.textContent = `Закрыть ${pos.long ? "лонг" : "шорт"} ${pos.coin} по рынку?`;
-    const sub = document.createElement("div");
-    sub.className = "pa-sub";
-    const netCls = view.net >= 0 ? "pos" : "neg";
-    const pnlCls = pos.pnl >= 0 ? "pos" : "neg";
-    sub.innerHTML = `Сейчас <b class="${pnlCls}">${T.signed(pos.pnl)}</b> · комиссия выхода ≈ ${T.money(view.fee)}<br>После выхода ≈ <b class="num ${netCls}">${T.signed(view.net)}</b>`;
-    const tiny = document.createElement("div");
-    tiny.className = "pa-sub";
-    tiny.textContent = "Оценка по маркировке, без проскальзывания. Ордер ещё не отправлен.";
-    text.append(head, sub, tiny);
-    const acts = document.createElement("div");
-    acts.className = "pa-acts";
-    const no = document.createElement("button");
-    no.type = "button";
-    no.className = "btn small ghost";
-    no.dataset.posCancel = "1";
-    no.textContent = "Отмена";
-    const yes = document.createElement("button");
-    yes.type = "button";
-    yes.className = "btn small sell";
-    yes.dataset.posGo = "1";
-    yes.textContent = "Закрыть по рынку";
-    acts.append(no, yes);
-    box.append(text, acts);
-    return box;
-  }
-
-  function mount() {
-    if (painting) return;
-    painting = true;
-    try {
-      document.querySelectorAll("[data-pos-confirm]").forEach(n => {
-        if (!pending.coin || n.dataset.coin !== pending.coin) n.remove();
-      });
-      if (!pending.coin) return;
-      const pos = T.pos(pending.coin);
-      if (!pos) { pending.coin = null; return; }
-      document.querySelectorAll(`[data-pos-coin="${CSS.escape(pending.coin)}"]`).forEach(root => {
-        if (root.tagName === "TR") {
-          const next = root.nextElementSibling;
-          if (next?.dataset.posConfirm === "1" && next.dataset.coin === pending.coin) {
-            next.querySelector("td").replaceChildren(askNode(pos));
-            return;
-          }
-          const tr = document.createElement("tr");
-          tr.dataset.posConfirm = "1";
-          tr.dataset.coin = pending.coin;
-          tr.className = "pos-confirm";
-          const td = document.createElement("td");
-          td.colSpan = root.children.length || 12;
-          td.appendChild(askNode(pos));
-          tr.appendChild(td);
-          root.after(tr);
-        } else if (!root.querySelector("[data-pos-confirm]")) {
-          const wrap = document.createElement("div");
-          wrap.dataset.posConfirm = "1";
-          wrap.dataset.coin = pending.coin;
-          wrap.appendChild(askNode(pos));
-          root.appendChild(wrap);
-        } else {
-          root.querySelector("[data-pos-confirm]").replaceChildren(askNode(pos));
-        }
-      });
-    } finally { painting = false; }
-  }
+  if (!T || !el("dlgLadder")) return;
 
   document.addEventListener("click", e => {
-    const btn = e.target.closest("[data-close]");
-    if (!btn || btn.dataset.skipconfirm === "1") return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    if (pending.coin === btn.dataset.close) pending.coin = null;
-    else { pending.coin = btn.dataset.close; pending.szi = btn.dataset.szi; }
-    mount();
-  }, true);
-
-  document.addEventListener("click", e => {
-    if (e.target.closest("[data-pos-cancel]")) {
-      pending.coin = null;
-      mount();
-      return;
-    }
-    const go = e.target.closest("[data-pos-go]");
-    if (!go || !pending.coin) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const coin = pending.coin, szi = pending.szi;
-    pending.coin = null;
-    mount();
-    const b = document.createElement("button");
-    b.hidden = true;
-    b.dataset.close = coin;
-    b.dataset.szi = szi;
-    b.dataset.skipconfirm = "1";
-    document.body.appendChild(b);
-    b.click();
-    b.remove();
-  }, true);
-
-  const watch = new MutationObserver(() => { if (pending.coin && !painting) mount(); });
-  watch.observe(el("posBody"), { childList: true });
-  const cards = el("posCards");
-  if (cards) watch.observe(cards, { childList: true });
+    const btn = e.target.closest("[data-pro]");
+    if (!btn) return;
+    const coin = btn.dataset.pro;
+    const open = document.createElement("button");
+    open.hidden = true;
+    open.dataset.tpsl = coin;
+    document.body.appendChild(open);
+    open.click();
+    open.remove();
+    const box = el("dlgLadder");
+    if (!box || !el("tpslDialog")?.open) return;
+    box.checked = true;
+    box.dispatchEvent(new Event("change"));
+  });
 
   const frac = () => Number(document.querySelector("#dlgFrac button.on")?.dataset.frac) || 0.5;
 
@@ -156,6 +52,8 @@ function boot() {
     if (lab) lab.textContent = on ? "Первый тейк" : "Тейк-профит";
     const live = el("dlgLadderLive");
     if (!on) { live.innerHTML = ""; return; }
+    const any = ["ptp", "psl", "dlgP", "dlgTp2"].some(id => Number(el(id)?.value) > 0);
+    if (!any) { live.innerHTML = ""; return; }
     const L = dlgLevels();
     live.innerHTML = L.error
       ? `<span class="th-chip"><b class="neg">${L.error}</b></span>`
@@ -219,7 +117,7 @@ function boot() {
       } catch (e) { bad.push(`Стоп в плюсе: ${T.err(e)}`); }
       if (bad.length) T.toast(`Не всё встало: ${bad.join("; ")}. Проверьте открытые ордера.`, "err");
       else {
-        T.toast("Лестница на бирже. Вкладку можно закрыть.", "ok");
+        T.toast("Лимит Про на бирже. Вкладку можно закрыть.", "ok");
         el("tpslDialog").close();
       }
       T.touch();

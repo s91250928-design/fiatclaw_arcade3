@@ -6,7 +6,7 @@ export function validateLadder({ long, entry, sl, tp1, profit, tp2, notional, fr
   if (!(entry > 0)) return "Нет цены входа";
   if (!(frac > 0 && frac < 1)) return "Доля первого тейка должна быть между 0 и 100%";
   const part = notional * frac, rest = notional * (1 - frac);
-  if (!(part >= 10 && rest >= 10)) return `Каждая часть лестницы минимум $10. Сейчас первый тейк $${part.toFixed(2)}, остаток $${rest.toFixed(2)}`;
+  if (!(part >= 10 && rest >= 10)) return `Каждая часть минимум $10. Сейчас первый тейк $${part.toFixed(2)}, остаток $${rest.toFixed(2)}`;
   if (!(sl > 0 && tp1 > 0 && profit > 0 && tp2 > 0)) return "Заполните стоп, оба тейка и стоп в плюсе";
   if (long) {
     if (!(sl < entry)) return "Для лонга стоп должен быть ниже входа";
@@ -27,7 +27,7 @@ export function validatePositionLadder({ long, entry, mark, sl, tp1, profit, tp2
   if (!(entry > 0 && mark > 0)) return "Нет цены позиции";
   if (!(frac > 0 && frac < 1)) return "Доля первого тейка должна быть между 0 и 100%";
   const part = notional * frac, rest = notional * (1 - frac);
-  if (!(part >= 10 && rest >= 10)) return `Каждая часть лестницы минимум $10. Сейчас первый тейк $${part.toFixed(2)}, остаток $${rest.toFixed(2)}`;
+  if (!(part >= 10 && rest >= 10)) return `Каждая часть минимум $10. Сейчас первый тейк $${part.toFixed(2)}, остаток $${rest.toFixed(2)}`;
   if (!(sl > 0 && tp1 > 0 && profit > 0 && tp2 > 0)) return "Заполните стоп, оба тейка и стоп в плюсе";
   if (long) {
     if (!(sl < mark)) return "Стоп должен быть ниже текущей цены";
@@ -93,13 +93,13 @@ function boot() {
 
   window.__totumLadderCheck = long => {
     if (!el("ladderOn").checked || !T.isPerp() || T.mode() === "close") return "";
-    if (T.orderType() === "limit") return "Лестница ставится рыночным входом: иначе защитные ордера не встанут, пока лимит не исполнится. Для лимита оставьте обычные ТП/СЛ.";
+    if (T.orderType() === "limit") return "Лимит Про ставится рыночным входом: иначе защитные ордера не встанут, пока лимит не исполнится. Для лимита оставьте обычные ТП/СЛ.";
     return levels(!!long).error || "";
   };
 
   window.__totumLadderRows = (rows, long) => {
     const L = levels(!!long);
-    if (L.error) { rows.push(["Лестница", L.error, "warn"]); return; }
+    if (L.error) { rows.push(["Лимит Про", L.error, "warn"]); return; }
     const pct = Math.round(L.frac * 100);
     rows.push(["Стоп на всю позицию", T.px(L.sl), "neg"]);
     rows.push(["Первый тейк", `${T.px(L.tp1)} · ${pct}%`, "pos"]);
@@ -148,7 +148,7 @@ function boot() {
       act = T.fmtPx(L.tp1, asset);
       if (!(Number(dist) > 0)) throw new Error("Стоп в плюсе слишком близко к первому тейку");
     } catch (e) {
-      T.toast(`Позиция открыта, лестница не собралась: ${T.err(e)}. Поставьте стоп вручную.`, "err");
+      T.toast(`Позиция открыта, Лимит Про не собрался: ${T.err(e)}. Поставьте стоп вручную.`, "err");
       T.sheet();
       await T.refresh();
       return;
@@ -187,7 +187,7 @@ function boot() {
     }
     const sideNote = long && L.profit <= avg ? " Стоп в плюсе не выше фактического входа — проверьте цену." : !long && L.profit >= avg ? " Стоп в плюсе не ниже фактического входа — проверьте цену." : "";
     if (bad.length) T.toast(`Позиция открыта. Не встало: ${bad.join("; ")}.${sideNote}`, "err");
-    else T.toast(`Лестница на бирже: стоп, ${Math.round(L.frac * 100)}% на первом тейке, стоп в плюсе и второй тейк. Вкладку можно закрыть.${sideNote}`, "ok");
+    else T.toast(`Лимит Про на бирже: стоп, ${Math.round(L.frac * 100)}% на первом тейке, стоп в плюсе и второй тейк. Вкладку можно закрыть.${sideNote}`, "ok");
     T.sheet();
     await T.refresh();
   };
@@ -199,6 +199,8 @@ function boot() {
     if (lab) lab.textContent = on ? "Первый тейк" : "Тейк-профит";
     const live = el("ladderLive");
     if (!on) { live.innerHTML = ""; return; }
+    const any = ["tp", "sl", "ladP", "ladTp2"].some(id => Number(el(id)?.value) > 0);
+    if (!any) { live.innerHTML = ""; return; }
     const longL = levels(true), shortL = levels(false);
     const chip = (name, L) => `<span class="th-chip">${name} ${L.error ? `<b class="neg">${L.error}</b>` : `стоп ${T.px(L.sl)} → тейк ${T.px(L.tp1)} (${Math.round(L.frac * 100)}%) → стоп ${T.px(L.profit)} и тейк ${T.px(L.tp2)}`}</span>`;
     if (longL.error && shortL.error) live.innerHTML = chip("Лонг", longL) + chip("Шорт", shortL);
