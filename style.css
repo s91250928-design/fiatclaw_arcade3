@@ -628,8 +628,9 @@ dialog.page-dlg{background:var(--bg)}
 .tag.wait{background:color-mix(in srgb,#d97706 15%,transparent);color:#d97706}
 
 /* ===== Карточка PnL ===== */
-dialog#pnlDialog{width:min(640px,calc(100% - 24px));padding:14px}
-#pnlCanvas{width:100%;height:auto;display:block;border-radius:12px;background:#000}
+dialog#pnlDialog{width:min(920px,calc(100vw - 32px));max-height:min(92vh,940px);padding:14px;overflow:auto}
+.pnl-frame{width:100%;max-width:100%;overflow:hidden}
+#pnlCanvas{width:100%;max-width:100%;height:auto;min-width:0;display:block;border-radius:12px;background:#000}
 .pnl-opts{display:flex;gap:14px;flex-wrap:wrap;margin:10px 2px}
 .pnl-opts .chk{color:var(--text)}
 #pnlDialog .row{flex-wrap:wrap}
