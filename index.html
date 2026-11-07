@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1794079200">
+<link rel="stylesheet" href="style.css?v=1794084500">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -173,6 +173,7 @@
   <div class="ticker">
     <div class="tk-main"><b id="mkPrice">—</b><span id="mkChange" class="small">—</span></div>
     <div class="tk perp-only"><span>Маркировочная цена</span><b id="mkMark">—</b></div>
+    <div class="tk perp-only"><span>Индекс</span><b id="mkIndex">—</b></div>
     <div class="tk"><span>Максимум 24ч</span><b id="mkHigh">—</b></div>
     <div class="tk"><span>Минимум 24ч</span><b id="mkLow">—</b></div>
     <div class="tk"><span>Объём 24ч</span><b id="mkVol">—</b></div>
@@ -506,7 +507,7 @@
     <input id="closePct" class="range" type="range" min="1" max="100" value="100" step="1" aria-label="Часть позиции">
     <div class="steps-marks"><button data-cp="25">25%</button><button data-cp="50">50%</button><button data-cp="75">75%</button><button data-cp="100">100%</button></div>
   </div>
-  <p id="closeInfo" class="muted small"></p>
+  <div id="closeInfo" class="close-sum"></div>
   <div class="row"><button id="closeCancel" class="btn ghost grow" type="button">Отмена</button><button id="closeGo" class="btn grow" type="button">Выставить ордер</button></div>
 </dialog>
 <dialog id="tpslDialog">
@@ -597,9 +598,9 @@
 </dialog>
 
 <script src="config.js"></script>
-<script type="module" src="app.js?v=1794079200"></script>
-<script type="module" src="ladder.js?v=1794079200"></script>
-<script type="module" src="position.js?v=1794079200"></script>
-<script type="module" src="carry.js?v=1794079200"></script>
+<script type="module" src="app.js?v=1794084500"></script>
+<script type="module" src="ladder.js?v=1794084500"></script>
+<script type="module" src="position.js?v=1794084500"></script>
+<script type="module" src="carry.js?v=1794084500"></script>
 </body>
 </html>
