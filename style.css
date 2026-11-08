@@ -321,6 +321,12 @@ dialog .row{margin-top:12px}
 #ctypeList button{background:transparent;border:0;text-align:left;padding:7px 10px;border-radius:6px;font-weight:500}
 #ctypeList button:hover{background:var(--panel2)}
 #ctypeList button.on{color:var(--accent);background:var(--panel2)}
+#ddCskin .ctype-menu{width:190px;left:0;right:auto;padding:6px}
+#cskinList{display:flex;flex-direction:column}
+#cskinList button{background:transparent;border:0;text-align:left;padding:7px 10px;border-radius:6px;font-weight:500;display:flex;align-items:center;gap:8px}
+#cskinList button:hover{background:var(--panel2)}
+#cskinList button.on{color:var(--accent);background:var(--panel2)}
+#cskinList i,#cskinDot{width:18px;height:10px;border-radius:2px;display:inline-block;flex:none}
 
 /* ===== Стакан помещается целиком: лишние уровни скрываются, полоса B/S всегда видна ===== */
 .side{display:flex;flex-direction:column}
@@ -339,7 +345,7 @@ dialog .row{margin-top:12px}
 .chart-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;white-space:nowrap}
 .chart-bar::-webkit-scrollbar{display:none}
 .chart-bar button{white-space:nowrap;flex:none}
-@media (max-width:1400px){.lbl-ind,#ctypeLabel{display:none}}
+@media (max-width:1400px){.lbl-ind,#ctypeLabel,#cskinLabel{display:none}}
 
 /* TP/SL: ввод в цене или в %, подсказка с PnL */
 .unit-seg{display:inline-flex;background:var(--panel2);border-radius:6px;padding:2px;align-self:flex-start;margin-bottom:2px}
