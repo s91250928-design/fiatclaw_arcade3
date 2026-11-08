@@ -316,7 +316,7 @@ dialog .row{margin-top:12px}
 .ind-btn{display:inline-flex;align-items:center;gap:6px}
 .ind-btn svg{width:17px;height:17px}
 .icon-only{padding:6px!important}
-#ddCtype .ctype-menu{width:200px;left:0;right:auto;padding:6px}
+#ddCtype{display:none}
 #ctypeList{display:flex;flex-direction:column}
 #ctypeList button{background:transparent;border:0;text-align:left;padding:7px 10px;border-radius:6px;font-weight:500}
 #ctypeList button:hover{background:var(--panel2)}
