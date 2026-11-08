@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1794102000">
+<link rel="stylesheet" href="style.css?v=1794112800">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -161,7 +161,7 @@
       <div class="pp-mkt mk-tabs"><button data-mk="all" type="button">Все</button><button data-mk="perp" class="on" type="button">Фьючерсы</button><button data-mk="spot" type="button">Спот</button><button data-mk="crypto" type="button">Крипто</button><button data-mk="tradfi" type="button">Традфи</button><button data-mk="hip3" type="button">HIP-3</button><button data-mk="trend" type="button">В тренде</button></div>
       <label class="pp-search"><span>⌕</span><input id="pairSearch" type="text" placeholder="Поиск пары" autocomplete="off"></label>
       <div class="pp-tabs"><button data-pt="fav" type="button">Избранное</button><button data-pt="all" class="on" type="button">Все</button><button data-pt="gain" type="button">Растут</button><button data-pt="loss" type="button">Падают</button></div>
-      <div class="pp-head"><button data-sort="vol" type="button">Пара / Объём</button><button data-sort="px" type="button">Цена</button><button data-sort="ch" type="button">Изм. 24ч</button></div>
+      <div class="pp-head"><button data-sort="vol" type="button">Пара / Объём</button><button data-sort="px" type="button">Цена</button><button data-sort="ch" type="button">Изм. 24ч</button><button data-sort="fund" class="pp-x" type="button">Фандинг</button><button data-sort="oi" class="pp-x" type="button">ОИ</button></div>
       <div id="pairList" class="pp-list"></div>
     </div>
   </div>
@@ -464,7 +464,7 @@
   <div class="pp-mkt mk-tabs" id="mMkt"><button data-mmk="all" type="button">Все</button><button data-mmk="perp" class="on" type="button">Фьючерсы</button><button data-mmk="spot" type="button">Спот</button><button data-mmk="crypto" type="button">Крипто</button><button data-mmk="tradfi" type="button">Традфи</button><button data-mmk="hip3" type="button">HIP-3</button><button data-mmk="trend" type="button">В тренде</button></div>
   <label class="pp-search"><span>⌕</span><input id="mSearch" type="text" placeholder="Поиск монеты" autocomplete="off"></label>
   <div class="pp-tabs" id="mTabs"><button data-mt="fav" type="button">Избранное</button><button data-mt="all" class="on" type="button">Все</button><button data-mt="gain" type="button">Растут</button><button data-mt="loss" type="button">Падают</button></div>
-  <div class="pp-head" id="mHead"><button data-ms="vol" type="button">Пара / Объём</button><button data-ms="px" type="button">Цена</button><button data-ms="ch" type="button">Изм. 24ч</button></div>
+  <div class="pp-head" id="mHead"><button data-ms="vol" type="button">Пара / Объём</button><button data-ms="px" type="button">Цена</button><button data-ms="ch" type="button">Изм. 24ч</button><button data-ms="fund" class="pp-x" type="button">Фандинг</button><button data-ms="oi" class="pp-x" type="button">ОИ</button></div>
   <div id="mList" class="pp-list m-list"></div>
 </section>
 <section class="app-page" id="pgAssets"></section>
@@ -598,9 +598,9 @@
 </dialog>
 
 <script src="config.js"></script>
-<script type="module" src="app.js?v=1794102000"></script>
-<script type="module" src="ladder.js?v=1794102000"></script>
-<script type="module" src="position.js?v=1794102000"></script>
-<script type="module" src="carry.js?v=1794102000"></script>
+<script type="module" src="app.js?v=1794112800"></script>
+<script type="module" src="ladder.js?v=1794112800"></script>
+<script type="module" src="position.js?v=1794112800"></script>
+<script type="module" src="carry.js?v=1794112800"></script>
 </body>
 </html>
