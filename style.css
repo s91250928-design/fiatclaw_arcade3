@@ -1170,8 +1170,9 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 .tl-table td.idea b{color:var(--text)}
 .tl-table.arb td b{font:700 12.5px "Manrope",var(--font)}
 .tl-table tbody tr:hover td{background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
-.tl-coin{border:0;background:none;padding:0;font:700 13px "Manrope",var(--font);color:var(--text);cursor:pointer}
-.tl-coin:hover{color:var(--accent)}
+.tl-coin{font:700 13px "Manrope",var(--font);color:var(--text)}
+.tl-table.bundles tbody tr{cursor:pointer}
+.tl-table.bundles tbody tr:active td{background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
 .tl-empty{padding:40px;text-align:center;color:var(--muted);font-weight:600}
 #paneTools .inf-note{margin-top:10px}
 @media (max-width:900px){.tl-wrap{max-height:none}.tl-upd{margin-left:0;width:100%}#paneTools{padding-bottom:110px}}
@@ -1193,7 +1194,6 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 .tl-table.bundles td.spr{color:var(--muted)} .tl-table.bundles td.spr.main{color:var(--accent);font-size:13.5px}
 .tl-table.bundles td.spr.pos.main{color:var(--accent)}
 .tl-warn{display:inline-grid;place-items:center;width:16px;height:16px;margin-left:6px;border-radius:50%;background:#f59e0b;color:#111;font:800 11px "Manrope",var(--font);font-style:normal;cursor:help;vertical-align:middle}
-.tl-chart-btn{border:1px solid var(--line);background:var(--panel2);border-radius:8px;width:32px;height:30px;cursor:pointer;color:var(--text)}
 .tl-table tr.open td{background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
 .tl-exp td{padding:0!important;background:var(--panel2)!important}
 .tl-charts{padding:12px 14px;position:sticky;left:0;box-sizing:border-box}
