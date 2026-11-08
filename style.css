@@ -1166,7 +1166,8 @@ button.adl{border:0;background:none;padding:4px 2px;cursor:pointer}
 .tl-table td.pos{color:var(--buy)} .tl-table td.neg{color:var(--sell)} .tl-table td.na{color:var(--muted);text-align:center}
 .tl-table td.hi{background:color-mix(in srgb,var(--buy) 12%,transparent)} .tl-table td.lo{background:color-mix(in srgb,var(--sell) 12%,transparent)}
 .tl-table td.spr{color:var(--accent);font-weight:700}
-.tl-table td.idea{font:600 12px "Manrope",var(--font);color:var(--muted);text-align:left}
+.tl-table th.idea,.tl-table td.idea{text-align:left}
+.tl-table td.idea{font:600 12px "Manrope",var(--font);color:var(--muted)}
 .tl-table td.idea b{color:var(--text)}
 .tl-table.arb td b{font:700 12.5px "Manrope",var(--font)}
 .tl-table tbody tr:hover td{background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
