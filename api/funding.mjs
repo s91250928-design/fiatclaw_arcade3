@@ -102,14 +102,16 @@ const VENUES = {
     });
   } },
   htx: { name: "HTX", type: "cex", async load() {
-    const [fr, tk] = await Promise.all([
+    const [fr, tk, info] = await Promise.all([
       j("https://api.hbdm.com/linear-swap-api/v1/swap_batch_funding_rate"),
       j("https://api.hbdm.com/linear-swap-ex/market/detail/batch_merged?business_type=swap").catch(() => null),
+      j("https://api.hbdm.com/linear-swap-api/v1/swap_contract_info").catch(() => null),
     ]);
     const t = Object.fromEntries((tk?.ticks || []).map((x) => [x.contract_code, x]));
+    const live = new Set((info?.data || []).filter((x) => x.contract_status === 1).map((x) => x.contract_code));
     return (fr?.data || []).map((x) => {
       const m = /^(.+)-USDT$/.exec(x.contract_code || "");
-      if (!m) return null;
+      if (!m || (live.size && !live.has(x.contract_code))) return null;
       const k = t[x.contract_code] || {},
         ft = num(x.funding_time), nt = num(x.next_funding_time);
       return { sym: x.contract_code, base: baseOf(m[1]), rate: num(x.funding_rate), ih: ft && nt && nt > ft ? (nt - ft) / 36e5 : 8, next: ft, mark: num(k.close), idx: null, vol: num(k.trade_turnover), oi: null };

@@ -107,11 +107,17 @@ export const H = {
       return ((await j(`https://api-futures.kucoin.com/api/v1/kline/query?symbol=${s}&granularity=${m}&from=${Date.now() - m * 6e4 * 500}&to=${Date.now()}`))?.data || []).map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]);
     },
     b: async (s) => {
-      const [d, k] = await Promise.all([
-        j(`https://api-futures.kucoin.com/api/v1/level2/depth20?symbol=${s}`),
+      const load = async (url) => {
+        const d = await j(url);
+        if (d?.code && String(d.code) !== "200000") throw new Error(`kucoin ${d.code}`);
+        return d;
+      };
+      const [d0, k] = await Promise.all([
+        load(`https://api-futures.kucoin.com/api/v1/level2/depth20?symbol=${s}`).catch(() => null),
         ctSize(`kucoin|${s}`, async () => (await j(`https://api-futures.kucoin.com/api/v1/contracts/${s}`))?.data?.multiplier),
       ]);
-      return scale({ b: lv(d?.data?.bids), a: lv(d?.data?.asks) }, k);
+      const d = d0?.data?.bids?.length ? d0 : await load(`https://api-futures.kucoin.com/api/v1/level2/snapshot?symbol=${s}`);
+      return scale({ b: lv(d?.data?.bids).slice(0, 20), a: lv(d?.data?.asks).slice(0, 20) }, Math.abs(Number(k) || 1) || 1);
     },
   },
   bingx: {
@@ -128,18 +134,25 @@ export const H = {
     c: async (s, i) => ((await j(`https://futures.kraken.com/api/charts/v1/trade/${s}/${i}?from=${Math.floor(Date.now() / 1000) - MIN[i] * 60 * 1000}`))?.candles || []).map((x) => [n(x.time), n(x.open), n(x.high), n(x.low), n(x.close)]),
     b: async (s) => {
       const d = (await j(`https://futures.kraken.com/derivatives/api/v3/orderbook?symbol=${s}`))?.orderBook || {};
-      return { b: lv(d.bids).slice(0, 20), a: lv(d.asks).slice(0, 20) };
+      const bids = lv(d.bids),
+        asks = lv(d.asks);
+      /* заявки на покупку идут от худшей цены к лучшей */
+      return { b: bids.slice(-20).reverse(), a: asks.slice(0, 20) };
     },
   },
   htx: {
     f: async (s) => ((await j(`https://api.hbdm.com/linear-swap-api/v1/swap_historical_funding_rate?contract_code=${s}&page_size=50`))?.data?.data || []).map((x) => [n(x.funding_time), n(x.funding_rate)]),
     c: async (s, i) => ((await j(`https://api.hbdm.com/linear-swap-ex/market/history/kline?contract_code=${s}&period=${MIN[i]}min&size=1000`))?.data || []).map((x) => [n(x.id) * 1000, n(x.open), n(x.high), n(x.low), n(x.close)]),
     b: async (s) => {
-      const [d, k] = await Promise.all([
-        j(`https://api.hbdm.com/linear-swap-ex/market/depth?contract_code=${s}&type=step0`),
-        ctSize(`htx|${s}`, async () => (await j(`https://api.hbdm.com/linear-swap-api/v1/swap_contract_info?contract_code=${s}`))?.data?.[0]?.contract_size),
-      ]);
-      return scale({ b: lv(d?.tick?.bids).slice(0, 20), a: lv(d?.tick?.asks).slice(0, 20) }, k);
+      const kP = ctSize(`htx|${s}`, async () => (await j(`https://api.hbdm.com/linear-swap-api/v1/swap_contract_info?contract_code=${s}`))?.data?.[0]?.contract_size);
+      let tick = null;
+      for (const step of ["step0", "step6", "step11"]) {
+        const d = await j(`https://api.hbdm.com/linear-swap-ex/market/depth?contract_code=${s}&type=${step}`);
+        const t = d?.tick;
+        tick = t || tick;
+        if ((t?.bids || []).length && (t?.asks || []).length) break;
+      }
+      return scale({ b: lv(tick?.bids).slice(0, 20), a: lv(tick?.asks).slice(0, 20) }, await kP);
     },
   },
   whitebit: {
