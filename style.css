@@ -2079,7 +2079,7 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 /* 3D-телефон: холст больше рамки, чтобы при повороте корпус не обрезался */
 .gs-phone.is3d{background:none;box-shadow:none;transform:none!important;overflow:visible}
 .gs-phone.is3d>:not(.ph3-canvas){opacity:0;pointer-events:none}
-.gs-phone.is3d .gs-glass{position:absolute;inset:0;width:2px;height:2px;overflow:hidden}
+.gs-phone.is3d .gs-glass{position:fixed;left:-4000px;top:0;width:1206px;height:2460px;opacity:.02;pointer-events:none;overflow:hidden}
 .ph3-canvas{position:absolute;inset:-60px -90px;width:calc(100% + 180px)!important;height:calc(100% + 120px)!important;z-index:2}
 .gs-phone.is3d::after{content:"";position:absolute;left:14%;right:14%;bottom:2px;height:30px;border-radius:50%;background:radial-gradient(closest-side,rgba(47,107,255,.45),transparent);z-index:1}
 
