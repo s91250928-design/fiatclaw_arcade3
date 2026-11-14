@@ -1539,22 +1539,38 @@ body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
 .ls-copy p{color:#c3d2ee;font-size:17px;line-height:1.55;margin:14px 0 18px}
 .ls-copy p b{color:#fff}
 .ls-copy ul{margin:0;padding:0;list-style:none;display:grid;gap:12px}
-.ls-copy li{padding:1px 0 1px 16px;position:relative;color:var(--ln-muted);font-size:15.5px;line-height:1.5;border-left:2px solid rgba(61,126,255,.8)}
+.ls-copy li{padding:1px 0 1px 16px;position:relative;color:var(--ln-muted);font-size:15.5px;line-height:1.5;border-left:2px solid rgba(61,126,255,.8);opacity:0;transform:translateX(-8px)}
 .ls-copy li::before{content:none}
 .ls-copy li b{color:#fff}
+#lnShare.in .ls-copy li{animation:ls-in .55s ease forwards}
+#lnShare.in .ls-copy li:nth-child(2){animation-delay:.14s}
+#lnShare.in .ls-copy li:nth-child(3){animation-delay:.28s}
+@keyframes ls-in{to{opacity:1;transform:none}}
 .ls-viz{display:flex;justify-content:flex-end}
-.ls-panel{width:min(300px,100%);padding:26px 24px 22px;border-radius:16px;background:#121826;border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;text-align:center}
+.ls-panel{width:min(300px,100%);padding:26px 24px 22px;border-radius:16px;background:radial-gradient(120% 70% at 50% -10%,rgba(47,107,255,.2),transparent 60%),#101624;border:1px solid rgba(120,160,255,.2);display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .ls-k{font:700 11px/1 "Manrope",var(--font);letter-spacing:.16em;text-transform:uppercase;color:#8ea0c0}
-.ls-panel>p{margin:2px 0 0;color:#8ea0c0;font-size:13.5px}
-.ls-ring{position:relative;width:176px;height:176px;margin:8px 0 4px}
+.ls-panel>p{margin:8px 0 0;color:#8ea0c0;font-size:13.5px}
+.ls-ring{position:relative;width:176px;height:176px;margin:10px 0 8px}
 .ls-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ls-ring .ls-ticks{position:absolute;inset:-10px;width:calc(100% + 20px);height:calc(100% + 20px);transform:none;animation:ls-spin 24s linear infinite}
+.ls-ticks circle{fill:none;stroke:rgba(160,190,240,.4);stroke-width:1.5;stroke-dasharray:1.2 6.4}
+@keyframes ls-spin{to{transform:rotate(360deg)}}
 .ls-ring circle{fill:none;stroke-width:8}
+.ls-ring .ls-ticks circle{stroke:rgba(160,190,240,.4);stroke-width:1.5;stroke-dasharray:1.2 6.4}
 .ls-ring .bg{stroke:rgba(255,255,255,.08)}
 .ls-ring .fg{stroke:#3b82f6;stroke-linecap:round;stroke-dasharray:314;stroke-dashoffset:314}
-#lnShare.in .ls-ring .fg{animation:ls-fill 1.8s .2s cubic-bezier(.2,.8,.2,1) forwards}
+#lnShare.in .ls-ring .fg{animation:ls-fill 1.5s .15s cubic-bezier(.2,.8,.2,1) forwards}
 @keyframes ls-fill{to{stroke-dashoffset:157}}
 .ls-ring>div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.ls-ring b{font:700 46px/1 "Manrope",var(--font);letter-spacing:-.04em;color:#fff}
+.ls-ring b{font:700 46px/1 "Manrope",var(--font);letter-spacing:-.04em;color:#fff;opacity:0}
+.ls-ring b i{font-style:normal;font-size:22px;margin-left:1px;color:#9db7ef}
+#lnShare.in .ls-ring b{animation:ls-pop .5s .35s ease forwards}
+@keyframes ls-pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.ls-split{width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:2px}
+.ls-split i{display:block;height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#3b82f6,#7dd3fc)}
+#lnShare.in .ls-split i{animation:ls-half 1.3s .45s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes ls-half{to{width:50%}}
+.ls-who{width:100%;display:flex;justify-content:space-between;margin-top:6px;font:600 11px "Manrope",var(--font);letter-spacing:.04em;color:#8ea0c0}
 .ln-safe{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
 .ln-safe>div{padding:26px;border-radius:22px;border:1px solid var(--ln-line);background:rgba(255,255,255,.025);position:relative}
 .ln-safe>div:not(:last-child)::after{content:"→";position:absolute;right:-16px;top:50%;transform:translateY(-50%);color:#60a5fa;font-size:20px;z-index:1}
@@ -1566,8 +1582,8 @@ body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
 .ln-fast>div:last-child{border-right:0}
 .ln-fast b{font:700 22px/1.2 "Manrope",var(--font)}
 .ln-fast span{color:var(--ln-muted);font-size:14px}
-@media (max-width:1100px){.ln-tools{grid-template-columns:repeat(2,minmax(0,1fr))}.ln-share{grid-template-columns:1fr}.ln-fast{grid-template-columns:repeat(2,minmax(0,1fr))}.ln-safe{grid-template-columns:1fr}.ln-safe>div::after{display:none}}
-@media (prefers-reduced-motion:reduce){.ln-reveal{opacity:1;transform:none;transition:none}.ln-grad,.lt-viz *,.ln-kicker i{animation:none!important}}
+@media (max-width:1100px){.ln-tools{grid-template-columns:repeat(2,minmax(0,1fr))}.ln-share{grid-template-columns:1fr;padding:32px 22px}.ls-viz{justify-content:center}.ln-fast{grid-template-columns:repeat(2,minmax(0,1fr))}.ln-safe{grid-template-columns:1fr}.ln-safe>div::after{display:none}}
+@media (prefers-reduced-motion:reduce){.ln-reveal{opacity:1;transform:none;transition:none}.ln-grad,.lt-viz *,.ln-kicker i,.ls-ticks{animation:none!important}.ls-copy li,.ls-ring b{opacity:1;transform:none}}
 .ln-chips b i{font-style:normal}
 
 /* окно «ждём подпись в кошельке» */
@@ -1847,10 +1863,10 @@ body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net
   background-image:linear-gradient(rgba(56,189,248,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.35) 1px,transparent 1px);background-size:56px 56px;
   mask:linear-gradient(transparent,#000 45%,#000 70%,transparent);-webkit-mask:linear-gradient(transparent,#000 45%,#000 70%,transparent);animation:fn-run 2.4s linear infinite}
 @keyframes fn-run{to{background-position:0 56px}}
-.fn-rays{position:absolute;left:50%;top:220px;width:2200px;height:2200px;margin:-1100px 0 0 -1100px;z-index:-1;
-  background:repeating-conic-gradient(from 0deg,rgba(56,189,248,.14) 0deg 6deg,transparent 6deg 22deg);
-  mask:radial-gradient(circle,#000 0%,#000 12%,rgba(0,0,0,.7) 30%,rgba(0,0,0,.28) 52%,transparent 74%);
-  -webkit-mask:radial-gradient(circle,#000 0%,#000 12%,rgba(0,0,0,.7) 30%,rgba(0,0,0,.28) 52%,transparent 74%);
+.fn-rays{position:absolute;left:50%;top:240px;width:640px;height:640px;margin:-320px 0 0 -320px;z-index:-1;
+  background:repeating-conic-gradient(from 0deg,rgba(56,189,248,.2) 0deg 6deg,transparent 6deg 22deg);
+  mask:radial-gradient(circle,#000 0%,rgba(0,0,0,.8) 16%,rgba(0,0,0,.28) 40%,transparent 58%);
+  -webkit-mask:radial-gradient(circle,#000 0%,rgba(0,0,0,.8) 16%,rgba(0,0,0,.28) 40%,transparent 58%);
   animation:fn-spin 40s linear infinite}
 @keyframes fn-spin{to{transform:rotate(360deg)}}
 .fn-mark{width:180px;height:180px;display:grid;place-items:center;position:relative}
@@ -1878,7 +1894,7 @@ body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net
   .gs-phone{transform:none;width:270px;height:470px}
   .gs-phone:hover{transform:none}
   .ln-final{padding:80px 16px 80px!important}
-  .fn-rays{width:700px;height:700px;margin:-350px 0 0 -350px;top:120px}
+  .fn-rays{width:420px;height:420px;margin:-210px 0 0 -210px;top:170px}
   .fn-mark{width:140px;height:140px}
 }
 @media (prefers-reduced-motion:reduce){.fn-floor,.fn-rays,.fn-cta i,.kf-halo,.kf-bk,.gs *{animation:none!important}.fn-title span{opacity:1;transform:none}}
