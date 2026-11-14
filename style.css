@@ -570,7 +570,7 @@ dialog.page-dlg[open]{display:flex}
    ============================================================ */
 .brand{gap:9px}
 .brand .logo{width:32px;height:32px;flex:none;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(56,189,248,.25))}
-.wordmark{font-family:"Manrope",var(--font);font-weight:700;font-size:19px;letter-spacing:-.02em;color:var(--text);line-height:1}
+.wordmark{font-family:"Unbounded",var(--font);font-weight:700;font-size:19px;letter-spacing:-.02em;color:var(--text);line-height:1}
 @media (max-width:900px){.brand .logo{width:24px;height:24px}.wordmark{font-size:16px}}
 
 /* Загрузка: 3D-лента Мёбиуса вращается (36 кадров рендера), под ней мягкое свечение */
@@ -812,9 +812,9 @@ body[data-view="landing"] #landing{display:block}
 .landing a{color:inherit;text-decoration:none}
 .landing :focus-visible{outline:2px solid var(--ln-cyan);outline-offset:3px;border-radius:8px}
 .ln-nav{max-width:1240px;margin:0 auto;padding:22px 40px;display:flex;align-items:center;gap:40px}
-.ln-brand{display:flex;align-items:center;gap:10px;font:700 22px/1 "Manrope",var(--font);letter-spacing:-.02em}
+.ln-brand{display:flex;align-items:center;gap:10px;font:700 22px/1 "Unbounded",var(--font);letter-spacing:-.02em}
 .ln-brand img{filter:drop-shadow(0 4px 14px rgba(56,189,248,.35))}
-.ln-links{display:flex;gap:28px;font-size:15px;color:var(--ln-muted)}
+.ln-links{display:flex;gap:40px;margin-left:36px;font-size:15px;color:var(--ln-muted)}
 .ln-links a:hover{color:var(--ln-text)}
 .ln-nav .ln-btn{margin-left:auto}
 .ln-btn{display:inline-flex;align-items:center;justify-content:center;padding:11px 20px;border-radius:999px;font-weight:700;font-size:15px;color:#fff;
@@ -1534,19 +1534,19 @@ body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
 .lt-assets span{font:700 12px "Manrope",var(--font);padding:5px 9px;border-radius:8px;background:rgba(96,165,250,.14);color:#cfe0ff;animation:lt-float 3s ease-in-out infinite}
 .lt-assets span:nth-child(2n){animation-delay:.5s}.lt-assets span:nth-child(3n){animation-delay:1s}
 @keyframes lt-float{50%{transform:translateY(-4px)}}
-.ln-share{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:40px;align-items:center;padding:44px;border-radius:28px;border:1px solid rgba(120,160,255,.3);background:radial-gradient(circle at 85% 30%,rgba(167,139,250,.22),transparent 55%),linear-gradient(160deg,rgba(47,107,255,.16),rgba(11,20,48,.4))}
+.ln-share{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:64px;align-items:center;padding:48px 52px;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:#0c1222}
 .ls-copy p{color:#c3d2ee;font-size:17px;line-height:1.55;margin:14px 0 18px}
 .ls-copy p b{color:#fff}
 .ls-copy ul{margin:0;padding:0;list-style:none;display:grid;gap:12px}
 .ls-copy li{padding-left:28px;position:relative;color:var(--ln-muted);font-size:15.5px;line-height:1.5}
-.ls-copy li::before{content:"";position:absolute;left:0;top:5px;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle,#38bdf8 35%,rgba(56,189,248,.2) 40%)}
+.ls-copy li::before{content:"";position:absolute;left:2px;top:8px;width:7px;height:7px;border-radius:50%;background:#3d7eff}
 .ls-copy li b{color:#fff}
 .ls-viz{display:grid;place-items:center}
-.ls-ring{position:relative;width:240px;height:240px}
+.ls-ring{position:relative;width:210px;height:210px}
 .ls-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
-.ls-ring circle{fill:none;stroke-width:12}
-.ls-ring .bg{stroke:rgba(255,255,255,.07)}
-.ls-ring .fg{stroke:#60a5fa;stroke-linecap:round;stroke-dasharray:314;stroke-dashoffset:314;filter:drop-shadow(0 0 12px rgba(96,165,250,.7))}
+.ls-ring circle{fill:none;stroke-width:7}
+.ls-ring .bg{stroke:rgba(255,255,255,.08)}
+.ls-ring .fg{stroke:#3d7eff;stroke-linecap:butt;stroke-dasharray:314;stroke-dashoffset:314}
 #lnShare.in .ls-ring .fg{animation:ls-fill 1.8s .2s cubic-bezier(.2,.8,.2,1) forwards}
 @keyframes ls-fill{to{stroke-dashoffset:157}}
 .ls-ring>div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -1844,9 +1844,9 @@ body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net
   background-image:linear-gradient(rgba(56,189,248,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.35) 1px,transparent 1px);background-size:56px 56px;
   mask:linear-gradient(transparent,#000 45%,#000 70%,transparent);-webkit-mask:linear-gradient(transparent,#000 45%,#000 70%,transparent);animation:fn-run 2.4s linear infinite}
 @keyframes fn-run{to{background-position:0 56px}}
-.fn-rays{position:absolute;left:50%;top:150px;width:1100px;height:1100px;margin:-550px 0 0 -550px;z-index:-1;border-radius:50%;
-  background:repeating-conic-gradient(from 0deg,rgba(56,189,248,.10) 0deg 6deg,transparent 6deg 22deg);
-  mask:radial-gradient(closest-side,#000 10%,transparent 70%);-webkit-mask:radial-gradient(closest-side,#000 10%,transparent 70%);animation:fn-spin 40s linear infinite}
+.fn-rays{position:absolute;left:50%;top:120px;width:1700px;height:1700px;margin:-850px 0 0 -850px;z-index:-1;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,rgba(56,189,248,.16) 0deg 3deg,transparent 3deg 16deg);
+  mask:radial-gradient(circle,#000 0%,rgba(0,0,0,.45) 22%,transparent 72%);-webkit-mask:radial-gradient(circle,#000 0%,rgba(0,0,0,.45) 22%,transparent 72%);animation:fn-spin 40s linear infinite}
 @keyframes fn-spin{to{transform:rotate(360deg)}}
 .fn-mark{width:180px;height:180px;display:grid;place-items:center;position:relative}
 .fn-mark::after{content:"";position:absolute;inset:18%;border-radius:50%;background:radial-gradient(closest-side,rgba(56,189,248,.45),transparent);z-index:-1}
@@ -1883,8 +1883,8 @@ body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net
 @media (max-width:900px){.pu-fee{grid-column:1/-1;border-right:0}.pu-fee b{font-size:22px}}
 
 /* лучи: не вращаются вместе с маской — сверху и снизу раздела плавно гаснут, без обрезанного края */
-.fn-rays-w{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden;
-  mask:linear-gradient(transparent 0,#000 24%,#000 62%,transparent 92%);-webkit-mask:linear-gradient(transparent 0,#000 24%,#000 62%,transparent 92%)}
+.fn-rays-w{position:absolute;inset:-10% -20% 0;z-index:-1;pointer-events:none;overflow:visible;
+  mask:linear-gradient(transparent 0%,rgba(0,0,0,.35) 16%,#000 38%,#000 58%,rgba(0,0,0,.4) 82%,transparent 100%);-webkit-mask:linear-gradient(transparent 0%,rgba(0,0,0,.35) 16%,#000 38%,#000 58%,rgba(0,0,0,.4) 82%,transparent 100%)}
 .fn-rays-w .fn-rays{z-index:auto}
 
 /* ═══ схема ключа v2: стеклянные плитки, иконки Phosphor, световое кольцо ═══ */
@@ -1916,7 +1916,7 @@ body.is-scrolling .rw-glow,body.is-scrolling .rw-coin img,body.is-scrolling .net
 .kf-viz .kf-lab{display:none}
 /* финал во всю ширину экрана, «пол» виден сильнее */
 .ln-final{max-width:none!important;width:100%;box-sizing:border-box}
-.fn-floor{height:46%;bottom:0;opacity:.9;mask:linear-gradient(transparent,#000 35%,#000 85%,transparent);-webkit-mask:linear-gradient(transparent,#000 35%,#000 85%,transparent)}
+.fn-floor{height:72%;left:-90%;right:-90%;bottom:-6%;opacity:.75;mask:linear-gradient(transparent 0%,rgba(0,0,0,.2) 22%,#000 58%,#000 100%);-webkit-mask:linear-gradient(transparent 0%,rgba(0,0,0,.2) 22%,#000 58%,#000 100%)}
 
 /* ═══ «Как начать»: настоящий iPhone с записью нашего сайта ═══ */
 .gs-phone{width:300px;height:auto;aspect-ratio:300/628;padding:11px;border-radius:56px;overflow:visible;
