@@ -2154,3 +2154,7 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .pf-av-up:hover i{opacity:1}
 .pf-av-up.up .fd-av{opacity:.5}
 @media (hover:none){.pf-av-up i{opacity:1}}
+
+.fund-to{margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-family:ui-monospace,monospace;font-size:12.5px;word-break:break-all}
+.fund-out{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(61,126,255,.08);line-height:1.45}
+#fundDialog .inp{margin-top:10px}

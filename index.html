@@ -193,6 +193,7 @@
   </div>
   <div class="wallet">
     <button id="btnShare" class="btn ghost small desk-share" type="button" hidden title="50% комиссии Totum возвращается трейдерам">Твоя доля</button>
+    <button id="btnFund" class="btn ghost small" type="button">Пополнить</button>
     <button id="btnSettings" class="btn ghost icon set-btn" title="Настройки" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 2.9a3.4 3.4 0 0 1 3.4 0l5.3 3.1a3.4 3.4 0 0 1 1.7 2.9v6.2a3.4 3.4 0 0 1-1.7 2.9l-5.3 3.1a3.4 3.4 0 0 1-3.4 0L5 18a3.4 3.4 0 0 1-1.7-2.9V8.9A3.4 3.4 0 0 1 5 6z"/><circle cx="12" cy="12" r="3"/><path d="M12 9V6.5"/></svg></button>
     <div id="settingsPop" class="settings-pop" hidden>
       <b>Настройки</b>
@@ -606,6 +607,16 @@
   <div id="adlBody"></div>
   <div class="row"><button id="adlClose" class="btn grow" type="button">Понятно</button></div>
 </dialog>
+<dialog id="fundDialog" class="sheet-dlg">
+  <h2>Пополнение из TON</h2>
+  <p class="muted small">USDT в Tonkeeper меняется на нативный USDC в сети Arbitrum и приходит на ваш торговый адрес. Totum эту сумму не получает и не хранит. Если мост сорвётся, возврат идёт на адрес Tonkeeper ниже. Зачисление на Hyperliquid — отдельный шаг, его ещё нет.</p>
+  <p class="fund-to" id="fundTo"></p>
+  <label class="inp"><span>Адрес Tonkeeper</span><input id="fundFrom" autocomplete="off" spellcheck="false" placeholder="UQ…"></label>
+  <label class="inp"><span>Сколько USDT</span><input id="fundAmt" inputmode="decimal" placeholder="50"></label>
+  <p class="neg small" id="fundErr" hidden></p>
+  <p class="fund-out" id="fundOut" hidden></p>
+  <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button><button id="fundGo" class="btn grow" type="button">Посчитать</button></div>
+</dialog>
 <dialog id="walletPicker">
   <h2>Выберите кошелёк</h2>
   <div id="walletList" class="wallet-list"></div>
@@ -617,5 +628,6 @@
 <script type="module" src="ladder.js?v=1794152000"></script>
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
+<script type="module" src="fund.js?v=1794181000"></script>
 </body>
 </html>
