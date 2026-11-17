@@ -42,7 +42,7 @@ export default async function handler(req, res) {
       const j = await r.json();
       const row = (j.balances || []).find(x => String(x.jetton?.address || "").toLowerCase() === USDT_RAW);
       const bal = BigInt(row?.balance || "0");
-      return res.status(200).send(JSON.stringify({ ok: true, usdt: dec(bal, 6), usdtOk: bal >= 22n * 1000000n }));
+      return res.status(200).send(JSON.stringify({ ok: true, usdt: dec(bal, 6), usdtOk: bal >= 10n * 1000000n }));
     } catch {
       return res.status(502).send('{"error":"Баланс кошелька не прочитался"}');
     }

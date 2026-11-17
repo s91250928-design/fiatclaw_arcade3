@@ -1,7 +1,5 @@
-// USDT на TON делится на два перевода, оба подписывает человек.
-// Основная часть → нативный USDC на его торговый адрес.
-// 1.3 USDT → ETH на тот же адрес, чтобы хватило на комиссию сети.
-// Сейчас это около $0.80. Если котировка выходит из $0.50–$1, подпись не отдаём.
+// Вся сумма USDT на TON → нативный USDC на торговый адрес. Подпись одна, её ставит человек.
+// Отдельно ничего не докупаем: на Hyperliquid хватает USDC.
 // Сообщение в кошелёк отдаём только с его собственного кошелька USDT.
 
 import { createRequire } from "module";
@@ -19,8 +17,7 @@ const USDT = "0x9328Eb759596C38a25f59028B146Fecdc3621Dfe";
 const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
 const TON_USDT = "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs";
 const USDT_RAW = "0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe";
-const GAS_USDT = 1300000n;
-const MIN = 22n * 1000000n;
+const MIN = 10n * 1000000n;
 const MAX = 5000n * 1000000n;
 const GAS_CAP = 500000000n;
 
@@ -108,7 +105,7 @@ export default async function handler(req, res) {
   if (!/^(EQ|UQ)[A-Za-z0-9_-]{46}$/.test(from)) return res.status(400).send('{"error":"Подключите кошелёк, с которого списываем"}');
   if (b.asset === "gram") {
     const g = units(b.amount, 9);
-    if (g == null || g < 25n * 1000000000n || g > 5000n * 1000000000n) return res.status(400).send('{"error":"Сумма от 25 до 5000 GRAM"}');
+    if (g == null || g < 12n * 1000000000n || g > 5000n * 1000000000n) return res.status(400).send('{"error":"Сумма от 12 до 5000 GRAM"}');
     let sim, s;
     try {
       sim = await fetch(`https://api.ston.fi/v1/swap/simulate?offer_address=EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c&ask_address=${encodeURIComponent(TON_USDT)}&units=${g}&slippage_tolerance=0.01&user_wallet_address=${encodeURIComponent(from)}`, { method: "POST", signal: AbortSignal.timeout(12e3) });
@@ -118,7 +115,7 @@ export default async function handler(req, res) {
     }
     const ask = BigInt(s.ask_units || "0");
     const minAsk = BigInt(s.min_ask_units || "0");
-    if (!sim.ok || ask < 22n * 1000000n) return res.status(422).send('{"error":"Этой суммы GRAM мало для зачисления"}');
+    if (!sim.ok || ask < MIN) return res.status(422).send('{"error":"Этой суммы GRAM мало для зачисления"}');
     let sign;
     try {
       sign = await loadGram()({ from, amount: g.toString(), minAsk: minAsk.toString() });
@@ -129,46 +126,33 @@ export default async function handler(req, res) {
     return res.status(200).send(JSON.stringify({ ok: true, step: "swap", from, to, askUsdt: dec(ask, 6), sign }));
   }
   const amt = units(b.amount);
-  if (amt == null || amt < MIN || amt > MAX) return res.status(400).send('{"error":"Сумма от 22 до 5000 USDT"}');
-  const trade = amt - GAS_USDT;
+  if (amt == null || amt < MIN || amt > MAX) return res.status(400).send('{"error":"Сумма от 10 до 5000 USDT"}');
 
-  let eth, usdc;
+  let usdc;
   try {
-    eth = await quote(GAS_USDT, { chainId: 42161, address: "", symbol: "ETH", decimals: 18 }, from, to);
-    usdc = await quote(trade, { chainId: 42161, address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", symbol: "USDC", decimals: 6 }, from, to);
+    usdc = await quote(amt, { chainId: 42161, address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", symbol: "USDC", decimals: 6 }, from, to);
   } catch {
     return res.status(502).send('{"error":"Мост сейчас не ответил. Деньги не уходили"}');
   }
-  if (eth.status === 429 || usdc.status === 429) return res.status(429).send('{"error":"Слишком частые расчёты. Подождите минуту"}');
+  if (usdc.status === 429) return res.status(429).send('{"error":"Слишком частые расчёты. Подождите минуту"}');
 
-  const eOut = eth.j?.tokenAmountOut;
-  const px = Number(eOut?.priceUsd || 0);
-  const ethAmt = BigInt(eOut?.amount || "0");
-  const ethUsd = Number(ethAmt) / 1e18 * px;
-  if (eth.status !== 200 || eOut?.chainId !== 42161 || eOut?.address || eOut?.symbol !== "ETH" || !(ethUsd >= 0.5 && ethUsd <= 1.05)) {
-    return res.status(422).send('{"error":"Сейчас не получилось посчитать зачисление. Попробуйте через минуту"}');
-  }
   const uOut = usdc.j?.tokenAmountOut;
   if (usdc.status !== 200 || !uOut?.amount || uOut.chainId !== 42161 || String(uOut.address || "").toLowerCase() !== USDC) {
     const msg = usdc.j?.errors?.[0]?.message || usdc.j?.message || "Маршрут в USDC не посчитался";
     return res.status(422).send(JSON.stringify({ error: msg }));
   }
+  const got = BigInt(uOut.amount);
+  if (got < 5000000n) return res.status(422).send('{"error":"На счёт придёт меньше 5 USDC. Hyperliquid такую сумму не зачислит"}');
 
-  const gasSign = await signOf(eth.j, to, from);
   const sign = await signOf(usdc.j, to, from);
+  if (!sign.sign) return res.status(422).send(JSON.stringify({ error: sign.signError || "Перевод не собрался" }));
   const min = usdc.j.tokenAmountOutMin?.amount ? dec(usdc.j.tokenAmountOutMin.amount, usdc.j.tokenAmountOutMin.decimals || 6) : null;
   res.status(200).send(JSON.stringify({
     ok: true,
-    out: dec(uOut.amount, uOut.decimals || 6),
+    out: dec(got, uOut.decimals || 6),
     min,
     seconds: Number(usdc.j.estimatedTime) || null,
     to, from,
-    gasUsdt: dec(GAS_USDT, 6),
-    tradeUsdt: dec(trade, 6),
-    gasEth: dec(ethAmt, 18),
-    gasUsd: ethUsd.toFixed(2),
     ...sign,
-    gasSign: gasSign.sign || null,
-    gasSignError: gasSign.signError || null,
   }));
 }

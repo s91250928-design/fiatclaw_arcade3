@@ -1,5 +1,5 @@
-/* Пополнение. Списываем с любого подключённого TON-кошелька, адрес не вводят.
-   Приход всегда на уже подключённый торговый счёт. */
+/* Пополнение с уже подключённого торгового счёта. Другой кошелёк — только по маленькой кнопке.
+   С того кошелька приходит USDC, отдельно ничего не докупаем. */
 
 import { TonConnect, toUserFriendlyAddress } from "./vendor/tonconnect.js";
 
@@ -38,7 +38,7 @@ function setTon(wallet) {
   const raw = wallet?.account?.address || "";
   tonAddr = raw ? toUserFriendlyAddress(raw) : "";
   const btn = document.getElementById("fundTon");
-  if (btn) btn.textContent = tonAddr ? `Кошелёк ${fundShort(tonAddr)}` : "Подключить кошелёк";
+  if (btn) btn.textContent = tonAddr ? fundShort(tonAddr) : "Выбрать кошелёк";
   document.getElementById("fundWallets").hidden = true;
 }
 
@@ -103,21 +103,16 @@ function fundHide(id) {
 }
 
 async function fundLook() {
-  const box = document.getElementById("fundWait");
   const hl = document.getElementById("fundHlBox");
   const to = fundAddr();
+  if (hl) hl.hidden = !to;
   if (!to) return;
   try {
     const r = await fetch("/api/fund-status?address=" + to);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) return;
-    if (hl) hl.hidden = !j.usdcOk;
     const amt = document.getElementById("fundHlAmt");
     if (j.usdcOk && amt && !amt.value) amt.value = j.usdc;
-    if (box && j.usdcOk && box.dataset.busy !== "1") {
-      box.hidden = false;
-      box.textContent = "Деньги уже на счёте. Можно зачислять.";
-    }
   } catch { /* сеть ещё не ответила */ }
 }
 
@@ -134,12 +129,18 @@ function fundShow() {
   fundHide("fundOut");
   fundHide("fundErr");
   const hl = document.getElementById("fundHlBox");
-  if (hl) hl.hidden = true;
+  if (hl) hl.hidden = !addr;
+  const other = document.getElementById("fundOtherBox");
+  if (other) other.hidden = true;
   fundDlg.showModal();
   fundWatch();
 }
 
 document.getElementById("btnFund")?.addEventListener("click", fundShow);
+document.getElementById("fundOther")?.addEventListener("click", () => {
+  const box = document.getElementById("fundOtherBox");
+  if (box) box.hidden = !box.hidden;
+});
 document.getElementById("fundClose")?.addEventListener("click", () => { clearInterval(fundTimer); run++; fundDlg.close(); });
 fundDlg?.addEventListener("close", () => { clearInterval(fundTimer); run++; });
 
@@ -153,7 +154,7 @@ function say(text, bad) {
 }
 
 async function send(sign) {
-  if (!connector.connected || !tonAddr) throw new Error("Подключите кошелёк, с которого списываем");
+  if (!tonAddr) throw new Error("Выберите кошелёк");
   await connector.sendTransaction({
     validUntil: Math.floor(Date.now() / 1000) + 600,
     messages: [{ address: sign.address, amount: String(sign.amount), payload: sign.payload }],
@@ -163,7 +164,7 @@ async function send(sign) {
 async function quote(asset, amount) {
   const to = fundAddr();
   if (!to) throw new Error("Подключите торговый счёт.");
-  if (!tonAddr) throw new Error("Подключите кошелёк, с которого списываем.");
+  if (!tonAddr) throw new Error("Выберите кошелёк");
   const r = await fetch("/api/fund-quote", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -197,6 +198,7 @@ function pickAsset(asset) {
 
 document.getElementById("fundGo")?.addEventListener("click", async () => {
   const btn = document.getElementById("fundGo");
+  if (!tonAddr) { showWallets(); return; }
   const mine = ++run;
   btn.disabled = true;
   const prev = btn.textContent;
@@ -205,7 +207,7 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
     let j = await quote(fundAsset, document.getElementById("fundAmt").value);
     if (mine !== run) return;
     if (j.step === "swap") {
-      say("Подтвердите обмен в кошельке");
+      say("Подтвердите в кошельке");
       btn.textContent = "Ждём кошелёк…";
       await send(j.sign);
       if (mine !== run) return;
@@ -219,18 +221,12 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
       j = await quote("usdt", got);
       if (mine !== run) return;
     }
-    if (!j.gasSign) throw new Error(j.gasSignError || "Перевод не собрался");
+    if (!j.sign) throw new Error("Перевод не собрался");
     say("Подтвердите в кошельке");
     btn.textContent = "Ждём кошелёк…";
-    await send(j.gasSign);
-    if (mine !== run) return;
-    if (!j.sign) throw new Error("Перевод не собрался");
-    await sleep(400);
-    if (mine !== run) return;
-    say("Подтвердите в кошельке ещё раз");
     await send(j.sign);
     if (mine !== run) return;
-    say("Подписано. Когда сумма появится на счёте, зачислите её.");
+    say("Подписано. USDC придёт на этот счёт.");
     const hl = document.getElementById("fundHlAmt");
     if (hl && j.min) hl.value = j.min;
   } catch (e) {
@@ -257,11 +253,9 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
   try {
     try { await w.req("wallet_switchEthereumChain", [{ chainId: "0xa4b1" }]); } catch { /* сеть проверим ниже */ }
     const chain = await w.req("eth_chainId", []);
-    if (BigInt(chain) !== 42161n) throw new Error("Кошелёк не на Arbitrum. Перевод отменён.");
+    if (BigInt(chain) !== 42161n) throw new Error("Кошелёк в другой сети. Перевод отменён.");
     const bal = await w.req("eth_call", [{ to: USDC, data: "0x70a08231" + from.slice(2).padStart(64, "0") }, "latest"]);
     if (BigInt(bal) < amt) throw new Error("На счёте меньше USDC, чем вы зачисляете.");
-    const eth = await w.req("eth_getBalance", [from, "latest"]);
-    if (BigInt(eth) < 50000000000000n) throw new Error("ETH на комиссию ещё не пришёл.");
     const data = "0xa9059cbb" + BRIDGE.slice(2).padStart(64, "0") + amt.toString(16).padStart(64, "0");
     if (!data.includes(BRIDGE.slice(2)) || data.slice(0, 10) !== "0xa9059cbb") throw new Error("Сборка перевода сломалась.");
     const hash = await w.req("eth_sendTransaction", [{ from, to: USDC, data, value: "0x0" }]);
@@ -272,6 +266,6 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
     err.textContent = e?.message || "Кошелёк отклонил перевод";
   } finally {
     btn.disabled = false;
-    btn.textContent = "Зачислить на Hyperliquid";
+    btn.textContent = "Зачислить";
   }
 });

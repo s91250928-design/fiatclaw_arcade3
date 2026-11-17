@@ -2157,7 +2157,10 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 
 .fund-out{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(61,126,255,.08);line-height:1.45}
 #fundDialog .inp{margin-top:10px}
-.fund-hl{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.fund-hl{margin-top:10px}
+.fund-other{display:inline-block;margin-top:12px;padding:0;border:0;background:none;color:var(--dim);font:inherit;font-size:13px;cursor:pointer}
+#fundOtherBox{margin-top:4px}
+#fundOtherBox .fund-other{margin-top:0}
 .fund-wait{margin:8px 0 0;color:var(--dim);font-size:13px}
 .fund-wallets{margin-top:8px}
 .fund-wallets button{display:flex;align-items:center;gap:8px;width:100%;margin-top:6px;text-align:left}

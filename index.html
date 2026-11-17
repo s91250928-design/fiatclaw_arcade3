@@ -610,18 +610,22 @@
 <dialog id="fundDialog" class="sheet-dlg">
   <h2>Пополнить</h2>
   <p class="muted small" id="fundTo">На ваш счёт</p>
-  <button id="fundTon" class="btn ghost wide-btn" type="button">Подключить кошелёк</button>
-  <div id="fundWallets" class="fund-wallets" hidden></div>
-  <div class="seg fund-assets" id="fundAssets"><button type="button" data-asset="usdt" class="on">USDT</button><button type="button" data-asset="gram">GRAM</button></div>
-  <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="50"></label>
+  <div class="fund-hl" id="fundHlBox">
+    <label class="inp"><span>USDC</span><input id="fundHlAmt" inputmode="decimal" placeholder="20"></label>
+    <button id="fundHl" class="btn wide-btn" type="button">Зачислить</button>
+  </div>
+  <button id="fundOther" class="fund-other" type="button">С другого кошелька</button>
+  <div id="fundOtherBox" hidden>
+    <button id="fundTon" class="fund-other" type="button">Выбрать кошелёк</button>
+    <div id="fundWallets" class="fund-wallets" hidden></div>
+    <div class="seg fund-assets" id="fundAssets"><button type="button" data-asset="usdt" class="on">USDT</button><button type="button" data-asset="gram">GRAM</button></div>
+    <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="50"></label>
+    <button id="fundGo" class="btn wide-btn" type="button">Пополнить</button>
+  </div>
   <p class="neg small" id="fundErr" hidden></p>
   <p class="fund-out" id="fundOut" hidden></p>
   <p class="fund-wait" id="fundWait" hidden></p>
-  <div class="fund-hl" id="fundHlBox" hidden>
-    <label class="inp"><span>Сколько зачислить</span><input id="fundHlAmt" inputmode="decimal" placeholder="20"></label>
-    <button id="fundHl" class="btn wide-btn" type="button">Зачислить на Hyperliquid</button>
-  </div>
-  <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button><button id="fundGo" class="btn grow" type="button">Пополнить</button></div>
+  <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button></div>
 </dialog>
 <dialog id="walletPicker">
   <h2>Выберите кошелёк</h2>
@@ -634,6 +638,6 @@
 <script type="module" src="ladder.js?v=1794152000"></script>
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1794203000"></script>
+<script type="module" src="fund.js?v=1794205000"></script>
 </body>
 </html>
