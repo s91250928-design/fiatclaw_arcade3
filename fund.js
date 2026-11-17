@@ -50,6 +50,7 @@ function fundShow() {
   document.getElementById("fundOut").hidden = true;
   document.getElementById("fundErr").hidden = true;
   document.getElementById("fundSign").hidden = true;
+  document.getElementById("fundGas").hidden = true;
   fundDlg.showModal();
 }
 
@@ -60,11 +61,14 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
   const err = document.getElementById("fundErr");
   const out = document.getElementById("fundOut");
   const sign = document.getElementById("fundSign");
+  const gas = document.getElementById("fundGas");
   const btn = document.getElementById("fundGo");
   err.hidden = true;
   out.hidden = true;
   sign.hidden = true;
+  gas.hidden = true;
   sign.removeAttribute("href");
+  gas.removeAttribute("href");
   const to = fundAddr();
   if (!to) { err.hidden = false; err.textContent = "Подключите торговый кошелёк. На чужой адрес не считаем."; return; }
   btn.disabled = true;
@@ -82,11 +86,17 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) throw new Error(j.error || "Не посчиталось");
     if (j.to !== to) throw new Error("Адрес в ответе не совпал с кошельком. Расчёт отменён.");
-    const mins = j.seconds ? `около ${Math.max(1, Math.round(j.seconds / 60))} мин` : "обычно около минуты";
     const link = tonLink(j.sign, to);
+    const gasLink = tonLink(j.gasSign, to);
     out.hidden = false;
-    out.innerHTML = `<b>${j.out} USDC</b> придёт на ${fundShort(to)} в Arbitrum.<br>Не меньше ${j.min || j.out}. Мост: ${mins}. На счёте нужен ещё примерно 0.2 TON на комиссию сети.<br>${link ? "Дальше подпись в Tonkeeper. Проверьте, что списание идёт с вашего адреса." : (j.signError || "Подпись пока закрыта.")}`;
-    if (link) { sign.href = link; sign.hidden = false; document.getElementById("fundHlAmt").value = j.min || j.out; }
+    out.innerHTML = `Из суммы <b>${j.tradeUsdt} USDT</b> придёт <b>${j.out} USDC</b> на ${fundShort(to)}.<br>Не меньше ${j.min || j.out}. Ещё <b>${j.gasUsdt} USDT</b> заложены на комиссию: <b>${j.gasEth} ETH</b>, это $${j.gasUsd}.<br>${link && gasLink ? "Сначала подпишите комиссию, потом обмен. На счёте нужен ещё примерно 0.4 TON на две комиссии сети." : (j.signError || j.gasSignError || "Подпись пока закрыта.")}`;
+    if (link && gasLink) {
+      gas.href = gasLink;
+      sign.href = link;
+      gas.hidden = false;
+      sign.hidden = false;
+      document.getElementById("fundHlAmt").value = j.min || j.out;
+    }
   } catch (e) {
     err.hidden = false;
     err.textContent = e.message || "Не посчиталось";

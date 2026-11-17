@@ -2160,4 +2160,4 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 #fundDialog .inp{margin-top:10px}
 .fund-hl{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .fund-hl .muted{margin:4px 0 0}
-#fundSign{display:block;margin-top:10px;text-align:center;text-decoration:none}
+#fundSign,#fundGas{display:block;margin-top:10px;text-align:center;text-decoration:none}
