@@ -73,12 +73,18 @@ function fundWatch() {
   fundLook();
   fundTimer = setInterval(fundLook, 15000);
 }
+function fundHide(id) {
+  const n = document.getElementById(id);
+  if (n) n.hidden = true;
+}
+
 function fundShow() {
-  document.getElementById("fundTo").textContent = fundAddr() || "Сначала подключите кошелёк, на котором торгуете";
-  document.getElementById("fundOut").hidden = true;
-  document.getElementById("fundErr").hidden = true;
-  document.getElementById("fundSign").hidden = true;
-  document.getElementById("fundGas").hidden = true;
+  const to = document.getElementById("fundTo");
+  if (to) to.textContent = fundAddr() || "Сначала подключите кошелёк, на котором торгуете";
+  fundHide("fundOut");
+  fundHide("fundErr");
+  fundHide("fundSign");
+  fundHide("fundGas");
   fundDlg.showModal();
   fundWatch();
 }
