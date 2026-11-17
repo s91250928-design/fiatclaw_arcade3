@@ -25,14 +25,27 @@ export class Collector extends DurableObject {
     this.sql = null;
     this.booted = null;
     this.bootErr = "";
+    this.sqlBlockedUntil = 0;
+    this.hours = new Map();
+  }
+  noteSql(e) {
+    const m = String(e?.message || e);
+    this.bootErr = m;
+    if (/rows read|rows written|spending cap|quota/i.test(m)) {
+      this.sql = null;
+      this.booted = null;
+      this.sqlBlockedUntil = Date.now() + 20 * 60 * 1000;
+    }
   }
   boot() {
-    if (this.sql) return Promise.resolve();
+    if (this.sql || this.sqlBlockedUntil > Date.now()) return Promise.resolve();
     if (!this.booted) this.booted = (async () => {
-      this.sql = this.ctx.storage.sql;
-      setup(this.sql);
-      this.notBefore = restore(this.sql, this.buf);
-    })().catch((e) => { this.sql = null; this.booted = null; this.bootErr = String(e?.message || e); throw e; });
+      const sql = this.ctx.storage.sql;
+      setup(sql);
+      this.notBefore = restore(sql, this.buf);
+      this.sql = sql;
+      this.bootErr = "";
+    })().catch((e) => { this.booted = null; this.noteSql(e); });
     return this.booted;
   }
   async pickCoins() {
@@ -70,21 +83,30 @@ export class Collector extends DurableObject {
     this.lastMsg = Date.now();
   }
   async tick() {
+    await this.boot();
     const now = Date.now();
-    const closed = flushHours(this.sql, this.buf, now / 1e3); /* закрытый час ушёл в базу — страховку обновить сразу, иначе он посчитается дважды */
-    if (closed || (this.dirty && now - this.ckAt >= 6e4)) {
-      checkpoint(this.sql, this.buf, now);
-      this.ckAt = now;
-      this.dirty = false;
+    if (this.sql) {
+      try {
+        const closed = flushHours(this.sql, this.buf, now / 1e3);
+        if (closed) this.hours.clear();
+        if (closed || (this.dirty && now - this.ckAt >= 6e4)) {
+          checkpoint(this.sql, this.buf, now);
+          this.ckAt = now;
+          this.dirty = false;
+        }
+        if (now - this.prunedAt > 36e5) {
+          prune(this.sql, Math.floor(now / 1e3) - KEEP_DAYS * 86400);
+          this.prunedAt = now;
+          this.hours.clear();
+        }
+      } catch (e) { this.noteSql(e); }
     }
     try { this.ws?.readyState === 1 && this.ws.send('{"method":"ping"}'); } catch {}
     await this.connect().catch(() => {});
-    if (Date.now() - this.prunedAt > 36e5) {
-      prune(this.sql, Math.floor(Date.now() / 1e3) - KEEP_DAYS * 86400);
-      this.prunedAt = Date.now();
-    }
-    const a = await this.ctx.storage.getAlarm();
-    (!a || a < Date.now()) && (await this.ctx.storage.setAlarm(Date.now() + 15e3));
+    try {
+      const a = await this.ctx.storage.getAlarm();
+      (!a || a < Date.now()) && (await this.ctx.storage.setAlarm(Date.now() + 15e3));
+    } catch (e) { this.noteSql(e); }
   }
   async alarm() {
     await this.tick();
@@ -92,16 +114,20 @@ export class Collector extends DurableObject {
   }
   async fetch(req) {
     const u = new URL(req.url);
-    try { await this.boot(); }
-    catch (e) { return Response.json({ ok: false, rows: [], error: String(e?.message || e) }); }
-    try { await this.tick(); } catch (e) { this.bootErr = String(e?.message || e); }
+    try { await this.tick(); } catch (e) { this.noteSql(e); }
+    const empty = { exec: () => ({ toArray: () => [] }) };
     if (u.pathname === "/delta") {
       const coin = u.searchParams.get("coin") || "", i = Number(u.searchParams.get("i") || 60), now = Math.floor(Date.now() / 1e3);
       const from = Number(u.searchParams.get("from") || now - 86400), to = Number(u.searchParams.get("to") || now + 60);
       if (!/^[A-Za-z0-9:@._-]{1,30}$/.test(coin)) return Response.json({ error: "coin" }, { status: 400 });
-      return Response.json({ coin, i, rows: query(this.sql, this.buf, coin, i, from, to), tracked: this.coins.includes(coin) });
+      let rows;
+      try { rows = query(this.sql || empty, this.buf, coin, i, from, to, this.sql ? this.hours : null); }
+      catch (e) { this.noteSql(e); rows = query(empty, this.buf, coin, i, from, to); }
+      return Response.json({ coin, i, rows, tracked: this.coins.includes(coin) });
     }
-    const st = stats(this.sql), all = [st.since, ...[...this.buf.values()].map((o) => o.t)].filter((x) => x != null);
+    let st = { hourRows: null, since: null };
+    if (this.sql) { try { st = stats(this.sql); } catch (e) { this.noteSql(e); } }
+    const all = [st.since, ...[...this.buf.values()].map((o) => o.t)].filter((x) => x != null);
     return Response.json({ ok: true, coins: this.coins.length, ws: this.ws?.readyState === 1, lastMsgAgo: Math.round((Date.now() - this.lastMsg) / 1e3), memMinutes: this.buf.size, hourRows: st.hourRows, since: all.length ? Math.min(...all) : null, err: this.bootErr || "" });
   }
 }

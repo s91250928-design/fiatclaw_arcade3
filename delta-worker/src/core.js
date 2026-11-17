@@ -95,8 +95,8 @@ export function restore(sql, buf) {
 export function prune(sql, beforeSec) {
   sql.exec("DELETE FROM h WHERE h < ?", Math.floor(beforeSec / HOUR) * HOUR);
 }
-/* корзины под свечу интервала i секунд (60, 300, 900, 3600, 14400, 86400): начало свечи = как у Hyperliquid (UTC) */
-export function query(sql, buf, coin, i, from, to) {
+/* корзины под свечу интервала i секунд. Закрытые часы можно передать в cache, чтобы не читать базу снова. */
+export function query(sql, buf, coin, i, from, to, cache) {
   i = Math.max(60, Math.floor(i / 60) * 60);
   const acc = new Map(), add = (t, b, s, n) => {
     if (t < from || t >= to) return;
@@ -104,8 +104,17 @@ export function query(sql, buf, coin, i, from, to) {
     x[1] += b; x[2] += s; x[3] += n;
     acc.set(k, x);
   };
-  const rows = sql.exec("SELECT h, d FROM h WHERE coin = ? AND h >= ? AND h < ? ORDER BY h LIMIT 2000", coin, Math.floor(from / HOUR) * HOUR, to).toArray();
-  for (const r of rows) for (const [m, v] of Object.entries(JSON.parse(r.d))) add(r.h + m * MIN, v[0], v[1], v[2]);
+  const cur = Math.floor(Date.now() / 1000 / HOUR) * HOUR;
+  for (let h = Math.floor(from / HOUR) * HOUR; h < to; h += HOUR) {
+    const key = `${coin}|${h}`;
+    let d = cache?.get(key);
+    if (d === undefined) {
+      const row = sql.exec("SELECT d FROM h WHERE coin = ? AND h = ?", coin, h).toArray()[0];
+      d = row ? JSON.parse(row.d) : null;
+      if (cache && h < cur) cache.set(key, d);
+    }
+    if (d) for (const [m, v] of Object.entries(d)) add(h + Number(m) * MIN, v[0], v[1], v[2]);
+  }
   for (const o of buf.values()) o.coin === coin && add(o.t, o.b, o.s, o.n);
   return [...acc.values()].sort((a, b) => a[0] - b[0]).slice(-50000).map((x) => [x[0], Math.round(x[1]), Math.round(x[2]), x[3]]);
 }
