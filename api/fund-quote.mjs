@@ -5,10 +5,14 @@
 // Сообщение в кошелёк отдаём только с его собственного кошелька USDT.
 
 import { createRequire } from "module";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
 function loadGram() {
-  const { gramSwap } = createRequire(import.meta.url)("../lib/gram-swap.cjs");
-  return gramSwap;
+  const file = join(dirname(fileURLToPath(import.meta.url)), "..", "lib", "gram-swap.cjs");
+  const loaded = createRequire(import.meta.url)(file);
+  if (typeof loaded.gramSwap !== "function") throw new Error("обмен не загрузился");
+  return loaded.gramSwap;
 }
 
 const USDT = "0x9328Eb759596C38a25f59028B146Fecdc3621Dfe";
