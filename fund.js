@@ -1,11 +1,17 @@
-/* Пополнение. Сначала человек подписывает обмен USDT в Tonkeeper:
-   USDC придёт на его торговый адрес в Arbitrum. Потом он сам, тем же
-   кошельком, отправляет этот USDC на официальный мост Hyperliquid.
-   Чужой адрес и сумма меньше 5 USDC отсюда не уходят. */
+/* Пополнение. Списываем с любого подключённого TON-кошелька, адрес не вводят.
+   Приход всегда на уже подключённый торговый счёт. */
+
+import { TonConnect, toUserFriendlyAddress } from "./vendor/tonconnect.js";
 
 const BRIDGE = "0x2df1c51e09aecf9cacb7bc98cb1742757f163df7";
 const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
+const PREFERRED = ["tonkeeper", "mytonwallet", "telegram", "telegram-wallet", "tonhub", "binanceWeb3TonWallet", "okxTonWallet", "bybitTonWallet", "bitgetTonWallet", "hot"];
 const fundDlg = document.getElementById("fundDialog");
+const connector = new TonConnect({ manifestUrl: location.origin + "/api/ton-manifest" });
+let fundAsset = "usdt";
+let fundTimer = 0;
+let tonAddr = "";
+let run = 0;
 
 function fundAddr() {
   const live = window.totumWallet?.addr?.();
@@ -28,44 +34,91 @@ function units(raw) {
   return BigInt(a) * 1000000n + BigInt(b.padEnd(6, "0"));
 }
 
-function payloadHas(payload, evm) {
+function setTon(wallet) {
+  const raw = wallet?.account?.address || "";
+  tonAddr = raw ? toUserFriendlyAddress(raw) : "";
+  const btn = document.getElementById("fundTon");
+  if (btn) btn.textContent = tonAddr ? `Кошелёк ${fundShort(tonAddr)}` : "Подключить кошелёк";
+  document.getElementById("fundWallets").hidden = true;
+}
+
+connector.onStatusChange(setTon);
+connector.restoreConnection().catch(() => {});
+
+async function showWallets() {
+  const box = document.getElementById("fundWallets");
+  if (!box.hidden && box.childElementCount) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<p class="muted small">Открываем список…</p>`;
   try {
-    const bin = atob(payload);
-    let hex = "";
-    for (let i = 0; i < bin.length; i++) hex += bin.charCodeAt(i).toString(16).padStart(2, "0");
-    return hex.includes(evm.slice(2));
-  } catch { return false; }
+    const all = await connector.getWallets();
+    const rank = w => { const i = PREFERRED.indexOf(w.appName); return i < 0 ? 99 : i; };
+    const list = all.slice().sort((a, b) => rank(a) - rank(b)).slice(0, 10);
+    box.innerHTML = "";
+    for (const w of list) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn ghost";
+      if (w.imageUrl) {
+        const img = document.createElement("img");
+        img.src = w.imageUrl;
+        img.alt = "";
+        b.appendChild(img);
+      }
+      b.appendChild(document.createTextNode(w.name));
+      b.onclick = async () => {
+        try {
+          if (w.jsBridgeKey && (w.injected || w.embedded)) {
+            await connector.connect({ jsBridgeKey: w.jsBridgeKey });
+            return;
+          }
+          const link = await connector.connect({ universalLink: w.universalLink, bridgeUrl: w.bridgeUrl });
+          if (typeof link === "string") window.open(link, "_blank", "noopener");
+        } catch (err) {
+          box.insertAdjacentHTML("beforeend", `<p class="neg small">${err.message || "Кошелёк не открылся"}</p>`);
+        }
+      };
+      box.appendChild(b);
+    }
+  } catch (e) {
+    box.innerHTML = `<p class="neg small">${e.message || "Список кошельков не открылся"}</p>`;
+  }
 }
 
-function tonLink(sign, evm) {
-  if (!sign || !/^(EQ|UQ)[A-Za-z0-9_-]{46}$/.test(sign.address)) return "";
-  if (!/^\d+$/.test(sign.amount) || BigInt(sign.amount) > 500000000n) return "";
-  if (!payloadHas(sign.payload, evm)) return "";
-  const bin = sign.payload.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `https://app.tonkeeper.com/transfer/${sign.address}?amount=${sign.amount}&bin=${encodeURIComponent(bin)}`;
-}
+document.getElementById("fundTon")?.addEventListener("click", () => {
+  if (tonAddr) { connector.disconnect(); setTon(null); return; }
+  showWallets();
+});
 
-let fundTimer = 0;
+document.getElementById("fundAssets")?.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-asset]");
+  if (!b) return;
+  fundAsset = b.dataset.asset;
+  for (const n of document.querySelectorAll("#fundAssets button")) n.classList.toggle("on", n === b);
+});
+
+function fundHide(id) {
+  const n = document.getElementById(id);
+  if (n) n.hidden = true;
+}
 
 async function fundLook() {
   const box = document.getElementById("fundWait");
+  const hl = document.getElementById("fundHlBox");
   const to = fundAddr();
-  if (!box || !to) return;
-  box.hidden = false;
+  if (!to) return;
   try {
     const r = await fetch("/api/fund-status?address=" + to);
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.ok) throw new Error(j.error || "не прочиталось");
-    if (j.usdcOk && j.ethOk) {
-      box.textContent = `На Arbitrum уже ${j.usdc} USDC и ${j.eth} ETH. Можно зачислять.`;
-      const amt = document.getElementById("fundHlAmt");
-      if (amt && !amt.value) amt.value = j.usdc;
-    } else {
-      box.textContent = `На Arbitrum сейчас ${j.usdc} USDC и ${j.eth} ETH. Мост обычно занимает минуту.`;
+    if (!r.ok || !j.ok) return;
+    if (hl) hl.hidden = !j.usdcOk;
+    const amt = document.getElementById("fundHlAmt");
+    if (j.usdcOk && amt && !amt.value) amt.value = j.usdc;
+    if (box && j.usdcOk && box.dataset.busy !== "1") {
+      box.hidden = false;
+      box.textContent = "Деньги уже на счёте. Можно зачислять.";
     }
-  } catch (e) {
-    box.textContent = e.message || "Баланс пока не прочитался";
-  }
+  } catch { /* сеть ещё не ответила */ }
 }
 
 function fundWatch() {
@@ -73,72 +126,120 @@ function fundWatch() {
   fundLook();
   fundTimer = setInterval(fundLook, 15000);
 }
-function fundHide(id) {
-  const n = document.getElementById(id);
-  if (n) n.hidden = true;
-}
 
 function fundShow() {
   const to = document.getElementById("fundTo");
-  if (to) to.textContent = fundAddr() || "Сначала подключите кошелёк, на котором торгуете";
+  const addr = fundAddr();
+  if (to) to.textContent = addr ? `На счёт ${fundShort(addr)}` : "Сначала подключите торговый счёт";
   fundHide("fundOut");
   fundHide("fundErr");
-  fundHide("fundSign");
-  fundHide("fundGas");
+  const hl = document.getElementById("fundHlBox");
+  if (hl) hl.hidden = true;
   fundDlg.showModal();
   fundWatch();
 }
 
 document.getElementById("btnFund")?.addEventListener("click", fundShow);
-document.getElementById("fundClose")?.addEventListener("click", () => { clearInterval(fundTimer); fundDlg.close(); });
-fundDlg?.addEventListener("close", () => clearInterval(fundTimer));
+document.getElementById("fundClose")?.addEventListener("click", () => { clearInterval(fundTimer); run++; fundDlg.close(); });
+fundDlg?.addEventListener("close", () => { clearInterval(fundTimer); run++; });
+
+function say(text, bad) {
+  const out = document.getElementById(bad ? "fundErr" : "fundOut");
+  const other = document.getElementById(bad ? "fundOut" : "fundErr");
+  if (other) other.hidden = true;
+  if (!out) return;
+  out.hidden = false;
+  out.textContent = text;
+}
+
+async function send(sign) {
+  if (!connector.connected || !tonAddr) throw new Error("Подключите кошелёк, с которого списываем");
+  await connector.sendTransaction({
+    validUntil: Math.floor(Date.now() / 1000) + 600,
+    messages: [{ address: sign.address, amount: String(sign.amount), payload: sign.payload }],
+  });
+}
+
+async function quote(asset, amount) {
+  const to = fundAddr();
+  if (!to) throw new Error("Подключите торговый счёт.");
+  if (!tonAddr) throw new Error("Подключите кошелёк, с которого списываем.");
+  const r = await fetch("/api/fund-quote", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ amount, from: tonAddr, to, asset }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) throw new Error(j.error || "Не посчиталось");
+  if (j.to !== to) throw new Error("Приход идёт не на ваш счёт. Отменено.");
+  return j;
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function waitUsdt(mine) {
+  for (let i = 0; i < 20; i++) {
+    await sleep(8000);
+    if (mine !== run) throw new Error("");
+    const r = await fetch("/api/fund-status?ton=" + encodeURIComponent(tonAddr));
+    const j = await r.json().catch(() => ({}));
+    if (j.usdtOk) return j.usdt;
+  }
+  throw new Error("Обмен ещё в пути. Через минуту нажмите «Пополнить» ещё раз.");
+}
+
+function pickAsset(asset) {
+  fundAsset = asset;
+  for (const n of document.querySelectorAll("#fundAssets button")) n.classList.toggle("on", n.dataset.asset === asset);
+}
 
 document.getElementById("fundGo")?.addEventListener("click", async () => {
-  const err = document.getElementById("fundErr");
-  const out = document.getElementById("fundOut");
-  const sign = document.getElementById("fundSign");
-  const gas = document.getElementById("fundGas");
   const btn = document.getElementById("fundGo");
-  err.hidden = true;
-  out.hidden = true;
-  sign.hidden = true;
-  gas.hidden = true;
-  sign.removeAttribute("href");
-  gas.removeAttribute("href");
-  const to = fundAddr();
-  if (!to) { err.hidden = false; err.textContent = "Подключите торговый кошелёк. На чужой адрес не считаем."; return; }
+  const mine = ++run;
   btn.disabled = true;
+  const prev = btn.textContent;
   btn.textContent = "Считаем…";
   try {
-    const r = await fetch("/api/fund-quote", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        amount: document.getElementById("fundAmt").value,
-        from: document.getElementById("fundFrom").value.trim(),
-        to,
-      }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.ok) throw new Error(j.error || "Не посчиталось");
-    if (j.to !== to) throw new Error("Адрес в ответе не совпал с кошельком. Расчёт отменён.");
-    const link = tonLink(j.sign, to);
-    const gasLink = tonLink(j.gasSign, to);
-    out.hidden = false;
-    out.innerHTML = `Из суммы <b>${j.tradeUsdt} USDT</b> придёт <b>${j.out} USDC</b> на ${fundShort(to)}.<br>Не меньше ${j.min || j.out}. Ещё <b>${j.gasUsdt} USDT</b> заложены на комиссию: <b>${j.gasEth} ETH</b>, это $${j.gasUsd}.<br>${link && gasLink ? "Сначала подпишите комиссию, потом обмен. На счёте нужен ещё примерно 0.4 TON на две комиссии сети." : (j.signError || j.gasSignError || "Подпись пока закрыта.")}`;
-    if (link && gasLink) {
-      gas.href = gasLink;
-      sign.href = link;
-      gas.hidden = false;
-      sign.hidden = false;
-      document.getElementById("fundHlAmt").value = j.min || j.out;
+    let j = await quote(fundAsset, document.getElementById("fundAmt").value);
+    if (mine !== run) return;
+    if (j.step === "swap") {
+      say("Подтвердите обмен в кошельке");
+      btn.textContent = "Ждём кошелёк…";
+      await send(j.sign);
+      if (mine !== run) return;
+      pickAsset("usdt");
+      say("Обмен идёт в том же кошельке.");
+      btn.textContent = "Ждём…";
+      const got = await waitUsdt(mine);
+      if (mine !== run) return;
+      const amt = document.getElementById("fundAmt");
+      if (amt) amt.value = got;
+      j = await quote("usdt", got);
+      if (mine !== run) return;
     }
+    if (!j.gasSign) throw new Error(j.gasSignError || "Перевод не собрался");
+    say("Подтвердите в кошельке");
+    btn.textContent = "Ждём кошелёк…";
+    await send(j.gasSign);
+    if (mine !== run) return;
+    if (!j.sign) throw new Error("Перевод не собрался");
+    await sleep(400);
+    if (mine !== run) return;
+    say("Подтвердите в кошельке ещё раз");
+    await send(j.sign);
+    if (mine !== run) return;
+    say("Подписано. Когда сумма появится на счёте, зачислите её.");
+    const hl = document.getElementById("fundHlAmt");
+    if (hl && j.min) hl.value = j.min;
   } catch (e) {
-    err.hidden = false;
-    err.textContent = e.message || "Не посчиталось";
+    if (mine === run && e?.message) say(e.message, true);
   } finally {
-    btn.disabled = false;
-    btn.textContent = "Посчитать";
+    if (mine === run) {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
   }
 });
 
@@ -149,8 +250,8 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
   const w = window.totumWallet;
   const from = fundAddr();
   const amt = units(document.getElementById("fundHlAmt").value);
-  if (!w || !from) { err.hidden = false; err.textContent = "Подключите кошелёк, на котором торгуете."; return; }
-  if (amt == null || amt < 5000000n) { err.hidden = false; err.textContent = "Меньше 5 USDC Hyperliquid не зачислит, перевод сгорит. Не отправляем."; return; }
+  if (!w || !from) { err.hidden = false; err.textContent = "Подключите торговый счёт."; return; }
+  if (amt == null || amt < 5000000n) { err.hidden = false; err.textContent = "Меньше 5 USDC Hyperliquid не зачислит. Не отправляем."; return; }
   btn.disabled = true;
   btn.textContent = "Ждём подпись…";
   try {
@@ -158,15 +259,14 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
     const chain = await w.req("eth_chainId", []);
     if (BigInt(chain) !== 42161n) throw new Error("Кошелёк не на Arbitrum. Перевод отменён.");
     const bal = await w.req("eth_call", [{ to: USDC, data: "0x70a08231" + from.slice(2).padStart(64, "0") }, "latest"]);
-    if (BigInt(bal) < amt) throw new Error("На Arbitrum меньше USDC, чем вы зачисляете.");
+    if (BigInt(bal) < amt) throw new Error("На счёте меньше USDC, чем вы зачисляете.");
     const eth = await w.req("eth_getBalance", [from, "latest"]);
-    if (BigInt(eth) < 50000000000000n) throw new Error("ETH на комиссию ещё не пришёл. Подождите минуту.");
+    if (BigInt(eth) < 50000000000000n) throw new Error("ETH на комиссию ещё не пришёл.");
     const data = "0xa9059cbb" + BRIDGE.slice(2).padStart(64, "0") + amt.toString(16).padStart(64, "0");
     if (!data.includes(BRIDGE.slice(2)) || data.slice(0, 10) !== "0xa9059cbb") throw new Error("Сборка перевода сломалась.");
     const hash = await w.req("eth_sendTransaction", [{ from, to: USDC, data, value: "0x0" }]);
     err.hidden = false;
-    err.style.color = "";
-    err.textContent = `Отправлено ${hash}. На счёте Hyperliquid сумма появится меньше чем через минуту.`;
+    err.textContent = `Отправлено ${hash}. На Hyperliquid сумма появится меньше чем через минуту.`;
   } catch (e) {
     err.hidden = false;
     err.textContent = e?.message || "Кошелёк отклонил перевод";

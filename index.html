@@ -608,23 +608,20 @@
   <div class="row"><button id="adlClose" class="btn grow" type="button">Понятно</button></div>
 </dialog>
 <dialog id="fundDialog" class="sheet-dlg">
-  <h2>Пополнение из TON</h2>
-  <p class="muted small">Из суммы сразу закладывается около 1.3 USDT на комиссию сети: на торговый адрес придёт от 0,5 до 1 доллара ETH. Остальное придёт нативным USDC на тот же адрес. Подписываете оба перевода в Tonkeeper, потом этим USDC пополняете Hyperliquid. Totum сумму не получает.</p>
-  <p class="fund-to" id="fundTo"></p>
-  <label class="inp"><span>Адрес Tonkeeper</span><input id="fundFrom" autocomplete="off" spellcheck="false" placeholder="UQ…"></label>
-  <label class="inp"><span>Сколько USDT</span><input id="fundAmt" inputmode="decimal" placeholder="50"></label>
+  <h2>Пополнить</h2>
+  <p class="muted small" id="fundTo">На ваш счёт</p>
+  <button id="fundTon" class="btn ghost wide-btn" type="button">Подключить кошелёк</button>
+  <div id="fundWallets" class="fund-wallets" hidden></div>
+  <div class="seg fund-assets" id="fundAssets"><button type="button" data-asset="usdt" class="on">USDT</button><button type="button" data-asset="gram">GRAM</button></div>
+  <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="50"></label>
   <p class="neg small" id="fundErr" hidden></p>
   <p class="fund-out" id="fundOut" hidden></p>
   <p class="fund-wait" id="fundWait" hidden></p>
-  <a id="fundGas" class="btn wide-btn" hidden target="_blank" rel="noopener">Подписать комиссию</a>
-  <a id="fundSign" class="btn wide-btn" hidden target="_blank" rel="noopener">Подписать обмен</a>
-  <div class="fund-hl">
-    <b>USDC уже на Arbitrum</b>
-    <p class="muted small">ETH на комиссию приходит вместе с обменом. Меньше 5 USDC не отправляем: биржа их не зачислит.</p>
-    <label class="inp"><span>Сколько USDC</span><input id="fundHlAmt" inputmode="decimal" placeholder="20"></label>
+  <div class="fund-hl" id="fundHlBox" hidden>
+    <label class="inp"><span>Сколько зачислить</span><input id="fundHlAmt" inputmode="decimal" placeholder="20"></label>
     <button id="fundHl" class="btn wide-btn" type="button">Зачислить на Hyperliquid</button>
   </div>
-  <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button><button id="fundGo" class="btn grow" type="button">Посчитать</button></div>
+  <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button><button id="fundGo" class="btn grow" type="button">Пополнить</button></div>
 </dialog>
 <dialog id="walletPicker">
   <h2>Выберите кошелёк</h2>
@@ -637,6 +634,6 @@
 <script type="module" src="ladder.js?v=1794152000"></script>
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1794192000"></script>
+<script type="module" src="fund.js?v=1794203000"></script>
 </body>
 </html>

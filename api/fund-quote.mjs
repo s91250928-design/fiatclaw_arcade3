@@ -2,7 +2,10 @@
 // Основная часть → нативный USDC на его торговый адрес.
 // 1.3 USDT → ETH на тот же адрес, чтобы хватило на комиссию сети.
 // Сейчас это около $0.80. Если котировка выходит из $0.50–$1, подпись не отдаём.
-// Сообщение в Tonkeeper отдаём только с его собственного кошелька USDT.
+// Сообщение в кошелёк отдаём только с его собственного кошелька USDT.
+
+import { createRequire } from "module";
+const { gramSwap } = createRequire(import.meta.url)("./_gram-swap.cjs");
 
 const USDT = "0x9328Eb759596C38a25f59028B146Fecdc3621Dfe";
 const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
@@ -13,11 +16,11 @@ const MIN = 22n * 1000000n;
 const MAX = 5000n * 1000000n;
 const GAS_CAP = 500000000n;
 
-function units(raw) {
+function units(raw, decimals = 6) {
   const t = String(raw ?? "").trim().replace(",", ".");
-  if (!/^\d+(\.\d{1,6})?$/.test(t)) return null;
+  if (!new RegExp(`^\\d+(\\.\\d{1,${decimals}})?$`).test(t)) return null;
   const [a, b = ""] = t.split(".");
-  return BigInt(a) * 1000000n + BigInt(b.padEnd(6, "0"));
+  return BigInt(a) * 10n ** BigInt(decimals) + BigInt(b.padEnd(decimals, "0"));
 }
 
 function dec(amount, decimals) {
@@ -94,9 +97,29 @@ export default async function handler(req, res) {
   const to = String(b.to || "").toLowerCase();
   const from = String(b.from || "").trim();
   if (!/^0x[0-9a-f]{40}$/.test(to)) return res.status(400).send('{"error":"Сначала подключите кошелёк, на котором торгуете"}');
-  if (!/^(EQ|UQ)[A-Za-z0-9_-]{46}$/.test(from)) return res.status(400).send('{"error":"Нужен адрес Tonkeeper, с которого спишут USDT"}');
+  if (!/^(EQ|UQ)[A-Za-z0-9_-]{46}$/.test(from)) return res.status(400).send('{"error":"Подключите кошелёк, с которого списываем"}');
+  if (b.asset === "gram") {
+    const g = units(b.amount, 9);
+    if (g == null || g < 25n * 1000000000n || g > 5000n * 1000000000n) return res.status(400).send('{"error":"Сумма от 25 до 5000 GRAM"}');
+    let sim, s;
+    try {
+      sim = await fetch(`https://api.ston.fi/v1/swap/simulate?offer_address=EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c&ask_address=${encodeURIComponent(TON_USDT)}&units=${g}&slippage_tolerance=0.01&user_wallet_address=${encodeURIComponent(from)}`, { method: "POST", signal: AbortSignal.timeout(12e3) });
+      s = await sim.json();
+    } catch {
+      return res.status(502).send('{"error":"Обмен GRAM не ответил. Деньги не уходили"}');
+    }
+    const ask = BigInt(s.ask_units || "0");
+    const minAsk = BigInt(s.min_ask_units || "0");
+    if (!sim.ok || ask < 22n * 1000000n) return res.status(422).send('{"error":"Этой суммы GRAM мало для зачисления"}');
+    try {
+      const sign = await gramSwap({ from, amount: g.toString(), minAsk: minAsk.toString() });
+      return res.status(200).send(JSON.stringify({ ok: true, step: "swap", from, to, askUsdt: dec(ask, 6), sign }));
+    } catch (e) {
+      return res.status(422).send(JSON.stringify({ error: e.message || "Обмен GRAM не собрался" }));
+    }
+  }
   const amt = units(b.amount);
-  if (amt == null || amt < MIN || amt > MAX) return res.status(400).send('{"error":"Сумма от 22 до 5000 USDT. Около 1.3 из них уходит на комиссию ETH"}');
+  if (amt == null || amt < MIN || amt > MAX) return res.status(400).send('{"error":"Сумма от 22 до 5000 USDT"}');
   const trade = amt - GAS_USDT;
 
   let eth, usdc;
@@ -113,7 +136,7 @@ export default async function handler(req, res) {
   const ethAmt = BigInt(eOut?.amount || "0");
   const ethUsd = Number(ethAmt) / 1e18 * px;
   if (eth.status !== 200 || eOut?.chainId !== 42161 || eOut?.address || eOut?.symbol !== "ETH" || !(ethUsd >= 0.5 && ethUsd <= 1.05)) {
-    return res.status(422).send('{"error":"Комиссия ETH вышла не в диапазоне 0,5–1 доллар. Перевод не открываем"}');
+    return res.status(422).send('{"error":"Сейчас не получилось посчитать зачисление. Попробуйте через минуту"}');
   }
   const uOut = usdc.j?.tokenAmountOut;
   if (usdc.status !== 200 || !uOut?.amount || uOut.chainId !== 42161 || String(uOut.address || "").toLowerCase() !== USDC) {

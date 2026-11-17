@@ -2,6 +2,7 @@
 // Ничего не отправляет. Адрес только читаем.
 
 const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
+const USDT_RAW = "0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe";
 const RPCS = ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one.publicnode.com"];
 
 function dec(amount, decimals) {
@@ -33,7 +34,20 @@ async function rpc(method, params) {
 export default async function handler(req, res) {
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.setHeader("cache-control", "no-store");
-  const address = String(req.query?.address || new URL(req.url || "/", "http://local").searchParams.get("address") || "").toLowerCase();
+  const url = new URL(req.url || "/", "http://local");
+  const ton = String(req.query?.ton || url.searchParams.get("ton") || "").trim();
+  if (/^(EQ|UQ)[A-Za-z0-9_-]{46}$/.test(ton)) {
+    try {
+      const r = await fetch(`https://tonapi.io/v2/accounts/${encodeURIComponent(ton)}/jettons`, { signal: AbortSignal.timeout(8e3) });
+      const j = await r.json();
+      const row = (j.balances || []).find(x => String(x.jetton?.address || "").toLowerCase() === USDT_RAW);
+      const bal = BigInt(row?.balance || "0");
+      return res.status(200).send(JSON.stringify({ ok: true, usdt: dec(bal, 6), usdtOk: bal >= 22n * 1000000n }));
+    } catch {
+      return res.status(502).send('{"error":"Баланс кошелька не прочитался"}');
+    }
+  }
+  const address = String(req.query?.address || url.searchParams.get("address") || "").toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(address)) return res.status(400).send('{"error":"адрес"}');
   try {
     const [eth, usdc] = await Promise.all([
