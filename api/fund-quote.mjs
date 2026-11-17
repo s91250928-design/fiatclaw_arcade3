@@ -5,7 +5,11 @@
 // Сообщение в кошелёк отдаём только с его собственного кошелька USDT.
 
 import { createRequire } from "module";
-const { gramSwap } = createRequire(import.meta.url)("./_gram-swap.cjs");
+
+function loadGram() {
+  const { gramSwap } = createRequire(import.meta.url)("../lib/gram-swap.cjs");
+  return gramSwap;
+}
 
 const USDT = "0x9328Eb759596C38a25f59028B146Fecdc3621Dfe";
 const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
@@ -111,12 +115,14 @@ export default async function handler(req, res) {
     const ask = BigInt(s.ask_units || "0");
     const minAsk = BigInt(s.min_ask_units || "0");
     if (!sim.ok || ask < 22n * 1000000n) return res.status(422).send('{"error":"Этой суммы GRAM мало для зачисления"}');
+    let sign;
     try {
-      const sign = await gramSwap({ from, amount: g.toString(), minAsk: minAsk.toString() });
-      return res.status(200).send(JSON.stringify({ ok: true, step: "swap", from, to, askUsdt: dec(ask, 6), sign }));
+      sign = await loadGram()({ from, amount: g.toString(), minAsk: minAsk.toString() });
     } catch (e) {
-      return res.status(422).send(JSON.stringify({ error: e.message || "Обмен GRAM не собрался" }));
+      const why = String(e?.message || e || "").replace(/\s+/g, " ").slice(0, 160);
+      return res.status(422).send(JSON.stringify({ error: why ? `Обмен GRAM не собрался: ${why}` : "Обмен GRAM не собрался" }));
     }
+    return res.status(200).send(JSON.stringify({ ok: true, step: "swap", from, to, askUsdt: dec(ask, 6), sign }));
   }
   const amt = units(b.amount);
   if (amt == null || amt < MIN || amt > MAX) return res.status(400).send('{"error":"Сумма от 22 до 5000 USDT"}');
