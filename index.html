@@ -609,12 +609,19 @@
 </dialog>
 <dialog id="fundDialog" class="sheet-dlg">
   <h2>Пополнение из TON</h2>
-  <p class="muted small">USDT в Tonkeeper меняется на нативный USDC в сети Arbitrum и приходит на ваш торговый адрес. Totum эту сумму не получает и не хранит. Если мост сорвётся, возврат идёт на адрес Tonkeeper ниже. Зачисление на Hyperliquid — отдельный шаг, его ещё нет.</p>
+  <p class="muted small">Два шага, оба подписываете вы. Сначала USDT в Tonkeeper меняется на нативный USDC и приходит на торговый адрес ниже. Потом этот USDC уходит на официальный мост Hyperliquid с того же адреса. Totum сумму не получает. Если обмен сорвётся, возврат идёт на адрес Tonkeeper.</p>
   <p class="fund-to" id="fundTo"></p>
   <label class="inp"><span>Адрес Tonkeeper</span><input id="fundFrom" autocomplete="off" spellcheck="false" placeholder="UQ…"></label>
   <label class="inp"><span>Сколько USDT</span><input id="fundAmt" inputmode="decimal" placeholder="50"></label>
   <p class="neg small" id="fundErr" hidden></p>
   <p class="fund-out" id="fundOut" hidden></p>
+  <a id="fundSign" class="btn wide-btn" hidden target="_blank" rel="noopener">Подписать в Tonkeeper</a>
+  <div class="fund-hl">
+    <b>USDC уже на Arbitrum</b>
+    <p class="muted small">Зачислить на счёт Hyperliquid. Меньше 5 USDC не отправляем: биржа их не зачислит.</p>
+    <label class="inp"><span>Сколько USDC</span><input id="fundHlAmt" inputmode="decimal" placeholder="20"></label>
+    <button id="fundHl" class="btn wide-btn" type="button">Зачислить на Hyperliquid</button>
+  </div>
   <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button><button id="fundGo" class="btn grow" type="button">Посчитать</button></div>
 </dialog>
 <dialog id="walletPicker">
@@ -628,6 +635,6 @@
 <script type="module" src="ladder.js?v=1794152000"></script>
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1794181000"></script>
+<script type="module" src="fund.js?v=1794184000"></script>
 </body>
 </html>

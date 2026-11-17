@@ -1,12 +1,15 @@
-// Расчёт пополнения: USDT на TON → нативный USDC на Arbitrum.
-// Только цифра. Calldata моста наружу не отдаём, перевод отсюда не уходит.
-// Адрес получения — тот, что прислал терминал (торговый кошелёк), мы свой не подставляем.
+// USDT на TON → нативный USDC на Arbitrum, затем человек сам зачисляет его на Hyperliquid.
+// Сервер не шлёт транзакцию. Подпись в Tonkeeper отдаём только если:
+//  сообщение одно, это кошелёк USDT самого человека, газ мелкий,
+//  а его торговый адрес лежит внутри тела перевода.
 
 const USDT = "0x9328Eb759596C38a25f59028B146Fecdc3621Dfe";
 const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
 const TON_USDT = "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs";
+const USDT_RAW = "0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe";
 const MIN = 20n * 1000000n;
 const MAX = 5000n * 1000000n;
+const GAS_CAP = 500000000n;
 
 function units(raw) {
   const t = String(raw ?? "").trim().replace(",", ".");
@@ -21,6 +24,23 @@ function dec(amount, decimals) {
   const w = n / d;
   const f = (n % d).toString().padStart(decimals, "0").replace(/0+$/, "");
   return f ? `${w}.${f}` : `${w}`;
+}
+
+async function tonRaw(friendly) {
+  const r = await fetch(`https://tonapi.io/v2/accounts/${encodeURIComponent(friendly)}`, { signal: AbortSignal.timeout(8e3) });
+  if (!r.ok) return "";
+  const j = await r.json();
+  return String(j.address || "").toLowerCase();
+}
+
+async function ownUsdtWallet(wallet, ownerFriendly) {
+  const [data, owner] = await Promise.all([
+    fetch(`https://tonapi.io/v2/blockchain/accounts/${encodeURIComponent(wallet)}/methods/get_wallet_data`, { signal: AbortSignal.timeout(8e3) }).then(r => r.ok ? r.json() : null).catch(() => null),
+    tonRaw(ownerFriendly),
+  ]);
+  const d = data?.decoded;
+  if (!d || !owner) return false;
+  return String(d.jetton || "").toLowerCase() === USDT_RAW && String(d.owner || "").toLowerCase() === owner;
 }
 
 export default async function handler(req, res) {
@@ -65,16 +85,26 @@ export default async function handler(req, res) {
     return res.status(422).send(JSON.stringify({ error: msg }));
   }
   const out = j.tokenAmountOut;
-  const outAddr = String(out.address || "").toLowerCase();
-  if (out.chainId !== 42161 || outAddr !== USDC) {
+  if (out.chainId !== 42161 || String(out.address || "").toLowerCase() !== USDC) {
     return res.status(422).send('{"error":"Маршрут вёл не в нативный USDC на Arbitrum. Его не показываем"}');
   }
   const min = j.tokenAmountOutMin?.amount ? dec(j.tokenAmountOutMin.amount, j.tokenAmountOutMin.decimals || 6) : null;
-  res.status(200).send(JSON.stringify({
-    ok: true,
-    out: dec(out.amount, out.decimals || 6),
-    min,
-    seconds: Number(j.estimatedTime) || null,
-    to, from,
-  }));
+  const body = { ok: true, out: dec(out.amount, out.decimals || 6), min, seconds: Number(j.estimatedTime) || null, to, from };
+
+  const msg = j.tx?.messages;
+  let gas = null;
+  try { if (msg?.length === 1) gas = BigInt(msg[0].amount || "0"); } catch { gas = null; }
+  const payload = msg?.[0]?.payload || "";
+  const until = Number(j.tx?.validUntil) || 0;
+  const now = Math.floor(Date.now() / 1000);
+  const hasAddr = payload && Buffer.from(payload, "base64").includes(Buffer.from(to.slice(2), "hex"));
+  const fresh = until > now && until < now + 10 * 86400;
+  if (gas != null && gas > 0n && gas <= GAS_CAP && hasAddr && fresh && payload.length < 12000) {
+    const wallet = String(msg[0].address || "");
+    if (/^(EQ|UQ)[A-Za-z0-9_-]{46}$/.test(wallet) && await ownUsdtWallet(wallet, from)) {
+      body.sign = { address: wallet, amount: gas.toString(), payload, validUntil: until };
+    } else body.signError = "Подпись закрыта: перевод шёл не с вашего кошелька USDT";
+  } else body.signError = "Подпись закрыта: маршрут не прошёл проверку адреса";
+
+  res.status(200).send(JSON.stringify(body));
 }
