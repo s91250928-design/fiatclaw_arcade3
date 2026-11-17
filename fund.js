@@ -45,6 +45,34 @@ function tonLink(sign, evm) {
   return `https://app.tonkeeper.com/transfer/${sign.address}?amount=${sign.amount}&bin=${encodeURIComponent(bin)}`;
 }
 
+let fundTimer = 0;
+
+async function fundLook() {
+  const box = document.getElementById("fundWait");
+  const to = fundAddr();
+  if (!box || !to) return;
+  box.hidden = false;
+  try {
+    const r = await fetch("/api/fund-status?address=" + to);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || "не прочиталось");
+    if (j.usdcOk && j.ethOk) {
+      box.textContent = `На Arbitrum уже ${j.usdc} USDC и ${j.eth} ETH. Можно зачислять.`;
+      const amt = document.getElementById("fundHlAmt");
+      if (amt && !amt.value) amt.value = j.usdc;
+    } else {
+      box.textContent = `На Arbitrum сейчас ${j.usdc} USDC и ${j.eth} ETH. Мост обычно занимает минуту.`;
+    }
+  } catch (e) {
+    box.textContent = e.message || "Баланс пока не прочитался";
+  }
+}
+
+function fundWatch() {
+  clearInterval(fundTimer);
+  fundLook();
+  fundTimer = setInterval(fundLook, 15000);
+}
 function fundShow() {
   document.getElementById("fundTo").textContent = fundAddr() || "Сначала подключите кошелёк, на котором торгуете";
   document.getElementById("fundOut").hidden = true;
@@ -52,10 +80,12 @@ function fundShow() {
   document.getElementById("fundSign").hidden = true;
   document.getElementById("fundGas").hidden = true;
   fundDlg.showModal();
+  fundWatch();
 }
 
 document.getElementById("btnFund")?.addEventListener("click", fundShow);
-document.getElementById("fundClose")?.addEventListener("click", () => fundDlg.close());
+document.getElementById("fundClose")?.addEventListener("click", () => { clearInterval(fundTimer); fundDlg.close(); });
+fundDlg?.addEventListener("close", () => clearInterval(fundTimer));
 
 document.getElementById("fundGo")?.addEventListener("click", async () => {
   const err = document.getElementById("fundErr");
@@ -123,12 +153,14 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
     if (BigInt(chain) !== 42161n) throw new Error("Кошелёк не на Arbitrum. Перевод отменён.");
     const bal = await w.req("eth_call", [{ to: USDC, data: "0x70a08231" + from.slice(2).padStart(64, "0") }, "latest"]);
     if (BigInt(bal) < amt) throw new Error("На Arbitrum меньше USDC, чем вы зачисляете.");
+    const eth = await w.req("eth_getBalance", [from, "latest"]);
+    if (BigInt(eth) < 50000000000000n) throw new Error("ETH на комиссию ещё не пришёл. Подождите минуту.");
     const data = "0xa9059cbb" + BRIDGE.slice(2).padStart(64, "0") + amt.toString(16).padStart(64, "0");
     if (!data.includes(BRIDGE.slice(2)) || data.slice(0, 10) !== "0xa9059cbb") throw new Error("Сборка перевода сломалась.");
     const hash = await w.req("eth_sendTransaction", [{ from, to: USDC, data, value: "0x0" }]);
     err.hidden = false;
     err.style.color = "";
-    err.textContent = `Отправлено ${hash}. Зачисление на счёт занимает меньше минуты. На кошельке Arbitrum нужен немного ETH для комиссии.`;
+    err.textContent = `Отправлено ${hash}. На счёте Hyperliquid сумма появится меньше чем через минуту.`;
   } catch (e) {
     err.hidden = false;
     err.textContent = e?.message || "Кошелёк отклонил перевод";
