@@ -35,14 +35,17 @@ export function setup(sql) {
   migrateOld(sql);
 }
 const hasTable = (sql, name) => sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", name).toArray().length > 0;
-/* старая таблица m (одна строка на минуту) → новые часовые строки, один раз */
+/* старая таблица m (одна строка на минуту) → новые часовые строки, порциями, чтобы не уронить сборщик */
 function migrateOld(sql) {
   if (!hasTable(sql, "m")) return 0;
+  const rows = sql.exec("SELECT coin, t, b, s, n FROM m LIMIT 2000").toArray();
+  if (!rows.length) { sql.exec("DROP TABLE m"); return 0; }
   const tmp = new Map();
-  for (const r of sql.exec("SELECT coin, t, b, s, n FROM m").toArray()) tmp.set(`${r.coin}|${r.t}`, { coin: r.coin, t: r.t, b: r.b, s: r.s, n: r.n });
-  const n = writeHours(sql, tmp, () => true);
-  sql.exec("DROP TABLE m");
-  return n;
+  for (const r of rows) tmp.set(`${r.coin}|${r.t}`, { coin: r.coin, t: r.t, b: r.b, s: r.s, n: r.n });
+  writeHours(sql, tmp, () => true);
+  for (const r of rows) sql.exec("DELETE FROM m WHERE coin = ? AND t = ?", r.coin, r.t);
+  if (rows.length < 2000) sql.exec("DROP TABLE m");
+  return rows.length;
 }
 /* пишет в базу минуты, для которых pick(час) = true, и убирает их из памяти; уже записанный час дополняется */
 function writeHours(sql, buf, pick) {
@@ -77,14 +80,17 @@ export function checkpoint(sql, buf, atMs) {
 }
 /* после перезапуска: вернуть в память то, что было; вернёт время страховки (сделки раньше — уже учтены) */
 export function restore(sql, buf) {
-  const r = sql.exec("SELECT at, d FROM ck WHERE id = 1").toArray()[0];
+  let r;
+  try { r = sql.exec("SELECT at, d FROM ck WHERE id = 1").toArray()[0]; } catch { return 0; }
   if (!r) return 0;
-  for (const [coin, t, b, s, n] of JSON.parse(r.d)) {
-    const k = `${coin}|${t}`, o = buf.get(k) || { coin, t, b: 0, s: 0, n: 0 };
-    o.b += b; o.s += s; o.n += n;
-    buf.set(k, o);
-  }
-  return r.at;
+  try {
+    for (const [coin, t, b, s, n] of JSON.parse(r.d)) {
+      const k = `${coin}|${t}`, o = buf.get(k) || { coin, t, b: 0, s: 0, n: 0 };
+      o.b += b; o.s += s; o.n += n;
+      buf.set(k, o);
+    }
+    return r.at;
+  } catch { return 0; }
 }
 export function prune(sql, beforeSec) {
   sql.exec("DELETE FROM h WHERE h < ?", Math.floor(beforeSec / HOUR) * HOUR);
@@ -101,7 +107,7 @@ export function query(sql, buf, coin, i, from, to) {
   const rows = sql.exec("SELECT h, d FROM h WHERE coin = ? AND h >= ? AND h < ? ORDER BY h LIMIT 2000", coin, Math.floor(from / HOUR) * HOUR, to).toArray();
   for (const r of rows) for (const [m, v] of Object.entries(JSON.parse(r.d))) add(r.h + m * MIN, v[0], v[1], v[2]);
   for (const o of buf.values()) o.coin === coin && add(o.t, o.b, o.s, o.n);
-  return [...acc.values()].sort((a, b) => a[0] - b[0]).slice(-5000).map((x) => [x[0], Math.round(x[1]), Math.round(x[2]), x[3]]);
+  return [...acc.values()].sort((a, b) => a[0] - b[0]).slice(-50000).map((x) => [x[0], Math.round(x[1]), Math.round(x[2]), x[3]]);
 }
 export function stats(sql) {
   const [{ c, oldest }] = sql.exec("SELECT COUNT(*) AS c, MIN(h) AS oldest FROM h").toArray();

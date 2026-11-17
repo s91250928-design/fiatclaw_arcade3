@@ -12,10 +12,8 @@ const ALWAYS = ["BTC", "ETH", "SOL", "HYPE"], TOP = 60, KEEP_DAYS = 30;
 export class Collector extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.sql = ctx.storage.sql;
     this.buf = new Map();
-    setup(this.sql);
-    this.notBefore = restore(this.sql, this.buf);
+    this.notBefore = 0;
     this.dirty = false;
     this.ckAt = Date.now();
     this.seen = new Set();
@@ -24,6 +22,18 @@ export class Collector extends DurableObject {
     this.coinsAt = 0;
     this.prunedAt = 0;
     this.lastMsg = 0;
+    this.sql = null;
+    this.booted = null;
+    this.bootErr = "";
+  }
+  boot() {
+    if (this.sql) return Promise.resolve();
+    if (!this.booted) this.booted = (async () => {
+      this.sql = this.ctx.storage.sql;
+      setup(this.sql);
+      this.notBefore = restore(this.sql, this.buf);
+    })().catch((e) => { this.sql = null; this.booted = null; this.bootErr = String(e?.message || e); throw e; });
+    return this.booted;
   }
   async pickCoins() {
     try {
@@ -82,7 +92,9 @@ export class Collector extends DurableObject {
   }
   async fetch(req) {
     const u = new URL(req.url);
-    await this.tick();
+    try { await this.boot(); }
+    catch (e) { return Response.json({ ok: false, rows: [], error: String(e?.message || e) }); }
+    try { await this.tick(); } catch (e) { this.bootErr = String(e?.message || e); }
     if (u.pathname === "/delta") {
       const coin = u.searchParams.get("coin") || "", i = Number(u.searchParams.get("i") || 60), now = Math.floor(Date.now() / 1e3);
       const from = Number(u.searchParams.get("from") || now - 86400), to = Number(u.searchParams.get("to") || now + 60);
@@ -90,7 +102,7 @@ export class Collector extends DurableObject {
       return Response.json({ coin, i, rows: query(this.sql, this.buf, coin, i, from, to), tracked: this.coins.includes(coin) });
     }
     const st = stats(this.sql), all = [st.since, ...[...this.buf.values()].map((o) => o.t)].filter((x) => x != null);
-    return Response.json({ ok: true, coins: this.coins.length, ws: this.ws?.readyState === 1, lastMsgAgo: Math.round((Date.now() - this.lastMsg) / 1e3), memMinutes: this.buf.size, hourRows: st.hourRows, since: all.length ? Math.min(...all) : null });
+    return Response.json({ ok: true, coins: this.coins.length, ws: this.ws?.readyState === 1, lastMsgAgo: Math.round((Date.now() - this.lastMsg) / 1e3), memMinutes: this.buf.size, hourRows: st.hourRows, since: all.length ? Math.min(...all) : null, err: this.bootErr || "" });
   }
 }
 
