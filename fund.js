@@ -102,6 +102,17 @@ function fundHide(id) {
   if (n) n.hidden = true;
 }
 
+function fundArm() {
+  const amt = document.getElementById("fundHlAmt");
+  if (!amt || amt.dataset.arm) return;
+  amt.dataset.arm = "1";
+  /* пока поле не тронули, браузер не подставляет сумму и не красит его в белый */
+  amt.readOnly = true;
+  const unlock = () => { amt.readOnly = false; };
+  amt.addEventListener("pointerdown", unlock);
+  amt.addEventListener("focus", unlock);
+}
+
 async function fundLook() {
   const hl = document.getElementById("fundHlBox");
   const to = fundAddr();
@@ -133,6 +144,7 @@ function fundShow() {
   const other = document.getElementById("fundOtherBox");
   if (other) other.hidden = true;
   fundDlg.showModal();
+  fundArm();
   fundWatch();
 }
 

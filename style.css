@@ -94,6 +94,17 @@ body.connected #btnConnect{background:var(--panel2);color:var(--text);border:1px
 .inp:focus-within{border-color:var(--accent)}
 .inp span{color:var(--muted);white-space:nowrap}
 .inp input{flex:1;min-width:0;background:transparent;border:0;outline:0;text-align:right;font-family:var(--mono);font-size:14px}
+.inp input:-webkit-autofill,
+.inp input:-webkit-autofill:hover,
+.inp input:-webkit-autofill:focus,
+.inp input:-webkit-autofill:active{
+  -webkit-text-fill-color:var(--text)!important;
+  caret-color:var(--text);
+  transition:background-color 99999s ease-out 0s;
+  -webkit-box-shadow:0 0 0 1000px var(--panel2) inset!important;
+  box-shadow:0 0 0 1000px var(--panel2) inset!important;
+  background-color:var(--panel2)!important;
+}
 .inp em{font-style:normal;color:var(--muted)}
 .inp-btn{background:transparent;border:0;color:var(--accent);font-weight:700;padding:0}
 input[type=range]{width:100%;accent-color:var(--accent)}

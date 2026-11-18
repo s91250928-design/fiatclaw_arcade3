@@ -127,17 +127,17 @@ const VENUES = {
     });
   } },
   weex: { name: "WEEX", type: "cex", async load() {
-    const [tk, fr] = await Promise.all([
-      j("https://api-contract.weex.com/capi/v2/market/tickers"),
-      j("https://api-contract.weex.com/capi/v2/market/currentFundRate").catch(() => null),
+    /* v2 (cmt_btcusdt) сняли — отдаёт 503. v3: символы как BTCUSDT */
+    const [pi, tk] = await Promise.all([
+      j("https://api-contract.weex.com/capi/v3/market/premiumIndex"),
+      j("https://api-contract.weex.com/capi/v3/market/ticker/24hr").catch(() => []),
     ]);
-    const f = Object.fromEntries((Array.isArray(fr) ? fr : fr?.data || []).map((x) => [x.symbol, x]));
-    return (Array.isArray(tk) ? tk : tk?.data || []).map((x) => {
-      const m = /^cmt_(.+)usdt$/i.exec(x.symbol || "");
-      if (!m) return null;
-      const c = f[x.symbol] || {};
-      const cyc = num(c.collectCycle);
-      return { sym: x.symbol, base: baseOf(m[1].toUpperCase()), rate: num(c.fundingRate ?? x.fundingRate), ih: cyc ? (cyc > 24 ? cyc / 60 : cyc) : 8, next: num(c.nextFundingTime ?? c.timestamp), mark: num(x.markPrice) || num(x.last), idx: num(x.indexPrice), vol: num(x.volume_24h), oi: null };
+    const vol = Object.fromEntries((Array.isArray(tk) ? tk : []).map((x) => [x.symbol, num(x.quoteVolume)]));
+    return (Array.isArray(pi) ? pi : []).map((x) => {
+      const b = usdt(x.symbol);
+      if (!b || !num(x.markPrice)) return null;
+      const cyc = num(x.collectCycle);
+      return { sym: x.symbol, base: baseOf(b), rate: num(x.lastFundingRate), ih: cyc ? (cyc > 24 ? cyc / 60 : cyc) : 8, next: num(x.nextFundingTime), mark: num(x.markPrice), idx: num(x.indexPrice), vol: vol[x.symbol] ?? null, oi: null };
     });
   } },
   ourbit: { name: "Ourbit", type: "cex", async load() {

@@ -28,8 +28,13 @@ const binLike = (host) => ({
   f: async (s, from) => (await j(`${host}/fapi/v1/fundingRate?symbol=${s}&startTime=${from}&limit=1000`)).map((x) => [n(x.fundingTime), n(x.fundingRate)]),
   c: async (s, i) => (await j(`${host}/fapi/v1/klines?symbol=${s}&interval=${i}&limit=1000`)).map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]),
   b: async (s) => {
-    const d = await j(`${host}/fapi/v1/depth?symbol=${s}&limit=20`);
-    return { b: lv(d.bids), a: lv(d.asks) };
+    const d = await j(`${host}/fapi/v1/depth?symbol=${s}&limit=20`).catch(() => ({}));
+    const book = { b: lv(d.bids), a: lv(d.asks) };
+    if (book.b.length || book.a.length) return book;
+    /* у части пар (ANTHROPIC и др.) depth пустой, а лучшая цена есть в bookTicker */
+    const t = await j(`${host}/fapi/v1/ticker/bookTicker?symbol=${s}`).catch(() => null);
+    const one = (p, q) => (n(p) > 0 && n(q) > 0 ? [[n(p), n(q)]] : []);
+    return { b: one(t?.bidPrice, t?.bidQty), a: one(t?.askPrice, t?.askQty) };
   },
 });
 const mexcLike = (host) => ({
@@ -153,6 +158,14 @@ export const H = {
         if ((t?.bids || []).length && (t?.asks || []).length) break;
       }
       return scale({ b: lv(tick?.bids).slice(0, 20), a: lv(tick?.asks).slice(0, 20) }, await kP);
+    },
+  },
+  weex: {
+    f: async (s, from) => (await j(`https://api-contract.weex.com/capi/v3/market/fundingRate?symbol=${s}&limit=100`)).map((x) => [n(x.fundingTime), n(x.fundingRate)]).filter((x) => x[0] >= from),
+    c: async (s, i) => (await j(`https://api-contract.weex.com/capi/v3/market/klines?symbol=${s}&interval=${i}&limit=1000`)).map((x) => [n(x[0]), n(x[1]), n(x[2]), n(x[3]), n(x[4])]),
+    b: async (s) => {
+      const d = await j(`https://api-contract.weex.com/capi/v3/market/depth?symbol=${s}&limit=15`).catch(() => ({}));
+      return { b: lv(d.bids), a: lv(d.asks) };
     },
   },
   whitebit: {
