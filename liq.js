@@ -1,12 +1,15 @@
-/* Тепловая карта ликвидаций.
-   У Hyperliquid нет открытой ленты, поэтому уровни — оценка:
-   открытый интерес раскладывается по свечам графика и плечу 5–50x.
-   Полоса начинается на свече входа и тянется вправо. */
+/* Карта ликвидаций.
+   У Hyperliquid нет открытой ленты — уровни оценка по интересу и плечу 5–50x.
+   Полосы только слева и гаснут до середины, чтобы справа был виден сам график.
+   Колесо масштабирует, перетаскивание двигает, как обычный график. */
 (function () {
   const LEV = [[5, .07], [10, .24], [20, .28], [25, .18], [40, .13], [50, .10]];
   const MMR = .004;
-  const state = { tip: null, pin: null, coin: "" };
-  const view = { bands: [], rails: [], lo: 0, hi: 0 };
+  const state = { tip: null, pin: null };
+  const cam = { key: "", i0: 0, i1: 1, lo: 0, hi: 1, moved: false };
+  const view = { bands: [], rails: [], box: null, meta: null, reset: null };
+  let drag = null;
+  let suppressClick = false;
 
   function cssVar(name, fallback) {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -27,11 +30,10 @@
 
   function money(n) {
     const a = Math.abs(n);
-    const s = a >= 1e9 ? (a / 1e9).toFixed(2).replace(".", ",") + " млрд"
+    return a >= 1e9 ? (a / 1e9).toFixed(2).replace(".", ",") + " млрд"
       : a >= 1e6 ? (a / 1e6).toFixed(1).replace(".", ",") + " млн"
       : a >= 1e3 ? Math.round(a / 1e3) + " тыс"
       : String(Math.round(a));
-    return s;
   }
 
   function pxText(n) {
@@ -45,16 +47,23 @@
     return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1).replace(".", ",") + "%";
   }
 
-  function heat(t) {
+  function mix(t) {
     const u = Math.max(0, Math.min(1, t));
-    const stops = [[0, 250, 204, 21], [.28, 132, 204, 22], [.55, 251, 146, 60], [.78, 239, 68, 68], [1, 185, 28, 28]];
+    const stops = [[0, 250, 204, 21], [.32, 132, 204, 22], [.62, 251, 146, 60], [1, 220, 50, 50]];
     let i = 1;
     while (i < stops.length && stops[i][0] < u) i++;
-    const a = stops[i - 1], b = stops[i] || stops[i - 1];
+    const a = stops[i - 1], b = stops[i] || a;
     const f = b[0] === a[0] ? 0 : (u - a[0]) / (b[0] - a[0]);
-    const ch = (k) => Math.round(a[k] + (b[k] - a[k]) * f);
-    const alpha = .34 + .62 * Math.pow(u, .55);
-    return `rgba(${ch(1)},${ch(2)},${ch(3)},${alpha.toFixed(3)})`;
+    return {
+      r: Math.round(a[1] + (b[1] - a[1]) * f),
+      g: Math.round(a[2] + (b[2] - a[2]) * f),
+      b: Math.round(a[3] + (b[3] - a[3]) * f),
+      a: .15 + .22 * Math.pow(u, .8),
+    };
+  }
+
+  function rgba(c, a) {
+    return `rgba(${c.r},${c.g},${c.b},${(a == null ? c.a : a).toFixed(3)})`;
   }
 
   function ownLiq(px) {
@@ -72,24 +81,15 @@
 
   function build(bars, vol, oi, px) {
     const n = bars.length;
-    const weights = vol.map((v, i) => (Math.sqrt(Math.max(0, v)) + .2) * (.55 + .45 * (n <= 1 ? 1 : i / (n - 1))));
+    const weights = vol.map((v, i) => (Math.sqrt(Math.max(0, v)) + .2) * (.6 + .4 * (n <= 1 ? 1 : i / (n - 1))));
     for (let i = 2; i < n - 1; i++) {
       const b = bars[i];
-      if (b.high >= bars[i - 1].high && b.high >= bars[i + 1].high) weights[i] *= 1.4;
-      if (b.low <= bars[i - 1].low && b.low <= bars[i + 1].low) weights[i] *= 1.4;
+      if (b.high >= bars[i - 1].high && b.high >= bars[i + 1].high) weights[i] *= 1.35;
+      if (b.low <= bars[i - 1].low && b.low <= bars[i + 1].low) weights[i] *= 1.35;
     }
     const wsum = weights.reduce((a, b) => a + b, 0) || 1;
-    let loC = px, hiC = px;
-    for (const b of bars) {
-      loC = Math.min(loC, +b.low || +b.close || px);
-      hiC = Math.max(hiC, +b.high || +b.close || px);
-    }
-    const pad = Math.max(px * .075, (hiC - loC) * .45);
-    let lo = Math.max(px * .88, Math.min(px - pad, loC * .995));
-    let hi = Math.min(px * 1.12, Math.max(px + pad, hiC * 1.005));
-    if (!(hi > lo)) { lo = px * .94; hi = px * 1.06; }
-    const rows = 42;
-    const step = (hi - lo) / rows;
+    const lo = px * .78, hi = px * 1.22;
+    const step = Math.max(px * .0036, (hi - lo) / 90);
     const cells = new Map();
     const priced = oi > 0;
     const purse = priced ? oi : 1;
@@ -99,17 +99,16 @@
       const slice = weights[i] / wsum * purse;
       for (const [L, share] of LEV) {
         const usd = slice * share * .5;
-        put(entry * (1 - 1 / L + MMR), "long", usd, i);
-        put(entry * (1 + 1 / L - MMR), "short", usd, i);
+        put(entry * (1 - 1 / L + MMR), "long", usd);
+        put(entry * (1 + 1 / L - MMR), "short", usd);
       }
     }
-    function put(price, side, usd, i) {
+    function put(price, side, usd) {
       if (!(price > lo && price < hi) || !(usd > 0)) return;
-      const y = Math.min(rows - 1, Math.max(0, Math.floor((price - lo) / step)));
+      const y = Math.min(1e9, Math.max(0, Math.floor((price - lo) / step)));
       let c = cells.get(y);
-      if (!c) { c = { long: 0, short: 0, i, y }; cells.set(y, c); }
+      if (!c) { c = { long: 0, short: 0, y }; cells.set(y, c); }
       c[side] += usd;
-      if (i < c.i) c.i = i;
     }
     const list = [...cells.values()].map((c) => ({
       price: lo + (c.y + .5) * step,
@@ -117,14 +116,97 @@
       short: c.short,
       usd: c.long + c.short,
       side: c.short >= c.long ? "short" : "long",
-      i: c.i,
     }));
     const max = list.reduce((m, b) => Math.max(m, b.usd), 0) || 1;
     return {
-      lo, hi, step, list, max, priced, n,
+      list, max, step, priced,
       longUsd: list.reduce((s, b) => s + b.long, 0),
       shortUsd: list.reduce((s, b) => s + b.short, 0),
     };
+  }
+
+  function framePrice(bars, px) {
+    let lo = px, hi = px;
+    for (const b of bars) {
+      lo = Math.min(lo, +b.low || +b.close || px);
+      hi = Math.max(hi, +b.high || +b.close || px);
+    }
+    const span = Math.max(hi - lo, px * .012);
+    const pad = span * .18;
+    return { lo: lo - pad, hi: hi + pad };
+  }
+
+  function clampCam(n, px) {
+    let span = cam.i1 - cam.i0;
+    span = Math.max(12, Math.min(Math.max(n, 12) * 2.4, span));
+    if (cam.i0 < -span * .35) cam.i0 = -span * .35;
+    if (cam.i0 > n - span * .25) cam.i0 = n - span * .25;
+    cam.i1 = cam.i0 + span;
+    let ps = cam.hi - cam.lo;
+    ps = Math.max(px * .003, Math.min(px * .55, ps || px * .04));
+    if (cam.lo < px * .45) cam.lo = px * .45;
+    if (cam.lo > px * 1.45) cam.lo = px * 1.45;
+    cam.hi = cam.lo + ps;
+  }
+
+  function xOf(i, box) {
+    return box.left + (i - cam.i0) / (cam.i1 - cam.i0) * box.plotW;
+  }
+
+  function yOf(price, box) {
+    return box.top + (cam.hi - price) / (cam.hi - cam.lo) * box.plotH;
+  }
+
+  function priceAt(y) {
+    const b = view.box;
+    return cam.hi - (y - b.top) / b.plotH * (cam.hi - cam.lo);
+  }
+
+  function indexAt(x) {
+    const b = view.box;
+    return cam.i0 + (x - b.left) / b.plotW * (cam.i1 - cam.i0);
+  }
+
+  function timeAt(bars, idx) {
+    if (!bars.length) return 0;
+    if (bars.length === 1) return bars[0].time || 0;
+    const i = Math.max(0, Math.min(bars.length - 2, Math.floor(idx)));
+    const a = bars[i], b = bars[i + 1];
+    return (a.time || 0) + (idx - i) * ((b.time || 0) - (a.time || 0));
+  }
+
+  function zoomTime(x, factor) {
+    const b = view.box;
+    const span = cam.i1 - cam.i0;
+    const f = Math.min(1, Math.max(0, (x - b.left) / b.plotW));
+    const next = span * factor;
+    const at = cam.i0 + f * span;
+    cam.i0 = at - f * next;
+    cam.i1 = cam.i0 + next;
+  }
+
+  function zoomPrice(y, factor) {
+    const b = view.box;
+    const span = cam.hi - cam.lo;
+    const f = Math.min(1, Math.max(0, (y - b.top) / b.plotH));
+    const next = span * factor;
+    const at = cam.hi - f * span;
+    cam.hi = at + f * next;
+    cam.lo = cam.hi - next;
+  }
+
+  function zoneAt(x, y) {
+    const b = view.box;
+    if (!b) return "out";
+    if (b.railX < b.w && x >= b.railX) return "rail";
+    if (y >= b.top && y <= b.top + b.plotH && x >= b.left && x <= b.left + b.plotW) return "plot";
+    if (x > b.left + b.plotW && x < b.railX && y >= b.top && y <= b.top + b.plotH) return "price";
+    if (y > b.top + b.plotH && x >= b.left && x <= b.left + b.plotW) return "time";
+    return "out";
+  }
+
+  function inside(r, p) {
+    return r && p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
   }
 
   function draw() {
@@ -146,6 +228,7 @@
     g.fillRect(0, 0, w, h);
     view.bands = [];
     view.rails = [];
+    view.reset = null;
 
     const m = window.totumMkt;
     const name = document.getElementById("pairName")?.textContent || m?.coin || "";
@@ -158,10 +241,10 @@
     g.fillStyle = theme.muted;
 
     if (!m || m.spot) {
+      view.box = null;
       g.fillText("На споте ликвидаций нет. Открой бессрочный контракт.", 12, h / 2);
       return;
     }
-    if (state.coin !== m.coin) { state.coin = m.coin; state.pin = null; state.tip = null; }
     const src = m.bars || [];
     const srcVol = m.vols || [];
     const paired = [];
@@ -170,88 +253,117 @@
       if (!b || !(+b.close > 0)) continue;
       paired.push([b, +srcVol[i]?.value || 0]);
     }
-    const use = paired.slice(-160);
+    const use = paired.slice(-280);
     const bars = use.map((x) => x[0]);
     const vol = use.map((x) => x[1]);
     const px = +m.mark || +bars.at(-1)?.close || 0;
+    const key = (m.coin || "") + "|" + (m.iv || "");
+    if (cam.key !== key) { cam.key = key; cam.moved = false; state.pin = null; state.tip = null; }
     if (bars.length < 8 || !px) {
+      view.box = null;
       g.fillText("Копим свечи этой пары…", 12, h / 2);
       return;
     }
     const model = build(bars, vol, +m.oiUsd || 0, px);
-    view.lo = model.lo;
-    view.hi = model.hi;
+    if (!cam.moved) {
+      const fr = framePrice(bars, px);
+      cam.i0 = 0;
+      cam.i1 = bars.length;
+      cam.lo = fr.lo;
+      cam.hi = fr.hi;
+    } else clampCam(bars.length, px);
+    view.meta = { n: bars.length, px, bars, step: model.step, priced: model.priced };
+
     const railW = w >= 920 ? 236 : 0;
-    const gutter = 62;
+    const gutter = 64;
     const left = 10, top = 46, bot = h - 22;
     const plotW = Math.max(80, w - railW - gutter - left - 8);
     const plotH = Math.max(40, bot - top);
-    const yOf = (price) => top + (model.hi - price) / (model.hi - model.lo) * plotH;
-    const cw = plotW / model.n;
+    const box = { left, top, plotW, plotH, bot, railX: railW ? w - railW : w, w, h, gutter };
+    view.box = box;
 
     g.font = "12px Manrope, sans-serif";
     g.fillStyle = theme.muted;
-    const iv = m.iv ? " · " + m.iv : "";
-    g.fillText("оценка по интересу" + iv + " · плечо 5–50×, не лента биржи", 12, 36);
+    g.fillText("оценка, не лента · " + (m.iv || "свечи") + " · колесо — масштаб, зажми и веди", 12, 36);
 
-    if (plotW > 220) {
-      const lx = left + plotW - 118;
-      const grd = g.createLinearGradient(lx, 0, lx + 64, 0);
-      grd.addColorStop(0, heat(.12));
-      grd.addColorStop(.5, heat(.55));
-      grd.addColorStop(1, heat(1));
-      g.fillStyle = grd;
+    if (cam.moved) {
+      g.font = "600 11px Manrope, sans-serif";
+      const tw = g.measureText("сброс").width + 16;
+      const rx = left + plotW - tw, ry = 6;
+      g.fillStyle = theme.rail;
+      g.strokeStyle = theme.line;
       g.beginPath();
-      g.roundRect(lx, 28, 64, 7, 3);
+      g.roundRect(rx, ry, tw, 18, 4);
       g.fill();
-      g.fillStyle = theme.muted;
-      g.font = "10px Manrope, sans-serif";
-      g.textAlign = "right";
-      g.fillText("мало", lx - 4, 35);
-      g.textAlign = "left";
-      g.fillText("много", lx + 68, 35);
+      g.stroke();
+      g.fillStyle = theme.text;
+      g.textAlign = "center";
+      g.fillText("сброс", rx + tw / 2, ry + 13);
+      view.reset = { x: rx, y: ry, w: tw, h: 18 };
     }
 
     g.save();
     g.beginPath();
     g.rect(left, top, plotW, plotH);
     g.clip();
-    for (const b of model.list) {
-      const t = b.usd / model.max;
-      if (t < .1) continue;
-      const y = yOf(b.price);
-      const x = left + b.i * cw;
-      const bw = left + plotW - x;
-      const thick = Math.max(3, Math.min(plotH / 42 * .78, 2.4 + 6.5 * Math.pow(t, .8)));
-      if (bw < 2) continue;
-      g.fillStyle = heat(t);
+
+    g.strokeStyle = theme.line;
+    g.globalAlpha = .45;
+    g.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+      const y = top + plotH * i / 4;
       g.beginPath();
-      g.roundRect(x, y - thick / 2, bw, thick, 1.4);
-      g.fill();
-      view.bands.push({ x, y, w: bw, h: thick, price: b.price, side: b.side, usd: b.usd });
+      g.moveTo(left, y);
+      g.lineTo(left + plotW, y);
+      g.stroke();
     }
-    bars.forEach((bar, i) => {
-      const x = left + (i + .5) * cw;
+    g.globalAlpha = 1;
+
+    const iA = Math.max(0, Math.floor(cam.i0) - 1);
+    const iB = Math.min(bars.length - 1, Math.ceil(cam.i1) + 1);
+    const cw = plotW / (cam.i1 - cam.i0);
+    for (let i = iA; i <= iB; i++) {
+      const bar = bars[i];
+      const x = xOf(i + .5, box);
       const up = +bar.close >= +bar.open;
       g.strokeStyle = up ? theme.buy : theme.sell;
       g.fillStyle = up ? theme.buy : theme.sell;
-      g.lineWidth = 1;
+      g.lineWidth = 1.15;
       g.beginPath();
-      g.moveTo(x, yOf(+bar.high || +bar.close));
-      g.lineTo(x, yOf(+bar.low || +bar.close));
+      g.moveTo(x, yOf(+bar.high || +bar.close, box));
+      g.lineTo(x, yOf(+bar.low || +bar.close, box));
       g.stroke();
-      const bw = Math.max(1.5, Math.min(8, cw * .55));
-      const yA = yOf(+bar.open || +bar.close), yB = yOf(+bar.close);
-      g.globalAlpha = .92;
+      const bw = Math.max(1.6, Math.min(14, cw * .62));
+      const yA = yOf(+bar.open || +bar.close, box), yB = yOf(+bar.close, box);
       g.fillRect(x - bw / 2, Math.min(yA, yB), bw, Math.max(1, Math.abs(yB - yA)));
-      g.globalAlpha = 1;
-    });
+    }
+
+    const bandEnd = left + plotW * .44;
+    for (const b of model.list) {
+      const t = b.usd / model.max;
+      if (t < .16) continue;
+      if (b.price < cam.lo || b.price > cam.hi) continue;
+      const y = yOf(b.price, box);
+      if (y < top - 4 || y > top + plotH + 4) continue;
+      const len = plotW * (.28 + .16 * Math.pow(t, .5));
+      const col = mix(t);
+      const thick = 1.5 + 1.6 * Math.pow(t, .85);
+      const grd = g.createLinearGradient(left, 0, left + len, 0);
+      grd.addColorStop(0, rgba(col, col.a * .35));
+      grd.addColorStop(.2, rgba(col));
+      grd.addColorStop(.7, rgba(col, col.a * .7));
+      grd.addColorStop(1, rgba(col, 0));
+      g.fillStyle = grd;
+      g.fillRect(left, y - thick / 2, Math.min(len, bandEnd - left), thick);
+      view.bands.push({ x: left, y, w: len * .8, h: Math.max(thick, 8), price: b.price, side: b.side, usd: b.usd });
+    }
+
     const mine = ownLiq(px);
-    if (mine && mine > model.lo && mine < model.hi) {
-      const y = yOf(mine);
+    if (mine && mine > cam.lo && mine < cam.hi) {
+      const y = yOf(mine, box);
       g.strokeStyle = "#d97706";
       g.setLineDash([5, 4]);
-      g.lineWidth = 1.25;
+      g.lineWidth = 1.15;
       g.beginPath();
       g.moveTo(left, y);
       g.lineTo(left + plotW, y);
@@ -262,86 +374,130 @@
       g.textAlign = "left";
       g.fillText("твоя " + pxText(mine), left + 6, y - 5);
     }
-    if (state.pin && state.pin > model.lo && state.pin < model.hi) {
-      const y = yOf(state.pin);
+    if (state.pin && state.pin > cam.lo && state.pin < cam.hi) {
+      const y = yOf(state.pin, box);
       g.strokeStyle = theme.text;
-      g.lineWidth = 1.25;
+      g.globalAlpha = .7;
+      g.lineWidth = 1;
+      g.setLineDash([2, 3]);
       g.beginPath();
       g.moveTo(left, y);
       g.lineTo(left + plotW, y);
       g.stroke();
+      g.setLineDash([]);
+      g.globalAlpha = 1;
     }
     g.restore();
 
-    const yPx = yOf(px);
-    g.strokeStyle = theme.text;
-    g.globalAlpha = .55;
-    g.setLineDash([3, 4]);
-    g.lineWidth = 1;
-    g.beginPath();
-    g.moveTo(left, yPx);
-    g.lineTo(left + plotW, yPx);
-    g.stroke();
-    g.setLineDash([]);
-    g.globalAlpha = 1;
-    const pill = pxText(px);
-    g.font = "700 11px Manrope, sans-serif";
-    const pw = g.measureText(pill).width + 12;
-    g.fillStyle = theme.text;
-    g.beginPath();
-    g.roundRect(left + plotW - pw, yPx - 9, pw, 18, 4);
-    g.fill();
-    g.fillStyle = theme.bg;
-    g.textAlign = "right";
-    g.fillText(pill, left + plotW - 6, yPx + 4);
+    const yPx = yOf(px, box);
+    if (yPx > top && yPx < top + plotH) {
+      g.strokeStyle = theme.text;
+      g.globalAlpha = .4;
+      g.setLineDash([3, 4]);
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(left, yPx);
+      g.lineTo(left + plotW, yPx);
+      g.stroke();
+      g.setLineDash([]);
+      g.globalAlpha = 1;
+      const pill = pxText(px);
+      g.font = "700 11px Manrope, sans-serif";
+      const pw = g.measureText(pill).width + 12;
+      g.fillStyle = theme.text;
+      g.beginPath();
+      g.roundRect(left + plotW - pw, yPx - 9, pw, 18, 4);
+      g.fill();
+      g.fillStyle = theme.bg;
+      g.textAlign = "right";
+      g.fillText(pill, left + plotW - 6, yPx + 4);
+    }
 
     g.fillStyle = theme.muted;
     g.font = "11px Manrope, sans-serif";
     g.textAlign = "left";
     for (let i = 0; i <= 4; i++) {
-      const price = model.lo + (model.hi - model.lo) * i / 4;
-      const y = yOf(price);
-      if (Math.abs(y - yPx) < 12) continue;
+      const price = cam.lo + (cam.hi - cam.lo) * i / 4;
+      const y = yOf(price, box);
+      if (Math.abs(y - yPx) < 14) continue;
       g.fillText(pxText(price), left + plotW + 8, y + 3);
     }
 
-    const span = (bars.at(-1).time || 0) - (bars[0].time || 0);
+    const spanT = Math.abs(timeAt(bars, cam.i1) - timeAt(bars, cam.i0));
     const label = (sec) => {
       if (!sec) return "";
       const d = new Date(sec * 1000);
-      return span > 86400 * 2
+      return spanT > 86400 * 2
         ? d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })
         : d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
     };
-    g.fillStyle = theme.muted;
-    g.font = "11px Manrope, sans-serif";
     for (let i = 0; i < 4; i++) {
-      const k = Math.round(i / 3 * (bars.length - 1));
-      const x = left + (k + .5) * cw;
+      const idx = cam.i0 + (cam.i1 - cam.i0) * (i / 3);
+      const x = xOf(idx, box);
+      g.fillStyle = theme.muted;
+      g.font = "11px Manrope, sans-serif";
       g.textAlign = i === 0 ? "left" : i === 3 ? "right" : "center";
-      g.fillText(label(bars[k].time), x, h - 8);
+      g.fillText(label(timeAt(bars, idx)), Math.min(left + plotW, Math.max(left, x)), h - 8);
     }
 
-    if (state.tip && state.tip.y > top && state.tip.y < bot && state.tip.x < left + plotW) {
+    if (state.tip && state.tip.zone === "plot") {
       const tip = state.tip;
-      const side = tip.price >= px ? "шорты" : "лонги";
-      const line1 = pxText(tip.price) + " · " + side;
-      const line2 = (model.priced ? money(tip.usd) + " · " : "") + pctText(tip.price, px);
-      g.font = "12px Manrope, sans-serif";
-      const tw = Math.max(g.measureText(line1).width, g.measureText(line2).width) + 16;
-      const tx = Math.min(Math.max(left, tip.x + 12), left + plotW - tw);
-      const ty = Math.max(top, tip.y - 42);
-      g.fillStyle = theme.rail;
-      g.strokeStyle = theme.line;
+      const y = yOf(tip.price, box);
+      const x = tip.x;
+      g.strokeStyle = theme.muted;
+      g.globalAlpha = .55;
+      g.lineWidth = 1;
+      g.setLineDash([2, 3]);
       g.beginPath();
-      g.roundRect(tx, ty, tw, 36, 6);
-      g.fill();
+      g.moveTo(left, y);
+      g.lineTo(left + plotW, y);
+      g.moveTo(x, top);
+      g.lineTo(x, top + plotH);
       g.stroke();
+      g.setLineDash([]);
+      g.globalAlpha = 1;
+      const pt = pxText(tip.price);
+      g.font = "600 11px Manrope, sans-serif";
+      const pw = g.measureText(pt).width + 10;
       g.fillStyle = theme.text;
+      g.beginPath();
+      g.roundRect(left + plotW + 4, y - 8, pw, 16, 3);
+      g.fill();
+      g.fillStyle = theme.bg;
       g.textAlign = "left";
-      g.fillText(line1, tx + 8, ty + 15);
-      g.fillStyle = theme.muted;
-      g.fillText(line2, tx + 8, ty + 29);
+      g.fillText(pt, left + plotW + 9, y + 4);
+      const tt = label(tip.time);
+      if (tt) {
+        const tw = g.measureText(tt).width + 10;
+        const tx = Math.min(Math.max(left, x - tw / 2), left + plotW - tw);
+        g.fillStyle = theme.text;
+        g.beginPath();
+        g.roundRect(tx, top + plotH + 2, tw, 16, 3);
+        g.fill();
+        g.fillStyle = theme.bg;
+        g.textAlign = "center";
+        g.fillText(tt, tx + tw / 2, top + plotH + 14);
+      }
+      if (tip.band) {
+        const side = tip.band.price >= px ? "шорты" : "лонги";
+        const line1 = pxText(tip.band.price) + " · " + side;
+        const line2 = (model.priced ? money(tip.band.usd) + " · " : "") + pctText(tip.band.price, px);
+        g.font = "12px Manrope, sans-serif";
+        const tw = Math.max(g.measureText(line1).width, g.measureText(line2).width) + 16;
+        const tx = Math.min(Math.max(left, tip.x + 12), left + plotW - tw);
+        const ty = Math.max(top, tip.y - 44);
+        g.fillStyle = theme.rail;
+        g.strokeStyle = theme.line;
+        g.textAlign = "left";
+        g.beginPath();
+        g.roundRect(tx, ty, tw, 36, 6);
+        g.fill();
+        g.stroke();
+        g.fillStyle = theme.text;
+        g.fillText(line1, tx + 8, ty + 15);
+        g.fillStyle = theme.muted;
+        g.fillText(line2, tx + 8, ty + 29);
+      }
     }
 
     if (!railW) return;
@@ -380,6 +536,7 @@
       .sort((a, b) => b.long - a.long).slice(0, slots).sort((a, b) => b.price - a.price);
     let y = 92;
     const section = (title, color, arr, side) => {
+      g.globalAlpha = 1;
       g.fillStyle = color;
       g.font = "700 11px Manrope, sans-serif";
       g.textAlign = "left";
@@ -392,19 +549,20 @@
         y += 32;
         return;
       }
-      const peak = arr[0] ? Math.max(...arr.map((v) => side === "short" ? v.short : v.long)) : 1;
+      const peak = Math.max(...arr.map((v) => side === "short" ? v.short : v.long)) || 1;
       for (const v of arr) {
         const usd = side === "short" ? v.short : v.long;
         const rowY = y;
+        const on = v.price >= cam.lo && v.price <= cam.hi;
         const pinned = state.pin && Math.abs(state.pin - v.price) < model.step;
         if (pinned) {
+          g.globalAlpha = 1;
           g.fillStyle = theme.bg;
           g.fillRect(rx + 4, rowY + 4, railW - 8, 28);
         }
+        g.globalAlpha = on ? 1 : .4;
         g.fillStyle = color;
-        g.globalAlpha = .85;
-        g.fillRect(x, rowY + 22, barW * Math.max(.08, usd / (peak || 1)) * .42, 3);
-        g.globalAlpha = 1;
+        g.fillRect(x, rowY + 22, barW * Math.max(.08, usd / peak) * .42, 3);
         g.fillStyle = theme.text;
         g.font = "600 12px Manrope, sans-serif";
         g.textAlign = "left";
@@ -412,9 +570,9 @@
         g.textAlign = "right";
         g.fillStyle = theme.muted;
         g.font = "11px Manrope, sans-serif";
-        const right = model.priced ? money(usd) + "  " + pctText(v.price, px) : pctText(v.price, px);
-        g.fillText(right, w - 12, rowY + 16);
-        view.rails.push({ x: rx, y: rowY, w: railW, h: 30, price: v.price, side, usd });
+        g.fillText((model.priced ? money(usd) + "  " : "") + pctText(v.price, px), w - 12, rowY + 16);
+        g.globalAlpha = 1;
+        view.rails.push({ x: rx, y: rowY, w: railW, h: 30, price: v.price, side, usd, rail: true });
         y += 30;
       }
       y += 12;
@@ -422,6 +580,7 @@
     section("Выше · шорты", theme.sell, above, "short");
     section("Ниже · лонги", theme.buy, below, "long");
     if (mine) {
+      g.globalAlpha = 1;
       g.textAlign = "left";
       g.fillStyle = "#d97706";
       g.font = "600 12px Manrope, sans-serif";
@@ -440,7 +599,7 @@
     for (const row of view.rails) {
       if (x >= row.x && x <= row.x + row.w && y >= row.y && y <= row.y + row.h) return row;
     }
-    let best = null, dist = 12;
+    let best = null, dist = 10;
     for (const b of view.bands) {
       if (x < b.x || x > b.x + b.w) continue;
       const d = Math.abs(y - b.y);
@@ -449,26 +608,131 @@
     return best;
   }
 
+  function setTip(x, y, zone) {
+    if (!view.box || !view.meta) { state.tip = null; return; }
+    const band = hitAt(x, y);
+    state.tip = {
+      x, y, zone,
+      price: priceAt(y),
+      time: timeAt(view.meta.bars, indexAt(x)),
+      band: band && !band.rail ? band : null,
+    };
+  }
+
+  function applyDrag(x, y) {
+    const b = view.box;
+    if (!b || !drag) return;
+    const dx = x - drag.x, dy = y - drag.y;
+    if (drag.zone === "price") {
+      const mid = (drag.lo + drag.hi) / 2;
+      let span = (drag.hi - drag.lo) * Math.exp(dy * .0065);
+      cam.lo = mid - span / 2;
+      cam.hi = mid + span / 2;
+    } else if (drag.zone === "time") {
+      const mid = (drag.i0 + drag.i1) / 2;
+      let span = (drag.i1 - drag.i0) * Math.exp(dx * .005);
+      cam.i0 = mid - span / 2;
+      cam.i1 = cam.i0 + span;
+    } else {
+      const iSpan = drag.i1 - drag.i0;
+      const pSpan = drag.hi - drag.lo;
+      cam.i0 = drag.i0 - dx / b.plotW * iSpan;
+      cam.i1 = cam.i0 + iSpan;
+      cam.lo = drag.lo + dy / b.plotH * pSpan;
+      cam.hi = cam.lo + pSpan;
+    }
+    cam.moved = true;
+    if (view.meta) clampCam(view.meta.n, view.meta.px);
+  }
+
   function onMove(e) {
     const p = local(e);
     if (!p) return;
+    if (drag) {
+      if (Math.abs(p.x - drag.x) + Math.abs(p.y - drag.y) > 3) drag.did = true;
+      applyDrag(p.x, p.y);
+      if (drag.zone === "plot") setTip(p.x, p.y, "plot");
+      p.c.style.cursor = "grabbing";
+      draw();
+      return;
+    }
+    const zone = zoneAt(p.x, p.y);
     const hit = hitAt(p.x, p.y);
-    p.c.style.cursor = hit && view.rails.includes(hit) ? "pointer" : "crosshair";
-    const next = hit ? { x: p.x, y: p.y, price: hit.price, side: hit.side, usd: hit.usd } : null;
-    const same = next && state.tip
-      ? Math.abs(next.price - state.tip.price) < 1e-8 && Math.abs(next.x - state.tip.x) < 3 && Math.abs(next.y - state.tip.y) < 3
-      : !next && !state.tip;
-    if (same) return;
-    state.tip = next;
+    p.c.style.cursor = zone === "price" ? "ns-resize"
+      : zone === "time" ? "ew-resize"
+      : inside(view.reset, p) || hit?.rail ? "pointer"
+      : "crosshair";
+    if (zone === "plot") setTip(p.x, p.y, "plot");
+    else if (state.tip) state.tip = null;
+    else return;
     draw();
   }
 
+  function onDown(e) {
+    if (e.button != null && e.button !== 0) return;
+    const p = local(e);
+    if (!p || !view.box) return;
+    const zone = zoneAt(p.x, p.y);
+    if (zone === "rail" || zone === "out" || inside(view.reset, p)) return;
+    drag = { x: p.x, y: p.y, i0: cam.i0, i1: cam.i1, lo: cam.lo, hi: cam.hi, zone, did: false };
+    try { p.c.setPointerCapture(e.pointerId); } catch {}
+  }
+
+  function onUp() {
+    if (drag?.did) suppressClick = true;
+    drag = null;
+  }
+
   function onClick(e) {
+    if (suppressClick) { suppressClick = false; return; }
     const p = local(e);
     if (!p) return;
+    if (inside(view.reset, p)) { cam.moved = false; state.tip = null; draw(); return; }
     const hit = hitAt(p.x, p.y);
     if (!hit) { state.pin = null; draw(); return; }
-    state.pin = state.pin && Math.abs(state.pin - hit.price) < 1e-6 ? null : hit.price;
+    const same = state.pin && Math.abs(state.pin - hit.price) < 1e-6;
+    state.pin = same ? null : hit.price;
+    if (!same && view.meta && (hit.price < cam.lo || hit.price > cam.hi)) {
+      const span = Math.max(cam.hi - cam.lo, view.meta.px * .02);
+      cam.lo = hit.price - span * .5;
+      cam.hi = hit.price + span * .5;
+      cam.moved = true;
+      clampCam(view.meta.n, view.meta.px);
+    }
+    draw();
+  }
+
+  function onWheel(e) {
+    const p = local(e);
+    if (!p || !view.box || !view.meta) return;
+    e.preventDefault();
+    const b = view.box;
+    if (Math.abs(e.deltaX || 0) > Math.abs(e.deltaY || 0) + 2) {
+      const iSpan = cam.i1 - cam.i0;
+      cam.i0 += e.deltaX / b.plotW * iSpan;
+      cam.i1 = cam.i0 + iSpan;
+      cam.moved = true;
+      clampCam(view.meta.n, view.meta.px);
+      draw();
+      return;
+    }
+    let dy = e.deltaY || 0;
+    if (e.deltaMode === 1) dy *= 16;
+    else if (e.deltaMode === 2) dy *= 320;
+    const factor = Math.exp(Math.max(-.45, Math.min(.45, dy * .00115)));
+    const zone = zoneAt(p.x, p.y);
+    if (zone === "price" || e.shiftKey) zoomPrice(p.y, factor);
+    else if (zone === "time") zoomTime(p.x, factor);
+    else { zoomTime(p.x, factor); zoomPrice(p.y, factor); }
+    cam.moved = true;
+    clampCam(view.meta.n, view.meta.px);
+    if (zone === "plot") setTip(p.x, p.y, "plot");
+    draw();
+  }
+
+  function onDbl() {
+    cam.moved = false;
+    state.tip = null;
     draw();
   }
 
@@ -476,15 +740,21 @@
     const c = document.getElementById("liqmap");
     if (!c || c.dataset.bound) return !!c;
     c.dataset.bound = "1";
+    c.style.touchAction = "none";
+    c.addEventListener("pointerdown", onDown);
     c.addEventListener("pointermove", onMove);
-    c.addEventListener("pointerleave", () => { if (state.tip) { state.tip = null; draw(); } });
+    c.addEventListener("pointerup", onUp);
+    c.addEventListener("pointercancel", onUp);
+    c.addEventListener("pointerleave", () => { if (!drag && state.tip) { state.tip = null; draw(); } });
     c.addEventListener("click", onClick);
-    if (window.ResizeObserver) new ResizeObserver(() => draw()).observe(c);
+    c.addEventListener("dblclick", onDbl);
+    c.addEventListener("wheel", onWheel, { passive: false });
+    if (window.ResizeObserver) new window.ResizeObserver(() => draw()).observe(c);
     return true;
   }
 
   window.totumLiq = draw;
   addEventListener("resize", draw);
-  setInterval(() => { bind(); draw(); }, 2000);
+  setInterval(() => { bind(); if (!drag) draw(); }, 2000);
   bind();
 })();
