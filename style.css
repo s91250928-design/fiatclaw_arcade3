@@ -288,12 +288,17 @@ dialog .row{margin-top:12px}
 .pp-l1{display:flex;gap:6px;align-items:center}
 .tag.lev{background:var(--panel2);color:var(--muted);margin-left:0}
 
-/* Вид графика: обычный / глубина */
+/* Вид графика: свечи / глубина / ликвидации.
+   График не убираем через display:none — иначе холст на секунду
+   вспыхивает белым, когда вкладка возвращается. */
 .view-tabs{margin-left:auto;display:flex;gap:2px}
-.depth{display:none;flex:1;min-width:0;width:100%;height:100%}
-#paneChart.depth-on .chart,#paneChart.depth-on .draw-bar,#paneChart.depth-on #ddInd{display:none}
-#paneChart.depth-on .depth{display:block}
-#paneChart.depth-on [data-iv]{visibility:hidden}
+.depth,.liqmap{display:none;flex:1;min-width:0;width:100%;height:100%;background:var(--panel)}
+#chart,.tv-lightweight-charts{background:var(--panel)}
+#paneChart.depth-on .draw-bar,#paneChart.depth-on #ddInd,
+#paneChart.liq-on .draw-bar,#paneChart.liq-on #ddInd{display:none}
+#paneChart.depth-on .chart,#paneChart.liq-on .chart{visibility:hidden;position:absolute;inset:0;pointer-events:none;z-index:0}
+#paneChart.depth-on .depth,#paneChart.liq-on .liqmap{display:block;position:relative;z-index:1}
+#paneChart.depth-on [data-iv],#paneChart.liq-on [data-iv]{visibility:hidden}
 
 /* Вид стакана */
 .ob-modes{display:flex;gap:6px;padding:8px 10px 0}
@@ -384,7 +389,9 @@ dialog .row{margin-top:12px}
 .cp-mob{display:none}
 .cp-pane{display:none;flex:1;min-height:0;overflow:auto;padding:14px}
 body[data-cp="info"] #paneInfo,body[data-cp="feed"] #paneFeed,body[data-cp="top"] #paneTop,body[data-cp="tools"] #paneTools,body[data-cp="scalp"] #paneScalp{display:block}
-body:not([data-cp="chart"]) #paneChart .chart-bar,body:not([data-cp="chart"]) #paneChart .chart-wrap{display:none}
+#paneChart{position:relative}
+body:not([data-cp="chart"]) #paneChart .chart-bar{display:none}
+body:not([data-cp="chart"]) #paneChart .chart-wrap{display:flex!important;visibility:hidden;position:absolute;left:0;right:0;bottom:0;top:44px;pointer-events:none;z-index:0}
 .info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0 24px}
 .info-grid div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}
 .info-grid span{color:var(--muted)}
@@ -1571,7 +1578,7 @@ body.boot .boot-splash{animation:boot-hide 0s 12s forwards}
 .ls-ring .bg{stroke:rgba(255,255,255,.08)}
 .ls-ring .fg{stroke:#3b82f6;stroke-linecap:round;stroke-dasharray:314;stroke-dashoffset:314}
 #lnShare.in .ls-ring .fg{animation:ls-fill 1.5s .15s cubic-bezier(.2,.8,.2,1) forwards}
-@keyframes ls-fill{to{stroke-dashoffset:157}}
+@keyframes ls-fill{to{stroke-dashoffset:220}}
 .ls-ring>div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .ls-ring b{font:700 46px/1 "Manrope",var(--font);letter-spacing:-.04em;color:#fff;opacity:0}
 .ls-ring b i{font-style:normal;font-size:22px;margin-left:1px;color:#9db7ef}
