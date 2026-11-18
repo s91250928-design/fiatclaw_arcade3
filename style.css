@@ -297,7 +297,9 @@ dialog .row{margin-top:12px}
 #paneChart.depth-on .draw-bar,#paneChart.depth-on #ddInd,
 #paneChart.liq-on .draw-bar,#paneChart.liq-on #ddInd{display:none}
 #paneChart.depth-on .chart,#paneChart.liq-on .chart{visibility:hidden;position:absolute;inset:0;pointer-events:none;z-index:0}
-#paneChart.depth-on .depth,#paneChart.liq-on .liqmap{display:block;position:relative;z-index:1}
+#paneChart.depth-on .depth{display:block;position:relative;z-index:1}
+#paneChart.liq-on .liqmap{display:block;position:absolute;inset:0;z-index:4;width:100%;height:100%;cursor:crosshair}
+#paneChart.liq-on .chart-loader{opacity:0;pointer-events:none}
 #paneChart.depth-on [data-iv],#paneChart.liq-on [data-iv]{visibility:hidden}
 
 /* Вид стакана */
