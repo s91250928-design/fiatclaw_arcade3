@@ -1,6 +1,6 @@
 /* Карта ликвидаций.
    У Hyperliquid нет открытой ленты — уровни оценка по интересу и плечу 5–50x.
-   Полосы только слева и гаснут до середины, чтобы справа был виден сам график.
+   Полосы стоят справа от свечей. На линии и при наведении — сумма в деньгах.
    Колесо масштабирует, перетаскивание двигает, как обычный график. */
 (function () {
   const LEV = [[5, .07], [10, .24], [20, .28], [25, .18], [40, .13], [50, .10]];
@@ -149,8 +149,26 @@
     cam.hi = cam.lo + ps;
   }
 
+  function ink(color, a) {
+    const s = String(color).trim();
+    const m = s.match(/rgba?\(([^)]+)\)/i);
+    let r, g, b;
+    if (m) {
+      const p = m[1].split(",").map((x) => Number(x.trim()));
+      r = p[0]; g = p[1]; b = p[2];
+    } else {
+      let h = s.replace("#", "");
+      if (h.length === 3) h = h.replace(/./g, (ch) => ch + ch);
+      const n = parseInt(h.slice(0, 6), 16);
+      if (!Number.isFinite(n)) return `rgba(148,163,184,${a})`;
+      r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255;
+    }
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
   function xOf(i, box) {
-    return box.left + (i - cam.i0) / (cam.i1 - cam.i0) * box.plotW;
+    const w = box.candleW || box.plotW;
+    return box.left + (i - cam.i0) / (cam.i1 - cam.i0) * w;
   }
 
   function yOf(price, box) {
@@ -164,7 +182,8 @@
 
   function indexAt(x) {
     const b = view.box;
-    return cam.i0 + (x - b.left) / b.plotW * (cam.i1 - cam.i0);
+    const w = b.candleW || b.plotW;
+    return cam.i0 + (x - b.left) / w * (cam.i1 - cam.i0);
   }
 
   function timeAt(bars, idx) {
@@ -178,7 +197,8 @@
   function zoomTime(x, factor) {
     const b = view.box;
     const span = cam.i1 - cam.i0;
-    const f = Math.min(1, Math.max(0, (x - b.left) / b.plotW));
+    const w = b.candleW || b.plotW;
+    const f = Math.min(1, Math.max(0, (x - b.left) / w));
     const next = span * factor;
     const at = cam.i0 + f * span;
     cam.i0 = at - f * next;
@@ -279,12 +299,16 @@
     const left = 10, top = 46, bot = h - 22;
     const plotW = Math.max(80, w - railW - gutter - left - 8);
     const plotH = Math.max(40, bot - top);
-    const box = { left, top, plotW, plotH, bot, railX: railW ? w - railW : w, w, h, gutter };
+    const laneW = plotW < 420 ? Math.max(108, plotW * .36) : Math.min(220, Math.max(148, plotW * .32));
+    const candleW = Math.max(72, plotW - laneW);
+    const box = { left, top, plotW, plotH, bot, railX: railW ? w - railW : w, w, h, gutter, candleW, laneL: left + candleW };
     view.box = box;
 
     g.font = "12px Manrope, sans-serif";
     g.fillStyle = theme.muted;
-    g.fillText("оценка, не лента · " + (m.iv || "свечи") + " · колесо — масштаб, зажми и веди", 12, 36);
+    g.fillText("колесо — масштаб, зажми и веди", 12, 36);
+    g.textAlign = "left";
+    g.fillText("ликвидации, $", left + candleW + 8, 36);
 
     if (cam.moved) {
       g.font = "600 11px Manrope, sans-serif";
@@ -304,7 +328,7 @@
 
     g.save();
     g.beginPath();
-    g.rect(left, top, plotW, plotH);
+    g.rect(left, top, candleW, plotH);
     g.clip();
 
     g.strokeStyle = theme.line;
@@ -314,14 +338,14 @@
       const y = top + plotH * i / 4;
       g.beginPath();
       g.moveTo(left, y);
-      g.lineTo(left + plotW, y);
+      g.lineTo(left + candleW, y);
       g.stroke();
     }
     g.globalAlpha = 1;
 
     const iA = Math.max(0, Math.floor(cam.i0) - 1);
     const iB = Math.min(bars.length - 1, Math.ceil(cam.i1) + 1);
-    const cw = plotW / (cam.i1 - cam.i0);
+    const cw = candleW / (cam.i1 - cam.i0);
     for (let i = iA; i <= iB; i++) {
       const bar = bars[i];
       const x = xOf(i + .5, box);
@@ -337,25 +361,61 @@
       const yA = yOf(+bar.open || +bar.close, box), yB = yOf(+bar.close, box);
       g.fillRect(x - bw / 2, Math.min(yA, yB), bw, Math.max(1, Math.abs(yB - yA)));
     }
+    g.restore();
 
-    const bandEnd = left + plotW * .44;
+    g.strokeStyle = theme.line;
+    g.globalAlpha = .9;
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(box.laneL + .5, top);
+    g.lineTo(box.laneL + .5, top + plotH);
+    g.stroke();
+    g.globalAlpha = 1;
+
+    const laneL = box.laneL + 8;
+    const laneR = left + plotW - 4;
+    const marks = [];
     for (const b of model.list) {
-      const t = b.usd / model.max;
-      if (t < .16) continue;
       if (b.price < cam.lo || b.price > cam.hi) continue;
+      const side = b.price >= px ? "short" : "long";
+      const usd = side === "short" ? b.short : b.long;
+      const t = usd / model.max;
+      if (!(t > .12)) continue;
       const y = yOf(b.price, box);
-      if (y < top - 4 || y > top + plotH + 4) continue;
-      const len = plotW * (.28 + .16 * Math.pow(t, .5));
-      const col = mix(t);
-      const thick = 1.5 + 1.6 * Math.pow(t, .85);
-      const grd = g.createLinearGradient(left, 0, left + len, 0);
-      grd.addColorStop(0, rgba(col, col.a * .35));
-      grd.addColorStop(.2, rgba(col));
-      grd.addColorStop(.7, rgba(col, col.a * .7));
-      grd.addColorStop(1, rgba(col, 0));
-      g.fillStyle = grd;
-      g.fillRect(left, y - thick / 2, Math.min(len, bandEnd - left), thick);
-      view.bands.push({ x: left, y, w: len * .8, h: Math.max(thick, 8), price: b.price, side: b.side, usd: b.usd });
+      if (y < top + 2 || y > top + plotH - 2) continue;
+      const col = side === "short" ? theme.sell : theme.buy;
+      const thick = 1.15 + 1.7 * Math.pow(t, .75);
+      const grd = g.createLinearGradient(laneL, 0, laneR, 0);
+      grd.addColorStop(0, ink(col, 0));
+      grd.addColorStop(.22, ink(col, .2 + .45 * t));
+      grd.addColorStop(1, ink(col, .45 + .5 * t));
+      g.strokeStyle = grd;
+      g.lineWidth = thick;
+      g.lineCap = "round";
+      g.beginPath();
+      g.moveTo(laneL, y);
+      g.lineTo(laneR, y);
+      g.stroke();
+      view.bands.push({ x: laneL, y, w: laneR - laneL, h: 10, price: b.price, side, usd });
+      marks.push({ y, t, usd, col });
+    }
+    marks.sort((a, b) => b.t - a.t);
+    const used = [];
+    g.font = "600 11px Manrope, sans-serif";
+    g.textAlign = "right";
+    g.textBaseline = "alphabetic";
+    for (const mk of marks) {
+      if (used.length >= 8 || used.some((yy) => Math.abs(yy - mk.y) < 15)) continue;
+      if (!(model.priced && mk.usd > 0)) continue;
+      const text = money(mk.usd);
+      const tw = g.measureText(text).width + 8;
+      g.fillStyle = theme.bg;
+      g.globalAlpha = .82;
+      g.fillRect(laneR - tw, mk.y - 13, tw, 13);
+      g.globalAlpha = 1;
+      g.fillStyle = mk.col;
+      g.fillText(text, laneR - 2, mk.y - 3);
+      used.push(mk.y);
     }
 
     const mine = ownLiq(px);
@@ -387,7 +447,6 @@
       g.setLineDash([]);
       g.globalAlpha = 1;
     }
-    g.restore();
 
     const yPx = yOf(px, box);
     if (yPx > top && yPx < top + plotH) {
@@ -406,11 +465,11 @@
       const pw = g.measureText(pill).width + 12;
       g.fillStyle = theme.text;
       g.beginPath();
-      g.roundRect(left + plotW - pw, yPx - 9, pw, 18, 4);
+      g.roundRect(left + candleW - pw, yPx - 9, pw, 18, 4);
       g.fill();
       g.fillStyle = theme.bg;
       g.textAlign = "right";
-      g.fillText(pill, left + plotW - 6, yPx + 4);
+      g.fillText(pill, left + candleW - 6, yPx + 4);
     }
 
     g.fillStyle = theme.muted;
@@ -437,7 +496,7 @@
       g.fillStyle = theme.muted;
       g.font = "11px Manrope, sans-serif";
       g.textAlign = i === 0 ? "left" : i === 3 ? "right" : "center";
-      g.fillText(label(timeAt(bars, idx)), Math.min(left + plotW, Math.max(left, x)), h - 8);
+      g.fillText(label(timeAt(bars, idx)), Math.min(left + candleW - 4, Math.max(left, x)), h - 8);
     }
 
     if (state.tip && state.tip.zone === "plot") {
@@ -451,8 +510,10 @@
       g.beginPath();
       g.moveTo(left, y);
       g.lineTo(left + plotW, y);
-      g.moveTo(x, top);
-      g.lineTo(x, top + plotH);
+      if (x < box.laneL) {
+        g.moveTo(x, top);
+        g.lineTo(x, top + plotH);
+      }
       g.stroke();
       g.setLineDash([]);
       g.globalAlpha = 1;
@@ -467,9 +528,9 @@
       g.textAlign = "left";
       g.fillText(pt, left + plotW + 9, y + 4);
       const tt = label(tip.time);
-      if (tt) {
+      if (tt && tip.x < box.laneL) {
         const tw = g.measureText(tt).width + 10;
-        const tx = Math.min(Math.max(left, x - tw / 2), left + plotW - tw);
+        const tx = Math.min(Math.max(left, x - tw / 2), left + candleW - tw);
         g.fillStyle = theme.text;
         g.beginPath();
         g.roundRect(tx, top + plotH + 2, tw, 16, 3);
@@ -480,11 +541,13 @@
       }
       if (tip.band) {
         const side = tip.band.price >= px ? "шорты" : "лонги";
-        const line1 = pxText(tip.band.price) + " · " + side;
-        const line2 = (model.priced ? money(tip.band.usd) + " · " : "") + pctText(tip.band.price, px);
+        const line1 = (model.priced ? money(tip.band.usd) : "оценка") + " · " + side;
+        const line2 = pxText(tip.band.price) + " · " + pctText(tip.band.price, px);
         g.font = "12px Manrope, sans-serif";
         const tw = Math.max(g.measureText(line1).width, g.measureText(line2).width) + 16;
-        const tx = Math.min(Math.max(left, tip.x + 12), left + plotW - tw);
+        const tx = tip.x >= box.laneL
+          ? Math.max(left, box.laneL - tw - 8)
+          : Math.min(Math.max(left, tip.x + 12), left + candleW - tw);
         const ty = Math.max(top, tip.y - 44);
         g.fillStyle = theme.rail;
         g.strokeStyle = theme.line;
@@ -636,7 +699,7 @@
     } else {
       const iSpan = drag.i1 - drag.i0;
       const pSpan = drag.hi - drag.lo;
-      cam.i0 = drag.i0 - dx / b.plotW * iSpan;
+      cam.i0 = drag.i0 - dx / (b.candleW || b.plotW) * iSpan;
       cam.i1 = cam.i0 + iSpan;
       cam.lo = drag.lo + dy / b.plotH * pSpan;
       cam.hi = cam.lo + pSpan;
@@ -660,7 +723,7 @@
     const hit = hitAt(p.x, p.y);
     p.c.style.cursor = zone === "price" ? "ns-resize"
       : zone === "time" ? "ew-resize"
-      : inside(view.reset, p) || hit?.rail ? "pointer"
+      : inside(view.reset, p) || hit ? "pointer"
       : "crosshair";
     if (zone === "plot") setTip(p.x, p.y, "plot");
     else if (state.tip) state.tip = null;
@@ -709,7 +772,7 @@
     const b = view.box;
     if (Math.abs(e.deltaX || 0) > Math.abs(e.deltaY || 0) + 2) {
       const iSpan = cam.i1 - cam.i0;
-      cam.i0 += e.deltaX / b.plotW * iSpan;
+      cam.i0 += e.deltaX / (b.candleW || b.plotW) * iSpan;
       cam.i1 = cam.i0 + iSpan;
       cam.moved = true;
       clampCam(view.meta.n, view.meta.px);
