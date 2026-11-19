@@ -123,7 +123,7 @@ function fundChime() {
 }
 
 function fundArm() {
-  for (const id of ["fundHlAmt", "fundAmt"]) {
+  for (const id of ["fundHlAmt", "fundAmt", "wdAmt"]) {
     const amt = document.getElementById(id);
     if (!amt || amt.dataset.arm) continue;
     amt.dataset.arm = "1";
@@ -154,6 +154,33 @@ function fundWatch() {
   fundTimer = setInterval(fundLook, 15000);
 }
 
+function keeperTrade() {
+  if (/Keeper|Tonkeeper/i.test(navigator.userAgent || "")) return true;
+  const eth = window.ethereum;
+  if (eth && (eth.isKeeper || eth.isTonkeeper || /keeper|tonkeeper/i.test(String(eth.name || "")))) return true;
+  try {
+    const rdns = JSON.parse(localStorage.getItem("totum.conn") || "{}").rdns || "";
+    return /keeper|tonkeeper/i.test(rdns);
+  } catch { return false; }
+}
+
+function fundKeeperNote() {
+  const box = document.getElementById("fundKeeper");
+  const go = document.getElementById("fundKeeperGo");
+  const addr = fundAddr();
+  const here = keeperTrade();
+  if (box) {
+    box.textContent = here && addr
+      ? "Это Keeper. Обмен и зачисление подтверждаются в нём — второй кошелёк не нужен."
+      : here
+        ? "Вы в браузере Keeper. Подключите этот кошелёк: оба подтверждения придут сюда."
+        : addr
+          ? "Сейчас подключён другой кошелёк. Отключите его и выберите Keeper — тогда обмен и зачисление придут в одно приложение."
+          : "Keeper держит и TON, и Arbitrum. Откройте сайт в его браузере или подключите его как торговый кошелёк — обмен и зачисление придут в одно приложение, не в OKX.";
+  }
+  if (go) go.hidden = !!addr;
+}
+
 function fundShow() {
   const to = document.getElementById("fundTo");
   const addr = fundAddr();
@@ -164,6 +191,7 @@ function fundShow() {
   if (hl) hl.hidden = !addr;
   const other = document.getElementById("fundOtherBox");
   if (other) other.hidden = true;
+  fundKeeperNote();
   fundDlg.showModal();
   fundUnlock();
   fundArm();
@@ -171,6 +199,10 @@ function fundShow() {
 }
 
 document.getElementById("btnFund")?.addEventListener("click", fundShow);
+document.getElementById("fundKeeperGo")?.addEventListener("click", () => {
+  fundDlg.close();
+  document.getElementById("btnConnect")?.click();
+});
 document.getElementById("fundOther")?.addEventListener("click", () => {
   const box = document.getElementById("fundOtherBox");
   if (box) box.hidden = !box.hidden;
@@ -413,5 +445,140 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
       btn.disabled = false;
       btn.textContent = "Зачислить на биржу";
     }
+  }
+});
+
+const wdDlg = document.getElementById("withdrawDialog");
+
+function wdHide(id) {
+  const n = document.getElementById(id);
+  if (n) n.hidden = true;
+}
+
+function wdSay(text, bad) {
+  const out = document.getElementById(bad ? "wdErr" : "wdOut");
+  const other = document.getElementById(bad ? "wdOut" : "wdErr");
+  if (other) other.hidden = true;
+  if (!out) return;
+  out.hidden = false;
+  out.classList.remove("ok");
+  if (!bad && text === "Успешно") {
+    out.innerHTML = '<span class="fund-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13"/><path d="M10 16.5l4 4 8-9"/></svg></span><span>Успешно</span>';
+    void out.offsetWidth;
+    out.classList.add("ok");
+    fundChime();
+  } else {
+    out.textContent = text;
+  }
+}
+
+function wdHuman(e) {
+  const m = String(e?.message || e || "").trim();
+  if (!m) return "Вывод не прошёл. Деньги на бирже.";
+  if (/reject|denied|cancel|отклон/i.test(m)) return "Подпись отменена. Деньги на бирже.";
+  if (/does not exist|not available|unsupported method|not supported/i.test(m)) return "Кошелёк не дал подписать. Отключите его и подключите ещё раз.";
+  if (/insufficient|withdrawable|not enough/i.test(m)) return "Этой суммы нет в доступном балансе. Деньги в открытых позициях вывести нельзя.";
+  return m;
+}
+
+function money(n) {
+  const v = Math.floor(Number(n) * 1e6) / 1e6;
+  if (!(v > 0)) return "0";
+  return String(v);
+}
+
+function wdPaint(info) {
+  const avail = document.getElementById("wdAvail");
+  const spot = document.getElementById("wdSpot");
+  const net = document.getElementById("wdNet");
+  const max = info ? (info.unified ? info.spot : info.perp) : 0;
+  if (avail) avail.textContent = info ? `Доступно ${money(max)} USDC. Минимум больше 1: биржа удерживает 1.` : "Минимум больше 1 USDC";
+  if (spot) {
+    const extra = info && !info.unified && info.spot > 0.01;
+    spot.hidden = !extra;
+    spot.textContent = extra ? `На споте ещё ${money(info.spot)} USDC. Сначала переведите их на фьючерсы — вывод идёт оттуда.` : "";
+  }
+  const n = Number(String(document.getElementById("wdAmt")?.value || "").replace(",", "."));
+  if (net) net.textContent = n > 1 ? `На кошелёк придёт около ${money(n - 1)} USDC.` : "";
+  return max;
+}
+
+async function wdOpen() {
+  wdHide("wdErr");
+  wdHide("wdOut");
+  const to = document.getElementById("wdTo");
+  const addr = fundAddr();
+  if (to) {
+    to.textContent = addr
+      ? `USDC вернётся только на ${fundShort(addr)} в сети Arbitrum. Другой адрес подставить нельзя.`
+      : "Сначала подключите кошелёк. Вывод пойдёт только на него, в сети Arbitrum.";
+  }
+  let info = null;
+  try { info = window.totumWallet?.out?.() || null; } catch { info = null; }
+  wdPaint(info);
+  wdDlg.showModal();
+  fundUnlock();
+  fundArm();
+  try { await window.totumWallet?.refresh?.(); } catch { /* баланс обновится сам */ }
+  try { info = window.totumWallet?.out?.() || info; } catch { /* старые цифры */ }
+  if (wdDlg.open) wdPaint(info);
+}
+
+document.getElementById("btnWithdraw")?.addEventListener("click", wdOpen);
+document.getElementById("wdClose")?.addEventListener("click", () => wdDlg.close());
+document.getElementById("wdAmt")?.addEventListener("input", () => {
+  try { wdPaint(window.totumWallet?.out?.() || null); } catch { wdPaint(null); }
+});
+document.getElementById("wdMax")?.addEventListener("click", () => {
+  let info = null;
+  try { info = window.totumWallet?.out?.() || null; } catch { info = null; }
+  const max = wdPaint(info);
+  const amt = document.getElementById("wdAmt");
+  if (amt) amt.value = max > 1 ? money(max) : "";
+  wdPaint(info);
+});
+
+document.getElementById("wdGo")?.addEventListener("click", async () => {
+  const btn = document.getElementById("wdGo");
+  if (!btn || btn.disabled) return;
+  fundUnlock();
+  const addr = fundAddr();
+  if (!addr) {
+    wdDlg.close();
+    document.getElementById("btnConnect")?.click();
+    return;
+  }
+  const ex = window.totumWallet?.ex?.();
+  if (!ex || typeof ex.withdraw3 !== "function") {
+    wdSay("Подключите кошелёк ещё раз. Ключ для сделок вывод не подписывает.", true);
+    return;
+  }
+  let info = null;
+  try { info = window.totumWallet.out(); } catch { info = null; }
+  const max = info ? (info.unified ? info.spot : info.perp) : 0;
+  const raw = String(document.getElementById("wdAmt")?.value || "").trim().replace(",", ".");
+  const n = Number(raw);
+  if (!(n > 1)) { wdSay("Сумма должна быть больше 1 USDC: биржа удерживает 1.", true); return; }
+  if (n > max + 1e-8) { wdSay(`Можно вывести ${money(max)} USDC.`, true); return; }
+  const amount = money(n);
+  btn.disabled = true;
+  const prev = btn.textContent;
+  btn.textContent = "Ждём подпись…";
+  wdHide("wdErr");
+  try {
+    const live = String(window.totumWallet.addr() || "").toLowerCase();
+    if (live !== addr) throw new Error("Кошелёк сменился. Откройте вывод ещё раз.");
+    const res = await ex.withdraw3({ destination: window.totumWallet.addr(), amount });
+    if (res && res.status && res.status !== "ok") throw new Error("Биржа не приняла вывод. Деньги на месте.");
+    wdSay("Успешно");
+    const amt = document.getElementById("wdAmt");
+    if (amt) amt.value = "";
+    try { await window.totumWallet.refresh?.(); } catch { /* не мешает выводу */ }
+    try { wdPaint(window.totumWallet.out()); } catch { wdPaint(null); }
+  } catch (e) {
+    if (e?.message) wdSay(wdHuman(e), true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev;
   }
 });
