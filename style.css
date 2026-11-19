@@ -2233,8 +2233,16 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 @media (hover:none){.pf-av-up i{opacity:1}}
 
 .fund-out{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(61,126,255,.08);line-height:1.45}
-.fund-out.ok{color:#16a34a;font-weight:700;animation:fund-snap .28s ease-out}
-@keyframes fund-snap{from{opacity:.15}to{opacity:1}}
+.fund-out.ok{display:flex;align-items:center;gap:10px;color:#22c55e;font-weight:700;background:rgba(34,197,94,.1);animation:fund-in .4s ease}
+.fund-mark{width:28px;height:28px;flex:none}
+.fund-mark svg{width:28px;height:28px;display:block}
+.fund-mark circle{fill:none;stroke:#22c55e;stroke-width:1.6;stroke-dasharray:82;stroke-dashoffset:82;animation:fund-ring .42s ease forwards}
+.fund-mark path{fill:none;stroke:#22c55e;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:22;stroke-dashoffset:22;animation:fund-tick .28s ease .3s forwards}
+.fund-out.ok span:last-child{animation:fund-word .35s ease .12s both}
+@keyframes fund-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes fund-ring{to{stroke-dashoffset:0}}
+@keyframes fund-tick{to{stroke-dashoffset:0}}
+@keyframes fund-word{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 #fundDialog .inp input{font-size:16px}
 .fund-hl{margin-top:10px}
 #fundOther{margin-top:12px}

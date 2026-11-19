@@ -181,9 +181,16 @@ function say(text, bad) {
   if (other) other.hidden = true;
   if (!out) return;
   out.hidden = false;
-  out.textContent = text;
-  out.classList.toggle("ok", !bad && text === "Успешно");
-  if (!bad && text === "Успешно") fundChime();
+  const ok = !bad && text === "Успешно";
+  out.classList.remove("ok");
+  if (ok) {
+    out.innerHTML = '<span class="fund-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13"/><path d="M10 16.5l4 4 8-9"/></svg></span><span>Успешно</span>';
+    void out.offsetWidth;
+    out.classList.add("ok");
+    fundChime();
+  } else {
+    out.textContent = text;
+  }
 }
 
 async function send(sign) {
