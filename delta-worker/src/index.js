@@ -105,28 +105,38 @@ export class Collector extends DurableObject {
     await this.connect().catch(() => {});
     try {
       const a = await this.ctx.storage.getAlarm();
-      (!a || a < Date.now()) && (await this.ctx.storage.setAlarm(Date.now() + 15e3));
+      (!a || a < Date.now()) && (await this.ctx.storage.setAlarm(Date.now() + 5e4));
     } catch (e) { this.noteSql(e); }
   }
   async alarm() {
     await this.tick();
-    await this.ctx.storage.setAlarm(Date.now() + 15e3);
+    await this.ctx.storage.setAlarm(Date.now() + 5e4);
   }
   async fetch(req) {
     const u = new URL(req.url);
-    try { await this.tick(); } catch (e) { this.noteSql(e); }
     const empty = { exec: () => ({ toArray: () => [] }) };
     if (u.pathname === "/delta") {
       const coin = u.searchParams.get("coin") || "", i = Number(u.searchParams.get("i") || 60), now = Math.floor(Date.now() / 1e3);
       const from = Number(u.searchParams.get("from") || now - 86400), to = Number(u.searchParams.get("to") || now + 60);
       if (!/^[A-Za-z0-9:@._-]{1,30}$/.test(coin)) return Response.json({ error: "coin" }, { status: 400 });
+      const ck = `${coin}|${i}|${from}|${to}`, hit = this.qmem?.get(ck);
+      if (hit && hit.exp > Date.now()) return Response.json(hit.body);
+      try { await this.boot(); } catch (e) { this.noteSql(e); }
+      this.connect().catch(() => {});
       let rows;
       try { rows = query(this.sql || empty, this.buf, coin, i, from, to, this.sql ? this.hours : null); }
       catch (e) { this.noteSql(e); rows = query(empty, this.buf, coin, i, from, to); }
-      return Response.json({ coin, i, rows, tracked: this.coins.includes(coin) });
+      const body = { coin, i, rows, tracked: this.coins.includes(coin) };
+      (this.qmem ||= new Map()).set(ck, { exp: Date.now() + 6e4, body });
+      if (this.qmem.size > 48) this.qmem.delete(this.qmem.keys().next().value);
+      return Response.json(body);
     }
-    let st = { hourRows: null, since: null };
-    if (this.sql) { try { st = stats(this.sql); } catch (e) { this.noteSql(e); } }
+    try { await this.tick(); } catch (e) { this.noteSql(e); }
+    let st = this.stCache;
+    if (this.sql && (!st || Date.now() - st.at >= 6e5)) {
+      try { st = { ...stats(this.sql), at: Date.now() }; this.stCache = st; } catch (e) { this.noteSql(e); }
+    }
+    st ||= { hourRows: null, since: null };
     const all = [st.since, ...[...this.buf.values()].map((o) => o.t)].filter((x) => x != null);
     return Response.json({ ok: true, coins: this.coins.length, ws: this.ws?.readyState === 1, lastMsgAgo: Math.round((Date.now() - this.lastMsg) / 1e3), memMinutes: this.buf.size, hourRows: st.hourRows, since: all.length ? Math.min(...all) : null, err: this.bootErr || "" });
   }
@@ -138,12 +148,12 @@ export default {
     if (req.method !== "GET") return new Response(null, { status: 405, headers: cors });
     const u = new URL(req.url);
     if (!["/delta", "/status"].includes(u.pathname)) return new Response("Totum delta", { headers: cors });
-    /* ответ кешируем на 15 с — сотни трейдеров не будят базу каждую секунду */
+    /* ответ кешируем на минуту — график не будит базу на каждый чих */
     const cache = caches.default, key = new Request(u.toString());
     if (u.pathname === "/delta") { const hit = await cache.match(key); if (hit) return hit; }
     const stub = env.COLLECTOR.get(env.COLLECTOR.idFromName("main"));
     const r = await stub.fetch(req);
-    const out = new Response(r.body, { status: r.status, headers: { ...cors, "content-type": "application/json", "cache-control": u.pathname === "/delta" ? "public, max-age=15" : "no-store" } });
+    const out = new Response(r.body, { status: r.status, headers: { ...cors, "content-type": "application/json", "cache-control": u.pathname === "/delta" ? "public, max-age=60" : "no-store" } });
     u.pathname === "/delta" && r.ok && ctx.waitUntil(cache.put(key, out.clone()));
     return out;
   },

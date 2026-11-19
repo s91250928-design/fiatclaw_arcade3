@@ -95,7 +95,8 @@ export function restore(sql, buf) {
 export function prune(sql, beforeSec) {
   sql.exec("DELETE FROM h WHERE h < ?", Math.floor(beforeSec / HOUR) * HOUR);
 }
-/* корзины под свечу интервала i секунд. Закрытые часы можно передать в cache, чтобы не читать базу снова. */
+/* корзины под свечу интервала i секунд. Закрытые часы можно передать в cache, чтобы не читать базу снова.
+   Один SELECT на весь диапазон: по часу на монету раньше выходило до 720 чтений и сборщик упирался в лимит. */
 export function query(sql, buf, coin, i, from, to, cache) {
   i = Math.max(60, Math.floor(i / 60) * 60);
   const acc = new Map(), add = (t, b, s, n) => {
@@ -105,15 +106,21 @@ export function query(sql, buf, coin, i, from, to, cache) {
     acc.set(k, x);
   };
   const cur = Math.floor(Date.now() / 1000 / HOUR) * HOUR;
-  for (let h = Math.floor(from / HOUR) * HOUR; h < to; h += HOUR) {
-    const key = `${coin}|${h}`;
-    let d = cache?.get(key);
-    if (d === undefined) {
-      const row = sql.exec("SELECT d FROM h WHERE coin = ? AND h = ?", coin, h).toArray()[0];
-      d = row ? JSON.parse(row.d) : null;
-      if (cache && h < cur) cache.set(key, d);
+  const h0 = Math.floor(from / HOUR) * HOUR;
+  if (h0 < to) {
+    const h1 = Math.floor((to - 1) / HOUR) * HOUR;
+    const key = (h) => `${coin}|${h}`;
+    let allCached = !!cache;
+    if (cache) for (let h = h0; h <= h1; h += HOUR) if (!cache.has(key(h))) { allCached = false; break; }
+    const local = new Map();
+    if (!allCached) {
+      for (const row of sql.exec("SELECT h, d FROM h WHERE coin = ? AND h >= ? AND h <= ?", coin, h0, h1).toArray()) local.set(row.h, JSON.parse(row.d));
+      if (cache) for (let h = h0; h <= h1 && h < cur; h += HOUR) cache.set(key(h), local.has(h) ? local.get(h) : null);
     }
-    if (d) for (const [m, v] of Object.entries(d)) add(h + Number(m) * MIN, v[0], v[1], v[2]);
+    for (let h = h0; h < to; h += HOUR) {
+      const d = cache && h < cur ? cache.get(key(h)) : local.get(h);
+      if (d) for (const [m, v] of Object.entries(d)) add(h + Number(m) * MIN, v[0], v[1], v[2]);
+    }
   }
   for (const o of buf.values()) o.coin === coin && add(o.t, o.b, o.s, o.n);
   return [...acc.values()].sort((a, b) => a[0] - b[0]).slice(-50000).map((x) => [x[0], Math.round(x[1]), Math.round(x[2]), x[3]]);

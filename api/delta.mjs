@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   try {
     const r = await fetch(`${base}/delta?coin=${encodeURIComponent(coin)}&i=${i}&from=${fr}&to=${tr}`, { signal: AbortSignal.timeout(8e3) });
     const txt = await r.text();
-    res.setHeader("cache-control", r.ok ? "public, s-maxage=15, stale-while-revalidate=60" : "no-store");
+    res.setHeader("cache-control", r.ok ? "public, s-maxage=60, stale-while-revalidate=180" : "no-store");
     res.status(r.ok ? 200 : 502).send(txt);
   } catch (e) {
     res.setHeader("cache-control", "no-store");
