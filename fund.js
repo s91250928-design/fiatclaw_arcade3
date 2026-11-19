@@ -1,10 +1,9 @@
-/* Пополнение с уже подключённого торгового счёта. Другой кошелёк — только по маленькой кнопке.
-   С того кошелька приходит USDC, отдельно ничего не докупаем. */
+/* Пополнение. С другого кошелька TON приходит USDC на торговый адрес.
+   На биржу его зачисляет подпись разрешения: газ платит наш пустой адрес, не человек. */
 
 import { TonConnect, toUserFriendlyAddress } from "./vendor/tonconnect.js";
 
 const BRIDGE = "0x2df1c51e09aecf9cacb7bc98cb1742757f163df7";
-const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
 const PREFERRED = ["tonkeeper", "mytonwallet", "telegram", "telegram-wallet", "tonhub", "binanceWeb3TonWallet", "okxTonWallet", "bybitTonWallet", "bitgetTonWallet", "hot"];
 const fundDlg = document.getElementById("fundDialog");
 const connector = new TonConnect({ manifestUrl: location.origin + "/api/ton-manifest" });
@@ -12,7 +11,6 @@ let fundAsset = "usdt";
 let fundTimer = 0;
 let tonAddr = "";
 let run = 0;
-let holdDlg = 0;
 let crediting = 0;
 
 function fundAddr() {
@@ -156,7 +154,7 @@ document.getElementById("fundOther")?.addEventListener("click", () => {
   if (box) box.hidden = !box.hidden;
 });
 document.getElementById("fundClose")?.addEventListener("click", () => { clearInterval(fundTimer); run++; fundDlg.close(); });
-fundDlg?.addEventListener("close", () => { clearInterval(fundTimer); if (!holdDlg) run++; });
+fundDlg?.addEventListener("close", () => { clearInterval(fundTimer); run++; });
 
 function say(text, bad) {
   const out = document.getElementById(bad ? "fundErr" : "fundOut");
@@ -213,14 +211,13 @@ function pickAsset(asset) {
 function human(e) {
   const m = String(e?.message || e || "").trim();
   if (!m) return "";
-  if (/reject|denied|cancel|отклон/i.test(m)) return "Подпись отменена. Деньги не уходили.";
-  if (/does not exist|not available|unsupported method|not supported/i.test(m)) return "Кошелёк не дал отправить перевод. Откройте Totum в браузере OKX и зачислите оттуда.";
-  if (/insufficient funds|intrinsic gas|gas required/i.test(m)) return "На кошельке нет ETH в сети Arbitrum для комиссии. USDC на месте. Нужен совсем маленький ETH, потом зачисление уйдёт на биржу.";
+  if (/does not exist|not available|unsupported method|not supported/i.test(m)) return "Кошелёк не дал подписать разрешение. Отключите его и подключите ещё раз.";
+  if (/user rejected|reject|denied|cancel|отклон/i.test(m)) return "Подпись отменена. Деньги не уходили.";
   return m;
 }
 
 function gone(e) {
-  return /does not exist|not available|unsupported method|not supported/i.test(String(e?.message || e || ""));
+  return /does not exist|not available|unsupported method|not supported|missing or invalid/i.test(String(e?.message || e || ""));
 }
 
 async function usdcNow() {
@@ -243,31 +240,14 @@ async function sameWallet(p, from) {
   } catch { return false; }
 }
 
-async function sendTx(p, from, amt) {
+async function signPermit(p, from, typed) {
   const req = reqOf(p);
-  try { await req("wallet_switchEthereumChain", [{ chainId: "0xa4b1" }]); } catch (e) {
-    if (/reject|denied|cancel/i.test(String(e?.message || ""))) throw new Error("Подпись отменена. Деньги не уходили.");
-  }
+  const json = JSON.stringify(typed);
   try {
-    const bal = await req("eth_call", [{ to: USDC, data: "0x70a08231" + from.slice(2).padStart(64, "0") }, "latest"]);
-    if (BigInt(bal) < amt) throw new Error("На кошельке меньше USDC, чем зачисляем. Не отправляем.");
+    return await req("eth_signTypedData_v4", [from, json]);
   } catch (e) {
-    if (/меньше USDC/.test(String(e?.message || ""))) throw e;
-  }
-  const data = "0xa9059cbb" + BRIDGE.slice(2).padStart(64, "0") + amt.toString(16).padStart(64, "0");
-  if (data.slice(0, 10) !== "0xa9059cbb" || !data.includes(BRIDGE.slice(2))) throw new Error("Сборка перевода сломалась.");
-  const tx = { from, to: USDC, data, value: "0x0" };
-  try {
-    const hash = await req("eth_sendTransaction", [tx]);
-    if (typeof hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(hash)) return hash;
-    if (typeof hash === "string" && hash) return hash;
-    throw new Error("Кошелёк не вернул перевод");
-  } catch (e) {
-    if (!gone(e)) throw e;
-    const id = await req("wallet_sendCalls", [{ version: "1.0", chainId: "0xa4b1", from, calls: [{ to: USDC, data, value: "0x0" }] }]);
-    const out = typeof id === "string" ? id : id?.id;
-    if (!out) throw new Error("Кошелёк не отправил перевод");
-    return out;
+    if (/reject|denied|cancel|отклон/i.test(String(e?.message || ""))) throw e;
+    return req("eth_signTypedData_v4", [from, typed]);
   }
 }
 
@@ -282,34 +262,36 @@ async function hlCredit(want) {
     let amt = want;
     if (live != null && (amt == null || amt > live)) amt = live;
     if (amt == null || amt < 5000000n) throw new Error("Меньше 5 USDC биржа не зачислит. Не отправляем.");
+    const prep = await fetch("/api/fund-permit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: from, amount: amt.toString() }),
+    });
+    const ready = await prep.json().catch(() => ({}));
+    if (!prep.ok || !ready.ok) throw new Error(ready.error || "Зачисление не собралось");
+    if (String(ready.typed?.message?.owner || "").toLowerCase() !== from) throw new Error("Подпись собрана не на ваш счёт. Отменено.");
+    if (String(ready.typed?.message?.spender || "").toLowerCase() !== BRIDGE) throw new Error("Подпись ведёт не на биржу. Отменено.");
     const tryList = [];
     if (window.okxwallet?.request && await sameWallet(window.okxwallet, from)) tryList.push(window.okxwallet);
     if (window.ethereum?.request && window.ethereum !== window.okxwallet && await sameWallet(window.ethereum, from)) tryList.push(window.ethereum);
     tryList.push(w);
+    let sig = "";
     let last = null;
     for (const p of tryList) {
-      try { return await sendTx(p, from, amt); } catch (e) {
+      try { sig = await signPermit(p, from, ready.typed); break; } catch (e) {
         last = e;
         if (!gone(e)) throw e;
       }
     }
-    if (typeof w.refreshSend !== "function") throw last || new Error("Кошелёк не дал отправить перевод.");
-    say("Кошелёк был подключён без права перевода. Сейчас откроется ещё раз — подтвердите, и USDC уйдёт на биржу.");
-    const dlg = fundDlg;
-    const reopen = !!dlg?.open;
-    holdDlg = 1;
-    try { if (reopen) dlg.close(); } catch { /* окно и так закрыто */ }
-    try {
-      await w.refreshSend();
-    } finally {
-      holdDlg = 0;
-      if (reopen && dlg && !dlg.open) {
-        try { dlg.showModal(); fundWatch(); } catch { /* окно уже открыто */ }
-      }
-    }
-    const again = window.totumWallet;
-    if (!again) throw new Error("Кошелёк не переподключился.");
-    return sendTx(again, fundAddr(), amt);
+    if (!sig) throw last || new Error("Кошелёк не дал подписать разрешение.");
+    const sent = await fetch("/api/fund-relay", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: from, usd: ready.usd, deadline: ready.deadline, nonce: ready.nonce, sig }),
+    });
+    const done = await sent.json().catch(() => ({}));
+    if (!sent.ok || !done.ok || !done.hash) throw new Error(done.error || "Зачисление не ушло. Деньги на месте.");
+    return done.hash;
   } finally {
     crediting = 0;
   }
@@ -362,7 +344,7 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
     const credit = await waitArrived(mine, before);
     if (mine !== run) return;
     btn.textContent = "Зачисляем…";
-    say("USDC на кошельке. Подтвердите зачисление на биржу — это та же операция, отдельной кнопки нет.");
+    say("USDC на кошельке. Подтвердите разрешение — комиссию сети платим мы, с вас ETH не нужен.");
     const hash = await hlCredit(credit);
     if (mine !== run) return;
     const hl = document.getElementById("fundHlAmt");

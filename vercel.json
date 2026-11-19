@@ -94,7 +94,7 @@
   "functions": {
     "api/*.mjs": {
       "maxDuration": 60,
-      "includeFiles": "lib/gram-swap.cjs"
+      "includeFiles": "lib/**"
     }
   },
   "crons": [
