@@ -716,7 +716,7 @@ function cashOpen() {
 }
 
 function esc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ "&": "&", "<": "<", ">": ">", "\"": """, "'": "&#39;" }[c]));
+  return String(s).replace(/[&<>"']/g, c => "&#" + c.charCodeAt(0) + ";");
 }
 
 async function cashHistory() {
@@ -762,6 +762,26 @@ document.addEventListener("click", e => {
 document.getElementById("cashClose")?.addEventListener("click", () => document.getElementById("cashDlg")?.close());
 document.getElementById("cashHist")?.addEventListener("click", cashHistory);
 window.totumCash = { paint: cashPaint, open: cashOpen };
+window.totumFund = { open: fundShow, withdraw: wdOpen };
+
+function syncDlgLock() {
+  document.documentElement.classList.toggle("dlg-lock", !!document.querySelector("dialog[open]"));
+}
+document.addEventListener("toggle", (e) => {
+  if (e.target?.tagName === "DIALOG") syncDlgLock();
+}, true);
+new MutationObserver(syncDlgLock).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["open"] });
+document.addEventListener("touchmove", (e) => {
+  const dlg = document.querySelector("dialog[open]");
+  if (!dlg) return;
+  let n = e.target;
+  while (n && n !== dlg) {
+    if (n.scrollHeight > n.clientHeight + 4) return;
+    n = n.parentElement;
+  }
+  if (dlg.scrollHeight > dlg.clientHeight + 4) return;
+  e.preventDefault();
+}, { passive: false });
 
 cashPaint();
 if (wdLoad()?.phase === "wait") cashWatch();
