@@ -105,7 +105,7 @@ function fundHide(id) {
 let fundSnd;
 function fundUnlock() {
   try {
-    fundSnd ||= new Audio("fund-ok.wav?v=1795121000");
+    fundSnd ||= new Audio("fund-ok.wav?v=1795122000");
     fundSnd.volume = 0.9;
     const play = fundSnd.play();
     if (play) play.then(() => { fundSnd.pause(); fundSnd.currentTime = 0; }).catch(() => {});
