@@ -349,7 +349,7 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
     if (mine !== run) return;
     const hl = document.getElementById("fundHlAmt");
     if (hl) hl.value = "";
-    say(`На бирже сумма появится меньше чем через минуту. ${String(hash).slice(0, 10)}…`);
+    say("Успешно");
   } catch (e) {
     if (mine === run && e?.message) say(human(e), true);
   } finally {
@@ -370,7 +370,7 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
   try {
     const hash = await hlCredit(units(document.getElementById("fundHlAmt").value));
     if (mine !== run) return;
-    say(`Отправлено на биржу. Сумма появится меньше чем через минуту. ${String(hash).slice(0, 10)}…`);
+    say("Успешно");
     const amt = document.getElementById("fundHlAmt");
     if (amt) amt.value = "";
   } catch (e) {
