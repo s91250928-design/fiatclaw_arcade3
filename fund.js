@@ -262,10 +262,10 @@ async function hlCredit(want) {
     let amt = want;
     if (live != null && (amt == null || amt > live)) amt = live;
     if (amt == null || amt < 5000000n) throw new Error("Меньше 5 USDC биржа не зачислит. Не отправляем.");
-    const prep = await fetch("/api/fund-permit", {
+    const prep = await fetch("/api/fund-quote", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ address: from, amount: amt.toString() }),
+      body: JSON.stringify({ op: "permit", address: from, amount: amt.toString() }),
     });
     const ready = await prep.json().catch(() => ({}));
     if (!prep.ok || !ready.ok) throw new Error(ready.error || "Зачисление не собралось");
@@ -284,10 +284,10 @@ async function hlCredit(want) {
       }
     }
     if (!sig) throw last || new Error("Кошелёк не дал подписать разрешение.");
-    const sent = await fetch("/api/fund-relay", {
+    const sent = await fetch("/api/fund-quote", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ address: from, usd: ready.usd, deadline: ready.deadline, nonce: ready.nonce, sig }),
+      body: JSON.stringify({ op: "relay", address: from, usd: ready.usd, deadline: ready.deadline, nonce: ready.nonce, sig }),
     });
     const done = await sent.json().catch(() => ({}));
     if (!sent.ok || !done.ok || !done.hash) throw new Error(done.error || "Зачисление не ушло. Деньги на месте.");
