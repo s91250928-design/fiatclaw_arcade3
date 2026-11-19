@@ -95,6 +95,8 @@ document.getElementById("fundAssets")?.addEventListener("click", (e) => {
   if (!b) return;
   fundAsset = b.dataset.asset;
   for (const n of document.querySelectorAll("#fundAssets button")) n.classList.toggle("on", n === b);
+  const min = document.getElementById("fundMin");
+  if (min) min.textContent = fundAsset === "gram" ? "Минимум на 10 USDT в GRAM" : "Минимум 10 USDT";
 });
 
 function fundHide(id) {
@@ -121,14 +123,15 @@ function fundChime() {
 }
 
 function fundArm() {
-  const amt = document.getElementById("fundHlAmt");
-  if (!amt || amt.dataset.arm) return;
-  amt.dataset.arm = "1";
-  /* пока поле не тронули, браузер не подставляет сумму и не красит его в белый */
-  amt.readOnly = true;
-  const unlock = () => { amt.readOnly = false; };
-  amt.addEventListener("pointerdown", unlock);
-  amt.addEventListener("focus", unlock);
+  for (const id of ["fundHlAmt", "fundAmt"]) {
+    const amt = document.getElementById(id);
+    if (!amt || amt.dataset.arm) continue;
+    amt.dataset.arm = "1";
+    amt.readOnly = false;
+    const open = () => amt.focus();
+    amt.addEventListener("pointerdown", open);
+    amt.addEventListener("click", open);
+  }
 }
 
 async function fundLook() {

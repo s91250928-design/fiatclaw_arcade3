@@ -2244,6 +2244,7 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 @keyframes fund-tick{to{stroke-dashoffset:0}}
 @keyframes fund-word{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 #fundDialog .inp input{font-size:16px}
+.fund-min{margin:6px 2px 0}
 .fund-hl{margin-top:10px}
 #fundOther{margin-top:12px}
 #fundOtherBox{margin-top:4px}

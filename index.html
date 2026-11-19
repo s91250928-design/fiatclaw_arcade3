@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795124000">
+<link rel="stylesheet" href="style.css?v=1795125000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -612,7 +612,8 @@
   <h2>Пополнить</h2>
   <p class="muted small" id="fundTo">На ваш счёт</p>
   <div class="fund-hl" id="fundHlBox">
-    <label class="inp"><span>USDC</span><input id="fundHlAmt" inputmode="decimal" placeholder="20" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-hl-usdc"></label>
+    <label class="inp"><span>USDC</span><input id="fundHlAmt" inputmode="decimal" placeholder="от 5" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-hl-usdc"></label>
+    <p class="muted small fund-min">Минимум 5 USDC</p>
     <button id="fundHl" class="btn wide-btn" type="button">Зачислить на биржу</button>
   </div>
   <button id="fundOther" class="btn ghost wide-btn" type="button">С другого кошелька</button>
@@ -620,7 +621,8 @@
     <button id="fundTon" class="fund-other" type="button">Выбрать кошелёк</button>
     <div id="fundWallets" class="fund-wallets" hidden></div>
     <div class="seg fund-assets" id="fundAssets"><button type="button" data-asset="usdt" class="on">USDT</button><button type="button" data-asset="gram">GRAM</button></div>
-    <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="50"></label>
+    <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="от 10" autocomplete="off" autocorrect="off" spellcheck="false"></label>
+    <p class="muted small fund-min" id="fundMin">Минимум 10 USDT</p>
     <button id="fundGo" class="btn wide-btn" type="button">Пополнить</button>
   </div>
   <p class="neg small" id="fundErr" hidden></p>
@@ -639,7 +641,7 @@
 <script type="module" src="ladder.js?v=1794152000"></script>
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1795124000"></script>
+<script type="module" src="fund.js?v=1795125000"></script>
 <script src="liq.js?v=1795032614"></script>
 </body>
 </html>
