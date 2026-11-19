@@ -2233,6 +2233,8 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 @media (hover:none){.pf-av-up i{opacity:1}}
 
 .fund-out{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(61,126,255,.08);line-height:1.45}
+.fund-out.ok{color:#16a34a;font-weight:700;animation:fund-snap .28s ease-out}
+@keyframes fund-snap{from{opacity:.15}to{opacity:1}}
 #fundDialog .inp input{font-size:16px}
 .fund-hl{margin-top:10px}
 #fundOther{margin-top:12px}

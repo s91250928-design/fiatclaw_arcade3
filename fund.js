@@ -102,6 +102,24 @@ function fundHide(id) {
   if (n) n.hidden = true;
 }
 
+let fundSnd;
+function fundUnlock() {
+  try {
+    fundSnd ||= new Audio("fund-ok.wav?v=1795119000");
+    fundSnd.volume = 0.9;
+    const play = fundSnd.play();
+    if (play) play.then(() => { fundSnd.pause(); fundSnd.currentTime = 0; }).catch(() => {});
+  } catch { /* звук не обязателен */ }
+}
+function fundChime() {
+  if (!fundSnd) fundUnlock();
+  if (!fundSnd) return;
+  try {
+    fundSnd.currentTime = 0;
+    fundSnd.play().catch(() => {});
+  } catch { /* звук не обязателен */ }
+}
+
 function fundArm() {
   const amt = document.getElementById("fundHlAmt");
   if (!amt || amt.dataset.arm) return;
@@ -144,6 +162,7 @@ function fundShow() {
   const other = document.getElementById("fundOtherBox");
   if (other) other.hidden = true;
   fundDlg.showModal();
+  fundUnlock();
   fundArm();
   fundWatch();
 }
@@ -163,6 +182,8 @@ function say(text, bad) {
   if (!out) return;
   out.hidden = false;
   out.textContent = text;
+  out.classList.toggle("ok", !bad && text === "Успешно");
+  if (!bad && text === "Успешно") fundChime();
 }
 
 async function send(sign) {
@@ -311,6 +332,7 @@ async function waitArrived(mine, before) {
 document.getElementById("fundGo")?.addEventListener("click", async () => {
   const btn = document.getElementById("fundGo");
   if (!tonAddr) { showWallets(); return; }
+  fundUnlock();
   const mine = ++run;
   btn.disabled = true;
   const prev = btn.textContent;
@@ -363,6 +385,7 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
 document.getElementById("fundHl")?.addEventListener("click", async () => {
   const btn = document.getElementById("fundHl");
   if (crediting) return;
+  fundUnlock();
   const mine = ++run;
   btn.disabled = true;
   btn.textContent = "Ждём подпись…";
