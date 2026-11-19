@@ -12,6 +12,8 @@ let fundAsset = "usdt";
 let fundTimer = 0;
 let tonAddr = "";
 let run = 0;
+let holdDlg = 0;
+let crediting = 0;
 
 function fundAddr() {
   const live = window.totumWallet?.addr?.();
@@ -136,7 +138,7 @@ function fundWatch() {
 function fundShow() {
   const to = document.getElementById("fundTo");
   const addr = fundAddr();
-  if (to) to.textContent = addr ? `На счёт ${fundShort(addr)}` : "Сначала подключите торговый счёт";
+  if (to) to.textContent = addr ? `Кошелёк ${fundShort(addr)}. USDC с него зачисляется на биржу.` : "Сначала подключите торговый счёт";
   fundHide("fundOut");
   fundHide("fundErr");
   const hl = document.getElementById("fundHlBox");
@@ -154,7 +156,7 @@ document.getElementById("fundOther")?.addEventListener("click", () => {
   if (box) box.hidden = !box.hidden;
 });
 document.getElementById("fundClose")?.addEventListener("click", () => { clearInterval(fundTimer); run++; fundDlg.close(); });
-fundDlg?.addEventListener("close", () => { clearInterval(fundTimer); run++; });
+fundDlg?.addEventListener("close", () => { clearInterval(fundTimer); if (!holdDlg) run++; });
 
 function say(text, bad) {
   const out = document.getElementById(bad ? "fundErr" : "fundOut");
@@ -208,6 +210,122 @@ function pickAsset(asset) {
   for (const n of document.querySelectorAll("#fundAssets button")) n.classList.toggle("on", n.dataset.asset === asset);
 }
 
+function human(e) {
+  const m = String(e?.message || e || "").trim();
+  if (!m) return "";
+  if (/reject|denied|cancel|отклон/i.test(m)) return "Подпись отменена. Деньги не уходили.";
+  if (/does not exist|not available|unsupported method|not supported/i.test(m)) return "Кошелёк не дал отправить перевод. Откройте Totum в браузере OKX и зачислите оттуда.";
+  if (/insufficient funds|intrinsic gas|gas required/i.test(m)) return "На кошельке нет ETH в сети Arbitrum для комиссии. USDC на месте. Нужен совсем маленький ETH, потом зачисление уйдёт на биржу.";
+  return m;
+}
+
+function gone(e) {
+  return /does not exist|not available|unsupported method|not supported/i.test(String(e?.message || e || ""));
+}
+
+async function usdcNow() {
+  const to = fundAddr();
+  if (!to) return 0n;
+  const r = await fetch("/api/fund-status?address=" + to);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) return null;
+  return units(j.usdc || "0") || 0n;
+}
+
+function reqOf(p) {
+  return (m, a) => p.req ? p.req(m, a) : p.request({ method: m, params: a });
+}
+
+async function sameWallet(p, from) {
+  try {
+    const acc = await p.request({ method: "eth_accounts" });
+    return acc?.[0]?.toLowerCase() === from;
+  } catch { return false; }
+}
+
+async function sendTx(p, from, amt) {
+  const req = reqOf(p);
+  try { await req("wallet_switchEthereumChain", [{ chainId: "0xa4b1" }]); } catch (e) {
+    if (/reject|denied|cancel/i.test(String(e?.message || ""))) throw new Error("Подпись отменена. Деньги не уходили.");
+  }
+  try {
+    const bal = await req("eth_call", [{ to: USDC, data: "0x70a08231" + from.slice(2).padStart(64, "0") }, "latest"]);
+    if (BigInt(bal) < amt) throw new Error("На кошельке меньше USDC, чем зачисляем. Не отправляем.");
+  } catch (e) {
+    if (/меньше USDC/.test(String(e?.message || ""))) throw e;
+  }
+  const data = "0xa9059cbb" + BRIDGE.slice(2).padStart(64, "0") + amt.toString(16).padStart(64, "0");
+  if (data.slice(0, 10) !== "0xa9059cbb" || !data.includes(BRIDGE.slice(2))) throw new Error("Сборка перевода сломалась.");
+  const tx = { from, to: USDC, data, value: "0x0" };
+  try {
+    const hash = await req("eth_sendTransaction", [tx]);
+    if (typeof hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(hash)) return hash;
+    if (typeof hash === "string" && hash) return hash;
+    throw new Error("Кошелёк не вернул перевод");
+  } catch (e) {
+    if (!gone(e)) throw e;
+    const id = await req("wallet_sendCalls", [{ version: "1.0", chainId: "0xa4b1", from, calls: [{ to: USDC, data, value: "0x0" }] }]);
+    const out = typeof id === "string" ? id : id?.id;
+    if (!out) throw new Error("Кошелёк не отправил перевод");
+    return out;
+  }
+}
+
+async function hlCredit(want) {
+  if (crediting) throw new Error("");
+  crediting = 1;
+  try {
+    const from = fundAddr();
+    const w = window.totumWallet;
+    if (!w || !from) throw new Error("Подключите торговый счёт.");
+    const live = await usdcNow();
+    let amt = want;
+    if (live != null && (amt == null || amt > live)) amt = live;
+    if (amt == null || amt < 5000000n) throw new Error("Меньше 5 USDC биржа не зачислит. Не отправляем.");
+    const tryList = [];
+    if (window.okxwallet?.request && await sameWallet(window.okxwallet, from)) tryList.push(window.okxwallet);
+    if (window.ethereum?.request && window.ethereum !== window.okxwallet && await sameWallet(window.ethereum, from)) tryList.push(window.ethereum);
+    tryList.push(w);
+    let last = null;
+    for (const p of tryList) {
+      try { return await sendTx(p, from, amt); } catch (e) {
+        last = e;
+        if (!gone(e)) throw e;
+      }
+    }
+    if (typeof w.refreshSend !== "function") throw last || new Error("Кошелёк не дал отправить перевод.");
+    say("Кошелёк был подключён без права перевода. Сейчас откроется ещё раз — подтвердите, и USDC уйдёт на биржу.");
+    const dlg = fundDlg;
+    const reopen = !!dlg?.open;
+    holdDlg = 1;
+    try { if (reopen) dlg.close(); } catch { /* окно и так закрыто */ }
+    try {
+      await w.refreshSend();
+    } finally {
+      holdDlg = 0;
+      if (reopen && dlg && !dlg.open) {
+        try { dlg.showModal(); fundWatch(); } catch { /* окно уже открыто */ }
+      }
+    }
+    const again = window.totumWallet;
+    if (!again) throw new Error("Кошелёк не переподключился.");
+    return sendTx(again, fundAddr(), amt);
+  } finally {
+    crediting = 0;
+  }
+}
+
+async function waitArrived(mine, before) {
+  for (let i = 0; i < 30; i++) {
+    await sleep(8000);
+    if (mine !== run) throw new Error("");
+    const live = await usdcNow();
+    if (live == null) continue;
+    if (live - before >= 5000000n) return live - before;
+  }
+  throw new Error("USDC ещё идёт на кошелёк. Как появится — нажмите «Зачислить на биржу». Отдельно покупать ничего не нужно.");
+}
+
 document.getElementById("fundGo")?.addEventListener("click", async () => {
   const btn = document.getElementById("fundGo");
   if (!tonAddr) { showWallets(); return; }
@@ -216,6 +334,7 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
   const prev = btn.textContent;
   btn.textContent = "Считаем…";
   try {
+    const before = (await usdcNow()) || 0n;
     let j = await quote(fundAsset, document.getElementById("fundAmt").value);
     if (mine !== run) return;
     if (j.step === "swap") {
@@ -234,15 +353,23 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
       if (mine !== run) return;
     }
     if (!j.sign) throw new Error("Перевод не собрался");
-    say("Подтвердите в кошельке");
+    say("Подтвердите обмен в кошельке. Как USDC придёт, сразу зачислим его на биржу.");
     btn.textContent = "Ждём кошелёк…";
     await send(j.sign);
     if (mine !== run) return;
-    say("Подписано. USDC придёт на этот счёт.");
+    say("Обмен подписан. Ждём USDC на кошелёк и сразу отправляем на биржу.");
+    btn.textContent = "Ждём USDC…";
+    const credit = await waitArrived(mine, before);
+    if (mine !== run) return;
+    btn.textContent = "Зачисляем…";
+    say("USDC на кошельке. Подтвердите зачисление на биржу — это та же операция, отдельной кнопки нет.");
+    const hash = await hlCredit(credit);
+    if (mine !== run) return;
     const hl = document.getElementById("fundHlAmt");
-    if (hl && j.min) hl.value = j.min;
+    if (hl) hl.value = "";
+    say(`На бирже сумма появится меньше чем через минуту. ${String(hash).slice(0, 10)}…`);
   } catch (e) {
-    if (mine === run && e?.message) say(e.message, true);
+    if (mine === run && e?.message) say(human(e), true);
   } finally {
     if (mine === run) {
       btn.disabled = false;
@@ -252,32 +379,24 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
 });
 
 document.getElementById("fundHl")?.addEventListener("click", async () => {
-  const err = document.getElementById("fundErr");
   const btn = document.getElementById("fundHl");
-  err.hidden = true;
-  const w = window.totumWallet;
-  const from = fundAddr();
-  const amt = units(document.getElementById("fundHlAmt").value);
-  if (!w || !from) { err.hidden = false; err.textContent = "Подключите торговый счёт."; return; }
-  if (amt == null || amt < 5000000n) { err.hidden = false; err.textContent = "Меньше 5 USDC Hyperliquid не зачислит. Не отправляем."; return; }
+  if (crediting) return;
+  const mine = ++run;
   btn.disabled = true;
   btn.textContent = "Ждём подпись…";
+  fundHide("fundErr");
   try {
-    try { await w.req("wallet_switchEthereumChain", [{ chainId: "0xa4b1" }]); } catch { /* сеть проверим ниже */ }
-    const chain = await w.req("eth_chainId", []);
-    if (BigInt(chain) !== 42161n) throw new Error("Кошелёк в другой сети. Перевод отменён.");
-    const bal = await w.req("eth_call", [{ to: USDC, data: "0x70a08231" + from.slice(2).padStart(64, "0") }, "latest"]);
-    if (BigInt(bal) < amt) throw new Error("На счёте меньше USDC, чем вы зачисляете.");
-    const data = "0xa9059cbb" + BRIDGE.slice(2).padStart(64, "0") + amt.toString(16).padStart(64, "0");
-    if (!data.includes(BRIDGE.slice(2)) || data.slice(0, 10) !== "0xa9059cbb") throw new Error("Сборка перевода сломалась.");
-    const hash = await w.req("eth_sendTransaction", [{ from, to: USDC, data, value: "0x0" }]);
-    err.hidden = false;
-    err.textContent = `Отправлено ${hash}. На Hyperliquid сумма появится меньше чем через минуту.`;
+    const hash = await hlCredit(units(document.getElementById("fundHlAmt").value));
+    if (mine !== run) return;
+    say(`Отправлено на биржу. Сумма появится меньше чем через минуту. ${String(hash).slice(0, 10)}…`);
+    const amt = document.getElementById("fundHlAmt");
+    if (amt) amt.value = "";
   } catch (e) {
-    err.hidden = false;
-    err.textContent = e?.message || "Кошелёк отклонил перевод";
+    if (mine === run && e?.message) say(human(e), true);
   } finally {
-    btn.disabled = false;
-    btn.textContent = "Зачислить";
+    if (mine === run) {
+      btn.disabled = false;
+      btn.textContent = "Зачислить на биржу";
+    }
   }
 });
