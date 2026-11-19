@@ -580,13 +580,17 @@ dialog.page-dlg[open]{display:flex}
   body[data-mv="full"].sheet .sheet-back{display:block;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:30}
 
   /* Окна на телефоне — на весь экран, фон не листается */
-  html.dlg-lock,html.dlg-lock body{overflow:hidden;height:100%;overscroll-behavior:none}
+  html.dlg-lock,html.dlg-lock body{overflow:hidden;overscroll-behavior:none}
   html.dlg-lock .mnav{display:none!important}
   dialog.sheet-dlg,dialog.page-dlg{overscroll-behavior:contain}
-  #fundDialog,#withdrawDialog,#cashDlg,#histDialog,#transferDialog{touch-action:pan-y}
+  #fundDialog,#withdrawDialog,#cashDlg,#histDialog,#transferDialog{overflow-anchor:none}
   @media (max-width:900px){
+    html.dlg-lock,html.dlg-lock body{position:fixed;width:100%;height:100lvh;overflow:hidden}
     #fundDialog[open],#withdrawDialog[open],#cashDlg[open],#histDialog[open],#transferDialog[open]{
-      position:fixed;inset:0;width:100%;max-width:none;height:100dvh;max-height:100dvh;margin:0;border:0;border-radius:0;overflow:auto
+      position:fixed;inset:0;width:100%;max-width:none;height:100lvh;max-height:100lvh;margin:0;border:0;border-radius:0;overflow:hidden;display:flex;flex-direction:column
+    }
+    #fundDialog .dlg-body,#withdrawDialog .dlg-body,#transferDialog .dlg-body{
+      flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;overflow-anchor:none
     }
   }
   dialog.sheet-dlg{margin:auto 0 0;width:100%;max-width:100%;border-radius:16px 16px 0 0;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
@@ -2255,7 +2259,7 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 @keyframes fund-ring{to{stroke-dashoffset:0}}
 @keyframes fund-tick{to{stroke-dashoffset:0}}
 @keyframes fund-word{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-#fundDialog .inp input,#withdrawDialog .inp input{font-size:16px}
+#fundDialog .inp input,#withdrawDialog .inp input,#transferDialog .inp input{font-size:16px;touch-action:auto}
 .fund-keeper{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
 .fund-keeper p{margin:0}
 #fundKeeperGo{margin-top:8px}

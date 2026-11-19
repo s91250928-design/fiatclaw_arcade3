@@ -105,21 +105,44 @@ function fundHide(id) {
 }
 
 let fundSnd;
+let fundGen = 0;
 function fundUnlock() {
+  const gen = ++fundGen;
   try {
     fundSnd ||= new Audio("fund-ok.wav?v=1795123000");
-    fundSnd.volume = 0.9;
+    fundSnd.volume = 0;
     const play = fundSnd.play();
-    if (play) play.then(() => { fundSnd.pause(); fundSnd.currentTime = 0; }).catch(() => {});
+    if (play) play.then(() => {
+      if (gen !== fundGen) return;
+      fundSnd.pause();
+      fundSnd.currentTime = 0;
+      fundSnd.volume = 0.9;
+    }).catch(() => {});
   } catch { /* звук не обязателен */ }
 }
 function fundChime() {
-  if (!fundSnd) fundUnlock();
-  if (!fundSnd) return;
+  fundGen++;
   try {
+    fundSnd ||= new Audio("fund-ok.wav?v=1795123000");
+    fundSnd.volume = 0.9;
     fundSnd.currentTime = 0;
-    fundSnd.play().catch(() => {});
+    const play = fundSnd.play();
+    if (play) play.catch(() => {});
   } catch { /* звук не обязателен */ }
+}
+
+function focusAmt(el) {
+  if (!el) return;
+  const scroller = el.closest(".dlg-body") || el.closest("dialog");
+  if (scroller && innerWidth <= 900) {
+    const box = scroller.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const room = Math.min(box.bottom, innerHeight * 0.46);
+    if (r.bottom > room) scroller.scrollTop += r.bottom - room;
+    else if (r.top < box.top) scroller.scrollTop += r.top - box.top;
+  }
+  try { el.focus({ preventScroll: true }); }
+  catch { try { el.focus(); } catch { /* поле ещё не на экране */ } }
 }
 
 function fundArm() {
@@ -128,9 +151,6 @@ function fundArm() {
     if (!amt || amt.dataset.arm) continue;
     amt.dataset.arm = "1";
     amt.readOnly = false;
-    const open = () => amt.focus();
-    amt.addEventListener("pointerdown", open);
-    amt.addEventListener("click", open);
   }
 }
 
@@ -193,7 +213,7 @@ function fundShow() {
   if (other) other.hidden = true;
   fundKeeperNote();
   fundDlg.showModal();
-  fundUnlock();
+  pinDlg(fundDlg);
   fundArm();
   fundWatch();
 }
@@ -205,7 +225,10 @@ document.getElementById("fundKeeperGo")?.addEventListener("click", () => {
 });
 document.getElementById("fundOther")?.addEventListener("click", () => {
   const box = document.getElementById("fundOtherBox");
-  if (box) box.hidden = !box.hidden;
+  if (!box) return;
+  const show = box.hidden;
+  box.hidden = !box.hidden;
+  if (show) focusAmt(document.getElementById("fundAmt"));
 });
 document.getElementById("fundClose")?.addEventListener("click", () => { clearInterval(fundTimer); run++; fundDlg.close(); });
 fundDlg?.addEventListener("close", () => { clearInterval(fundTimer); run++; });
@@ -517,7 +540,7 @@ async function wdOpen() {
   try { info = window.totumWallet?.out?.() || null; } catch { info = null; }
   wdPaint(info);
   wdDlg.showModal();
-  fundUnlock();
+  pinDlg(wdDlg);
   fundArm();
   try { await window.totumWallet?.refresh?.(); } catch { /* баланс обновится сам */ }
   try { info = window.totumWallet?.out?.() || info; } catch { /* старые цифры */ }
@@ -773,15 +796,16 @@ document.addEventListener("toggle", (e) => {
 new MutationObserver(syncDlgLock).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["open"] });
 document.addEventListener("touchmove", (e) => {
   const dlg = document.querySelector("dialog[open]");
-  if (!dlg) return;
-  let n = e.target;
-  while (n && n !== dlg) {
-    if (n.scrollHeight > n.clientHeight + 4) return;
-    n = n.parentElement;
-  }
-  if (dlg.scrollHeight > dlg.clientHeight + 4) return;
+  if (!dlg || dlg.contains(e.target)) return;
   e.preventDefault();
 }, { passive: false });
+
+function pinDlg(dlg) {
+  if (!dlg || innerWidth > 900) return;
+  if (!dlg.dataset.pinH) dlg.dataset.pinH = innerHeight + "px";
+  dlg.style.height = dlg.dataset.pinH;
+  dlg.style.maxHeight = dlg.dataset.pinH;
+}
 
 cashPaint();
 if (wdLoad()?.phase === "wait") cashWatch();

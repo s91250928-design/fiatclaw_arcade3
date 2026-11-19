@@ -2,13 +2,13 @@
 <html lang="ru" data-theme="light">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content">
 <title>Totum</title>
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795138000">
+<link rel="stylesheet" href="style.css?v=1795144000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -598,12 +598,14 @@
 <dialog id="profDlg" class="sheet-dlg pf-dlg"><div id="pfBody"></div></dialog>
 <dialog id="feedView" class="fv-dlg"><button type="button" class="fv-x" id="fvClose" aria-label="Закрыть"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button><div id="fvBody"></div></dialog>
 <dialog id="transferDialog" class="sheet-dlg">
+  <div class="dlg-body">
   <h2>Перевод USDC</h2>
   <p class="muted small">Деньги для спота и для фьючерсов лежат на разных счетах Hyperliquid. Перевод бесплатный и мгновенный. Нажмите на стрелку, чтобы поменять направление.</p>
   <button id="trSwap" class="tr-swap" type="button" title="Поменять направление"><span><small>Откуда</small><b id="trFrom">Фьючерсы</b></span><i aria-hidden="true">⇄</i><span><small>Куда</small><b id="trTo">Спот</b></span></button>
   <label class="inp" style="margin-top:10px"><span>Сумма</span><input id="trAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="0"><button id="trMax" class="inp-btn" type="button">Макс</button><em>USDC</em></label>
   <p class="muted small" id="trInfo"></p>
   <div class="row"><button id="trCancel" class="btn ghost grow" type="button">Отмена</button><button id="trGo" class="btn grow" type="button">Перевести</button></div>
+  </div>
 </dialog>
 <dialog id="adlDialog" class="sheet-dlg adl-dlg">
   <h2>Риск ADL</h2>
@@ -611,6 +613,7 @@
   <div class="row"><button id="adlClose" class="btn grow" type="button">Понятно</button></div>
 </dialog>
 <dialog id="fundDialog" class="sheet-dlg">
+  <div class="dlg-body">
   <h2>Пополнить</h2>
   <p class="muted small" id="fundTo">На ваш счёт</p>
   <div class="fund-keeper" id="fundKeeperBox">
@@ -635,8 +638,10 @@
   <p class="fund-out" id="fundOut" hidden></p>
   <p class="fund-wait" id="fundWait" hidden></p>
   <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button></div>
+  </div>
 </dialog>
 <dialog id="withdrawDialog" class="sheet-dlg">
+  <div class="dlg-body">
   <h2>Вывести</h2>
   <p class="muted small" id="wdTo">USDC вернётся только на подключённый кошелёк в сети Arbitrum. Адрес подставить нельзя: сайт деньги не получает.</p>
   <p class="muted small">Биржа удерживает 1 USDC из суммы. ETH не нужен. Обычно около 5 минут. Ключ для сделок этот вывод не подписывает.</p>
@@ -648,6 +653,7 @@
   <p class="fund-out" id="wdOut" hidden></p>
   <div class="row"><button id="wdMax" class="btn ghost grow" type="button">Макс</button><button id="wdGo" class="btn grow" type="button">Вывести</button></div>
   <div class="row"><button id="wdClose" class="btn ghost grow" type="button">Закрыть</button></div>
+  </div>
 </dialog>
 <dialog id="cashDlg" class="sheet-dlg">
   <h2 id="cashTitle">Вывод в процессе</h2>
@@ -671,7 +677,7 @@
 <script type="module" src="ladder.js?v=1794152000"></script>
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1795139000"></script>
+<script type="module" src="fund.js?v=1795144000"></script>
 <script src="liq.js?v=1795032614"></script>
 </body>
 </html>
