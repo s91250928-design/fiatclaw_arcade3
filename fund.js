@@ -565,16 +565,32 @@ document.getElementById("wdGo")?.addEventListener("click", async () => {
   const prev = btn.textContent;
   btn.textContent = "Ждём подпись…";
   wdHide("wdErr");
+  let before = null;
+  try {
+    const r = await fetch("/api/fund-status?address=" + addr);
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) before = String(j.usdc || "0");
+  } catch { /* без снимка прогресс всё равно по времени */ }
   try {
     const live = String(window.totumWallet.addr() || "").toLowerCase();
     if (live !== addr) throw new Error("Кошелёк сменился. Откройте вывод ещё раз.");
     const res = await ex.withdraw3({ destination: window.totumWallet.addr(), amount });
     if (res && res.status && res.status !== "ok") throw new Error("Биржа не приняла вывод. Деньги на месте.");
-    wdSay("Успешно");
+    wdSave({
+      addr,
+      amount,
+      net: money(n - 1),
+      started: Date.now(),
+      before,
+      phase: "wait",
+      chimed: false,
+    });
     const amt = document.getElementById("wdAmt");
     if (amt) amt.value = "";
-    try { await window.totumWallet.refresh?.(); } catch { /* не мешает выводу */ }
-    try { wdPaint(window.totumWallet.out()); } catch { wdPaint(null); }
+    wdDlg.close();
+    cashOpen();
+    cashWatch();
+    try { await window.totumWallet.refresh?.(); } catch { /* баланс биржи обновится сам */ }
   } catch (e) {
     if (e?.message) wdSay(wdHuman(e), true);
   } finally {
@@ -582,3 +598,197 @@ document.getElementById("wdGo")?.addEventListener("click", async () => {
     btn.textContent = prev;
   }
 });
+
+const WDKEY = "totum.wd";
+const WD_MS = 5 * 60 * 1000;
+
+function wdLoad() {
+  try {
+    const j = JSON.parse(localStorage.getItem(WDKEY) || "null");
+    return j && j.addr ? j : null;
+  } catch { return null; }
+}
+function wdSave(job) {
+  try { localStorage.setItem(WDKEY, JSON.stringify(job)); } catch { /* прогресс останется на экране */ }
+}
+
+function cashLeft(job) {
+  return Math.max(0, WD_MS - (Date.now() - Number(job.started || 0)));
+}
+
+function cashPaint() {
+  const job = wdLoad();
+  const show = job && (job.phase === "wait" || Date.now() - Number(job.doneAt || job.started) < 6 * 3600e3);
+  const text = !show ? "" : job.phase === "ok" ? "Успешно" : "Вывод в процессе";
+  for (const n of document.querySelectorAll("[data-cash-note], #cashNote")) {
+    n.hidden = !show;
+    n.classList.toggle("ok", !!show && job.phase === "ok");
+    n.textContent = text;
+  }
+  const dlg = document.getElementById("cashDlg");
+  if (!dlg?.open || !job) return;
+  const title = document.getElementById("cashTitle");
+  const addr = document.getElementById("cashAddr");
+  const eta = document.getElementById("cashEta");
+  const bar = document.getElementById("cashBar");
+  const wrap = document.getElementById("cashBarWrap");
+  const ok = document.getElementById("cashOk");
+  const left = cashLeft(job);
+  const pct = job.phase === "ok" ? 100 : Math.min(92, 8 + Math.round((1 - left / WD_MS) * 84));
+  if (bar) bar.style.width = pct + "%";
+  if (wrap) wrap.classList.toggle("ok", job.phase === "ok");
+  const step = job.phase === "ok" ? 3 : left < WD_MS * 0.55 ? 2 : 1;
+  document.querySelectorAll("#cashSteps span").forEach(n => {
+    const k = Number(n.dataset.step);
+    n.classList.toggle("done", k < step || job.phase === "ok");
+    n.classList.toggle("on", k === step && job.phase !== "ok");
+  });
+  if (title) title.textContent = job.phase === "ok" ? "Успешно" : "Вывод в процессе";
+  if (addr) {
+    addr.textContent = job.phase === "ok"
+      ? `${job.net} USDC на ${fundShort(job.addr)}.`
+      : `На ${fundShort(job.addr)} придёт ${job.net} USDC. С биржи списано ${job.amount}, комиссия 1.`;
+  }
+  if (eta) {
+    eta.hidden = job.phase === "ok";
+    const min = Math.max(1, Math.ceil(left / 60000));
+    eta.textContent = left > 0
+      ? `Перевод в процессе. На кошелёк примерно через ${min} мин.`
+      : "Мост ещё подтверждает перевод. Обычно это уже последние минуты.";
+  }
+  if (ok) {
+    if (job.phase !== "ok") { ok.hidden = true; ok.classList.remove("ok"); ok.textContent = ""; }
+    else if (!ok.classList.contains("ok")) {
+      ok.hidden = false;
+      ok.classList.add("ok");
+      ok.innerHTML = `<span class="fund-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13"/><path d="M10 16.5l4 4 8-9"/></svg></span><span>Успешно · ${fundShort(job.addr)}</span>`;
+    }
+  }
+}
+
+async function cashArrive(job) {
+  if (!job || job.phase === "ok") return job;
+  let next = job;
+  if (job.before != null) {
+    try {
+      const r = await fetch("/api/fund-status?address=" + job.addr);
+      const j = await r.json().catch(() => ({}));
+      const was = units(job.before) || 0n;
+      const now = units(j.usdc || "0") || 0n;
+      const need = units(job.net) || 0n;
+      if (r.ok && j.ok && now >= was + need - 5000n) next = { ...job, phase: "ok", doneAt: Date.now() };
+    } catch { /* проверим следующим заходом */ }
+  }
+  if (next.phase !== "ok" && Date.now() - Number(job.started) >= WD_MS + 3 * 60 * 1000) {
+    next = { ...job, phase: "ok", doneAt: Date.now() };
+  }
+  if (next !== job) {
+    wdSave(next);
+    if (!next.chimed) {
+      next.chimed = true;
+      wdSave(next);
+      fundChime();
+    }
+  }
+  return next;
+}
+
+let cashTimer = 0;
+let cashHit = 0;
+function cashWatch() {
+  clearInterval(cashTimer);
+  cashHit = 0;
+  cashTimer = setInterval(async () => {
+    const job = wdLoad();
+    if (!job || job.phase === "ok") { cashPaint(); if (job?.phase === "ok") clearInterval(cashTimer); return; }
+    if (++cashHit % 4 === 1) await cashArrive(job);
+    cashPaint();
+  }, 3000);
+}
+
+function cashOpen() {
+  const dlg = document.getElementById("cashDlg");
+  if (!dlg) return;
+  const list = document.getElementById("cashHistList");
+  if (list) list.hidden = true;
+  cashPaint();
+  if (!dlg.open) dlg.showModal();
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&", "<": "<", ">": ">", "\"": """, "'": "&#39;" }[c]));
+}
+
+async function cashHistory() {
+  const box = document.getElementById("cashHistList");
+  const addr = fundAddr();
+  if (!box) return;
+  box.hidden = false;
+  if (!addr) { box.innerHTML = `<p class="muted small">Сначала подключите кошелёк.</p>`; return; }
+  box.innerHTML = `<p class="muted small">Загружаем операции…</p>`;
+  try {
+    const r = await fetch("https://api.hyperliquid.xyz/info", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "userNonFundingLedgerUpdates", user: addr }),
+    });
+    const rows = await r.json();
+    const list = (Array.isArray(rows) ? rows : []).filter(x => x?.delta?.type === "deposit" || x?.delta?.type === "withdraw");
+    list.sort((a, b) => b.time - a.time);
+    if (!list.length) { box.innerHTML = `<p class="muted small">Пополнений и выводов пока не было.</p>`; return; }
+    const saved = wdLoad();
+    box.innerHTML = list.slice(0, 40).map(x => {
+      const d = x.delta;
+      const out = d.type === "withdraw";
+      const sum = Number(d.usdc);
+      const fee = Number(d.fee || 0);
+      const net = out ? Math.max(0, sum - (fee || 1)) : sum;
+      const where = (out && saved?.addr) ? saved.addr : addr;
+      const when = new Date(x.time).toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+      const route = out
+        ? `Откуда биржа · куда ${fundShort(where)} · USDC`
+        : `Откуда ${fundShort(where)} · куда биржа · USDC`;
+      const extra = out ? ` · на кошелёк ${money(net)}` : "";
+      return `<div class="cash-row"><b>${out ? "Вывод" : "Пополнение"}</b><small>${esc(when)} · ${esc(route)}${esc(extra)}</small><em class="${out ? "neg" : "pos"}">${out ? "−" : "+"}${esc(money(sum))} USDC</em></div>`;
+    }).join("");
+  } catch {
+    box.innerHTML = `<p class="muted small">История сейчас не открылась. Нажмите ещё раз.</p>`;
+  }
+}
+
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-cash-note], #cashNote")) cashOpen();
+});
+document.getElementById("cashClose")?.addEventListener("click", () => document.getElementById("cashDlg")?.close());
+document.getElementById("cashHist")?.addEventListener("click", cashHistory);
+window.totumCash = { paint: cashPaint, open: cashOpen };
+
+cashPaint();
+if (wdLoad()?.phase === "wait") cashWatch();
+else if (wdLoad()?.phase !== "ok") {
+  const addr = fundAddr();
+  if (addr) {
+    fetch("https://api.hyperliquid.xyz/info", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "userNonFundingLedgerUpdates", user: addr }),
+    }).then(r => r.json()).then(rows => {
+      if (wdLoad()?.phase === "wait") return;
+      const last = (Array.isArray(rows) ? rows : []).filter(x => x?.delta?.type === "withdraw").sort((a, b) => b.time - a.time)[0];
+      if (!last || Date.now() - last.time > WD_MS || Date.now() - last.time < 0) return;
+      const sum = Number(last.delta.usdc);
+      wdSave({
+        addr,
+        amount: money(sum),
+        net: money(Math.max(0, sum - Number(last.delta.fee || 1))),
+        started: last.time,
+        before: null,
+        phase: "wait",
+        chimed: false,
+        hash: last.hash,
+      });
+      cashWatch();
+      cashPaint();
+    }).catch(() => {});
+  }
+}

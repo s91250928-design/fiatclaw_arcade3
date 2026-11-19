@@ -2258,3 +2258,23 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .fund-wallets button{display:flex;align-items:center;gap:8px;width:100%;margin-top:6px;text-align:left}
 .fund-wallets img{width:22px;height:22px;border-radius:6px}
 .fund-assets{margin-top:10px}
+.cash-note,.cash-pill{border:0;cursor:pointer;font-weight:700;text-align:left}
+.cash-note{display:flex;align-items:center;width:100%;margin:-4px 0 12px;padding:11px 12px;border-radius:12px;background:rgba(245,158,11,.16);color:#f59e0b;font-size:14px}
+.cash-note.ok{background:rgba(34,197,94,.14);color:#22c55e}
+#cashNote{display:block;width:calc(100% - 16px);margin:8px;padding:8px 12px;border-radius:10px;background:rgba(245,158,11,.16);color:#f59e0b;font-size:13px;font-weight:700;text-align:left}
+#cashNote.ok{background:rgba(34,197,94,.14);color:#22c55e}
+.cash-note[hidden],#cashNote[hidden]{display:none}
+.cash-bar{height:6px;border-radius:99px;background:rgba(148,163,184,.25);overflow:hidden;margin:12px 0 8px}
+.cash-bar i{display:block;height:100%;width:0;background:#f59e0b;border-radius:99px;transition:width .45s ease}
+.cash-bar.ok i{background:#22c55e}
+.cash-steps{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)}
+.cash-steps .on{color:#f59e0b;font-weight:700}
+.cash-steps .done{color:#22c55e;font-weight:700}
+.cash-hist{margin-top:8px;max-height:280px;overflow:auto}
+.cash-row{padding:10px 0;border-bottom:1px solid var(--line)}
+.cash-row b{display:block}
+.cash-row small{display:block;color:var(--muted);margin-top:2px}
+.cash-row em{font-style:normal;font-weight:700}
+.cash-row .pos{color:#22c55e}
+.cash-row .neg{color:#f43f5e}
+#cashHist{margin-top:12px}
