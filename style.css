@@ -660,6 +660,16 @@ dialog#pnlDialog{width:min(1200px,calc(100vw - 32px),calc((100vh - 210px) * 1.78
 .pnl-opts{display:flex;gap:14px;flex-wrap:wrap;margin:10px 2px}
 .pnl-opts .chk{color:var(--text)}
 #pnlDialog .row{flex-wrap:wrap}
+dialog#pnlDialog.pnl-saving{position:fixed;inset:0}
+.pnl-save{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;background:var(--bg);overflow:auto;-webkit-touch-callout:default}
+.pnl-save p{margin:0;max-width:340px;text-align:center;font:600 14px/1.4 "Manrope",var(--font);color:var(--text)}
+.pnl-save img{width:min(100%,920px);height:auto;border-radius:12px;-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto;touch-action:auto}
+.pnl-save .row{width:min(100%,420px);justify-content:center}
+@media (max-width:900px){
+  dialog#pnlDialog.pnl-saving{width:100% !important;max-width:100% !important;height:100% !important;max-height:none !important;margin:0 !important;padding:0 !important;border:0 !important;border-radius:0;overflow:hidden !important}
+  .pnl-save{padding:18px 14px calc(18px + env(safe-area-inset-bottom))}
+  .pnl-save img{width:100%}
+}
 
 /* Карточки в списке не сжимаются, список прокручивается */
 .op-list>*{flex:none}
