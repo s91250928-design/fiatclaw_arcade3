@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795145000">
+<link rel="stylesheet" href="style.css?v=1795169000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -644,21 +644,29 @@
   <div class="dlg-body">
   <h2>Вывести</h2>
   <p class="arb-one">Сеть Arbitrum One</p>
-  <p class="muted small" id="wdTo">USDC приходит только в сети Arbitrum One. Ethereum, TRON, TON и другие сети этот вывод не принимают.</p>
-  <p class="muted small">Биржа удерживает 1 USDC. ETH не нужен. Обычно около 5 минут. Ключ для сделок этот вывод не подписывает. Сайт деньги не получает.</p>
   <div class="seg" id="wdDest">
     <button type="button" data-dest="own" class="on">На этот кошелёк</button>
     <button type="button" data-dest="other">На другой адрес</button>
   </div>
-  <p class="muted small" id="wdOwn">Кошелёк подключён. Сеть Arbitrum One.</p>
+  <p id="wdOwn">Кошелёк подключён</p>
+  <label class="consent wd-check" id="wdOwnOkWrap">
+    <input type="checkbox" id="wdOwnOk">
+    <i class="box"></i>
+    <span>Я подтверждаю, что это мой адрес в сети Arbitrum One.</span>
+  </label>
   <div id="wdOther" hidden>
+    <label class="wd-addr"><span>Адрес сети Arbitrum One</span><input id="wdAddr" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="0x…"></label>
+    <p id="wdAddrState">Вставьте адрес</p>
     <label class="consent wd-check">
       <input type="checkbox" id="wdArb">
       <i class="box"></i>
-      <span>Ставлю галочку: вывод в сети <b>Arbitrum One</b>. Адрес из другой сети я не вставляю.</span>
+      <span>Я вставил адрес сети Arbitrum One.</span>
     </label>
-    <label class="wd-addr"><span>Адрес в сети Arbitrum One</span><input id="wdAddr" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="0x…"></label>
-    <p class="muted small" id="wdAddrState">Сначала галочка, потом адрес</p>
+    <label class="consent wd-check">
+      <input type="checkbox" id="wdMine">
+      <i class="box"></i>
+      <span>Я подтверждаю, что это мой адрес.</span>
+    </label>
   </div>
   <label class="inp"><span>USDC</span><input id="wdAmt" inputmode="decimal" placeholder="больше 1" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-wd-usdc"></label>
   <p class="muted small fund-min" id="wdAvail">Минимум больше 1 USDC</p>
@@ -674,7 +682,6 @@
   <div class="dlg-body">
     <h2>Проверьте вывод</h2>
     <p class="arb-one">Сеть Arbitrum One</p>
-    <p class="muted small">Перед кнопкой внизу сверьте адрес, сумму, сеть, комиссию и время.</p>
     <div class="wd-review" id="wdReview"></div>
     <p class="neg small" id="wdFinalErr" hidden></p>
   </div>
@@ -707,7 +714,7 @@
 <script type="module" src="ladder.js?v=1794152000"></script>
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1795145000"></script>
+<script type="module" src="fund.js?v=1795169000"></script>
 <script src="liq.js?v=1795032614"></script>
 </body>
 </html>

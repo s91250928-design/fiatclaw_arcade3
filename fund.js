@@ -616,9 +616,14 @@ let wdPending = null;
 function wdOwnText() {
   const n = document.getElementById("wdOwn");
   const addr = fundAddr();
-  if (n) n.textContent = addr
-    ? `Кошелёк ${fundShort(addr)}. Сеть Arbitrum One.`
-    : "Сначала подключите кошелёк. Сеть вывода — Arbitrum One.";
+  if (n) n.textContent = addr ? `Кошелёк ${fundShort(addr)}` : "Сначала подключите кошелёк";
+}
+function wdChecks() {
+  return {
+    own: !!document.getElementById("wdOwnOk")?.checked,
+    arb: !!document.getElementById("wdArb")?.checked,
+    mine: !!document.getElementById("wdMine")?.checked,
+  };
 }
 function wdResetDest() {
   document.querySelectorAll("#wdDest button").forEach(n => n.classList.toggle("on", n.dataset.dest === "own"));
@@ -626,8 +631,12 @@ function wdResetDest() {
   if (other) other.hidden = true;
   const own = document.getElementById("wdOwn");
   if (own) own.hidden = false;
-  const box = document.getElementById("wdArb");
-  if (box) box.checked = false;
+  const ownOk = document.getElementById("wdOwnOkWrap");
+  if (ownOk) ownOk.hidden = false;
+  for (const id of ["wdArb", "wdMine", "wdOwnOk"]) {
+    const box = document.getElementById(id);
+    if (box) box.checked = false;
+  }
   const field = document.getElementById("wdAddr");
   if (field) field.value = "";
   wdOwnText();
@@ -636,19 +645,20 @@ function wdResetDest() {
 function wdGate() {
   const btn = document.getElementById("wdGo");
   const st = document.getElementById("wdAddrState");
+  const c = wdChecks();
   if (!wdModeOther()) {
-    if (btn) { btn.disabled = false; btn.textContent = "Дальше"; }
+    if (btn) { btn.disabled = !(c.own && fundAddr()); btn.textContent = "Дальше"; }
     return;
   }
-  const checked = !!document.getElementById("wdArb")?.checked;
   const state = addrState(document.getElementById("wdAddr")?.value || "");
+  const ready = c.arb && c.mine && state.ok;
   if (st) {
-    st.textContent = !checked ? "Сначала отметьте: сеть Arbitrum One" : state.text;
-    st.classList.toggle("pos", checked && state.ok);
-    st.classList.toggle("neg", checked && !state.empty && !state.ok);
+    st.textContent = !state.ok ? state.text : ready ? "Адрес действителен" : "Подтвердите, что адрес ваш и он в сети Arbitrum One";
+    st.classList.toggle("pos", ready);
+    st.classList.toggle("neg", !state.empty && !state.ok);
   }
   if (btn) {
-    btn.disabled = !(checked && state.ok);
+    btn.disabled = !ready;
     btn.textContent = "Подтвердить адрес";
   }
 }
@@ -669,8 +679,13 @@ function wdOpenReview() {
     wdSay(picked.own ? "Сначала подключите кошелёк." : "Адрес недействителен.", true);
     return;
   }
-  if (!picked.own && !document.getElementById("wdArb")?.checked) {
-    wdSay("Отметьте, что сеть — Arbitrum One.", true);
+  const c = wdChecks();
+  if (picked.own && !c.own) {
+    wdSay("Подтвердите, что это ваш адрес.", true);
+    return;
+  }
+  if (!picked.own && (!c.arb || !c.mine)) {
+    wdSay("Подтвердите, что адрес ваш и он в сети Arbitrum One.", true);
     return;
   }
   const mine = fundAddr();
@@ -684,9 +699,9 @@ function wdOpenReview() {
   };
   const box = document.getElementById("wdReview");
   if (box) {
-    const warn = wdPending.same
-      ? "Адрес совпадает с подключённым кошельком. Сеть всё равно только Arbitrum One."
-      : "Это не подключённый кошелёк. Сверьте каждый символ. Сеть только Arbitrum One: в другую сеть и на чужой адрес деньги не вернуть.";
+    const warn = wdPending.own
+      ? "Вы подтвердили: это ваш адрес в сети Arbitrum One."
+      : "Вы подтвердили: адрес ваш и он в сети Arbitrum One. На чужой адрес деньги не вернуть.";
     box.innerHTML = `<div class="wd-grid">${[
       wdRow("Откуда", "Биржа"),
       wdRow("Куда", wdPending.own ? "На подключённый кошелёк" : "На другой адрес"),
@@ -714,14 +729,14 @@ function wdPaint(info) {
   const spot = document.getElementById("wdSpot");
   const net = document.getElementById("wdNet");
   const max = info ? (info.unified ? info.spot : info.perp) : 0;
-  if (avail) avail.textContent = info ? `Доступно ${money(max)} USDC. Минимум больше 1: биржа удерживает 1.` : "Минимум больше 1 USDC";
+  if (avail) avail.textContent = info ? `Доступно ${money(max)} USDC` : "";
   if (spot) {
     const extra = info && !info.unified && info.spot > 0.01;
     spot.hidden = !extra;
-    spot.textContent = extra ? `На споте ещё ${money(info.spot)} USDC. Сначала переведите их на фьючерсы — вывод идёт оттуда.` : "";
+    spot.textContent = extra ? `На споте ${money(info.spot)} USDC. Сначала переведите на фьючерсы.` : "";
   }
   const n = Number(String(document.getElementById("wdAmt")?.value || "").replace(",", "."));
-  if (net) net.textContent = n > 1 ? `На адрес в сети Arbitrum One придёт около ${money(n - 1)} USDC. Комиссия 1.` : "";
+  if (net) net.textContent = n > 1 ? `Придёт ${money(n - 1)} USDC. Комиссия 1. Сеть Arbitrum One.` : "";
   return max;
 }
 
@@ -754,10 +769,14 @@ document.getElementById("wdDest")?.addEventListener("click", (e) => {
   if (box) box.hidden = !other;
   const own = document.getElementById("wdOwn");
   if (own) own.hidden = other;
+  const ownOk = document.getElementById("wdOwnOkWrap");
+  if (ownOk) ownOk.hidden = other;
   wdHide("wdErr");
   wdGate();
 });
 document.getElementById("wdArb")?.addEventListener("change", wdGate);
+document.getElementById("wdMine")?.addEventListener("change", wdGate);
+document.getElementById("wdOwnOk")?.addEventListener("change", wdGate);
 document.getElementById("wdAddr")?.addEventListener("input", wdGate);
 document.getElementById("wdMax")?.addEventListener("click", () => {
   let info = null;
@@ -783,8 +802,13 @@ document.getElementById("wdSend")?.addEventListener("click", async () => {
     fail("Сумма или адрес изменились. Нажмите «Изменить» и проверьте ещё раз.");
     return;
   }
-  if (!again.own && !document.getElementById("wdArb")?.checked) {
-    fail("Галочка сети Arbitrum One снята. Вывод остановлен.");
+  const c = wdChecks();
+  if (again.own && !c.own) {
+    fail("Подтверждение адреса снято. Вывод остановлен.");
+    return;
+  }
+  if (!again.own && (!c.arb || !c.mine)) {
+    fail("Подтверждение адреса снято. Вывод остановлен.");
     return;
   }
   const ex = window.totumWallet?.ex?.();

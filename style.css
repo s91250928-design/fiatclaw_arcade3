@@ -2263,14 +2263,17 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .arb-one{display:inline-flex;align-items:center;gap:6px;margin:8px 0 0;padding:5px 10px;border-radius:999px;font-weight:800;font-size:13px;color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
 .arb-one::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
 #wdDest{margin-top:12px}
-.wd-check{margin-top:12px;font-size:14px;line-height:1.4}
+.wd-check{margin-top:12px;font-size:15px;line-height:1.35;color:var(--text);font-weight:600}
 .wd-addr{display:block;margin-top:10px}
 .wd-addr span{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700}
 .wd-addr input{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);color:var(--text);font-family:var(--mono)}
+#wdAddrState{margin:8px 2px 0;font-size:14px;font-weight:700}
 #wdAddrState.pos{color:var(--buy)}
 #wdAddrState.neg{color:var(--sell)}
 #wdGo:disabled{opacity:.45}
-#wdFinal{width:min(480px,calc(100% - 24px));max-height:min(92vh,860px);padding:0;display:flex;flex-direction:column}
+#wdFinal{width:min(480px,calc(100% - 24px));max-height:min(92vh,860px);padding:0}
+#wdFinal:not([open]){display:none!important}
+#wdFinal[open]{display:flex;flex-direction:column}
 #wdFinal .dlg-body{padding:16px 16px 8px;overflow:auto;flex:1 1 auto;min-height:0}
 #wdFinal .dlg-foot{flex:none;display:flex;flex-direction:column;gap:8px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}
 #wdFinal .dlg-foot .btn{padding:14px;font-size:16px}
