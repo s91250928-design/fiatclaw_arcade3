@@ -583,13 +583,13 @@ dialog.page-dlg[open]{display:flex}
   html.dlg-lock,html.dlg-lock body{overflow:hidden;overscroll-behavior:none}
   html.dlg-lock .mnav{display:none!important}
   dialog.sheet-dlg,dialog.page-dlg{overscroll-behavior:contain}
-  #fundDialog,#withdrawDialog,#cashDlg,#histDialog,#transferDialog{overflow-anchor:none}
+  #fundDialog,#withdrawDialog,#wdFinal,#cashDlg,#histDialog,#transferDialog{overflow-anchor:none}
   @media (max-width:900px){
     html.dlg-lock,html.dlg-lock body{position:fixed;width:100%;height:100lvh;overflow:hidden}
-    #fundDialog[open],#withdrawDialog[open],#cashDlg[open],#histDialog[open],#transferDialog[open]{
+    #fundDialog[open],#withdrawDialog[open],#wdFinal[open],#cashDlg[open],#histDialog[open],#transferDialog[open]{
       position:fixed;inset:0;width:100%;max-width:none;height:100lvh;max-height:100lvh;margin:0;border:0;border-radius:0;overflow:hidden;display:flex;flex-direction:column
     }
-    #fundDialog .dlg-body,#withdrawDialog .dlg-body,#transferDialog .dlg-body{
+    #fundDialog .dlg-body,#withdrawDialog .dlg-body,#wdFinal .dlg-body,#cashDlg .dlg-body,#transferDialog .dlg-body{
       flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;overflow-anchor:none
     }
   }
@@ -2259,7 +2259,30 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 @keyframes fund-ring{to{stroke-dashoffset:0}}
 @keyframes fund-tick{to{stroke-dashoffset:0}}
 @keyframes fund-word{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-#fundDialog .inp input,#withdrawDialog .inp input,#transferDialog .inp input{font-size:16px;touch-action:auto}
+#fundDialog .inp input,#withdrawDialog .inp input,#transferDialog .inp input,#wdAddr{font-size:16px;touch-action:auto}
+.arb-one{display:inline-flex;align-items:center;gap:6px;margin:8px 0 0;padding:5px 10px;border-radius:999px;font-weight:800;font-size:13px;color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.arb-one::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+#wdDest{margin-top:12px}
+.wd-check{margin-top:12px;font-size:14px;line-height:1.4}
+.wd-addr{display:block;margin-top:10px}
+.wd-addr span{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700}
+.wd-addr input{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);color:var(--text);font-family:var(--mono)}
+#wdAddrState.pos{color:var(--buy)}
+#wdAddrState.neg{color:var(--sell)}
+#wdGo:disabled{opacity:.45}
+#wdFinal{width:min(480px,calc(100% - 24px));max-height:min(92vh,860px);padding:0;display:flex;flex-direction:column}
+#wdFinal .dlg-body{padding:16px 16px 8px;overflow:auto;flex:1 1 auto;min-height:0}
+#wdFinal .dlg-foot{flex:none;display:flex;flex-direction:column;gap:8px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}
+#wdFinal .dlg-foot .btn{padding:14px;font-size:16px}
+.wd-review{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.wd-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.wd-row{padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.wd-row span{display:block;color:var(--muted);font-size:12px;font-weight:600}
+.wd-row b{display:block;margin-top:2px;font-size:16px;font-weight:800;line-height:1.3}
+.wd-row.addr b{font-family:var(--mono);font-size:14px;font-weight:700;word-break:break-all}
+.wd-row.net b{color:var(--accent);font-size:20px}
+.wd-row.ok b{color:var(--buy)}
+.wd-warn{margin:0;padding:10px 12px;border-radius:12px;background:rgba(245,158,11,.16);color:#f59e0b;font-size:13px;line-height:1.4}
 .fund-keeper{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
 .fund-keeper p{margin:0}
 #fundKeeperGo{margin-top:8px}
