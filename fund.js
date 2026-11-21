@@ -326,6 +326,26 @@ async function sameWallet(p, from) {
   } catch { return false; }
 }
 
+const ARB = { chainId: "0xa4b1", chainName: "Arbitrum One", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: ["https://arb1.arbitrum.io/rpc"], blockExplorerUrls: ["https://arbiscan.io"] };
+
+async function onArbitrum(p) {
+  const req = reqOf(p);
+  let cur = "";
+  try { cur = String(await req("eth_chainId", [])).toLowerCase(); } catch {}
+  if (cur === "0xa4b1" || cur === "42161") return;
+  try {
+    await req("wallet_switchEthereumChain", [{ chainId: "0xa4b1" }]);
+  } catch (e) {
+    const m = String(e?.message || e || "");
+    if (e?.code === 4902 || /4902|unrecognized|not added|not configured/i.test(m)) {
+      await req("wallet_addEthereumChain", [ARB]);
+      return;
+    }
+    if (/reject|denied|cancel|отклон/i.test(m)) throw e;
+    throw new Error("Переключите кошелёк на сеть Arbitrum One и подтвердите ещё раз.");
+  }
+}
+
 async function signPermit(p, from, typed) {
   const req = reqOf(p);
   const json = JSON.stringify(typed);
@@ -364,7 +384,7 @@ async function hlCredit(want) {
     let sig = "";
     let last = null;
     for (const p of tryList) {
-      try { sig = await signPermit(p, from, ready.typed); break; } catch (e) {
+      try { await onArbitrum(p); sig = await signPermit(p, from, ready.typed); break; } catch (e) {
         last = e;
         if (!gone(e)) throw e;
       }
@@ -431,7 +451,7 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
     const credit = await waitArrived(mine, before);
     if (mine !== run) return;
     btn.textContent = "Зачисляем…";
-    say("USDC на кошельке. Подтвердите разрешение — комиссию сети платим мы, с вас ETH не нужен.");
+    say("Сначала кошелёк спросит сеть Arbitrum One, потом ровно эту сумму USDC. Это не доступ ко всем деньгам. Комиссию сети платим мы.");
     const hash = await hlCredit(credit);
     if (mine !== run) return;
     const hl = document.getElementById("fundHlAmt");
@@ -456,6 +476,7 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
   btn.textContent = "Ждём подпись…";
   fundHide("fundErr");
   try {
+    say("Кошелёк спросит сеть Arbitrum One, затем ровно эту сумму USDC. Это не доступ ко всем деньгам.");
     const hash = await hlCredit(units(document.getElementById("fundHlAmt").value));
     if (mine !== run) return;
     say("Успешно");

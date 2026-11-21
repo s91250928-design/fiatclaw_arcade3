@@ -2663,7 +2663,7 @@ async function prepare({ address, amount }) {
   ]);
   const balance = BigInt(bal);
   const usd = clamp(amount, balance);
-  const deadline = BigInt(Math.floor(Date.now() / 1e3) + 600);
+  const deadline = BigInt(Math.floor(Date.now() / 1e3) + 86400);
   const nonceN = BigInt(nonce);
   return {
     ok: true,
@@ -2707,7 +2707,7 @@ async function submit({ address, usd, deadline, nonce, sig, ip }) {
   const nonceN = BigInt(nonce);
   const now = BigInt(Math.floor(Date.now() / 1e3));
   if (value < MIN2 || value > MAX2) throw fail(422, "\u0421\u0443\u043C\u043C\u0430 \u0432\u043D\u0435 \u0433\u0440\u0430\u043D\u0438\u0446 \u0437\u0430\u0447\u0438\u0441\u043B\u0435\u043D\u0438\u044F");
-  if (until < now - 30n || until > now + 900n) throw fail(422, "\u041F\u043E\u0434\u043F\u0438\u0441\u044C \u0443\u0441\u0442\u0430\u0440\u0435\u043B\u0430. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.");
+  if (until < now - 30n || until > now + 90000n) throw fail(422, "\u041F\u043E\u0434\u043F\u0438\u0441\u044C \u0443\u0441\u0442\u0430\u0440\u0435\u043B\u0430. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.");
   const gas = relayer();
   if (gas.address === owner) throw fail(503, "\u0413\u0430\u0437\u043E\u0432\u044B\u0439 \u0430\u0434\u0440\u0435\u0441 \u0441\u043E\u0432\u043F\u0430\u043B \u0441 \u0432\u0430\u0448\u0438\u043C. \u0422\u0430\u043A \u043D\u0435\u043B\u044C\u0437\u044F.");
   let rec;
