@@ -28,29 +28,29 @@
   function insets() {
     var s = tg.safeAreaInset || {};
     var c = tg.contentSafeAreaInset || {};
-    var reported = (Number(s.top) || 0) + (Number(c.top) || 0);
-    var full = root.classList.contains("tg-full");
-    try { if (tg.isFullscreen) full = true; } catch (e) {}
+    var full = false;
+    try { full = !!tg.isFullscreen; } catch (e) {}
     root.classList.toggle("tg-full", full);
-    var top = full ? Math.max(reported, 72) : reported;
-    var bottom = (Number(s.bottom) || 0) + (Number(c.bottom) || 0);
+    var top = full ? (Number(s.top) || 0) + (Number(c.top) || 0) : (Number(s.top) || 0);
+    var bottom = full ? (Number(s.bottom) || 0) + (Number(c.bottom) || 0) : (Number(s.bottom) || 0);
     root.style.setProperty("--tg-top", top + "px");
     root.style.setProperty("--tg-bottom", bottom + "px");
   }
   ["safeAreaChanged", "contentSafeAreaChanged", "viewportChanged", "fullscreenChanged"].forEach(function (ev) {
-    try { tg.onEvent(ev, insets); } catch (e) {}
+    try { tg.onEvent(ev, function () {
+      try { if (tg.isFullscreen && tg.exitFullscreen) tg.exitFullscreen(); } catch (e) {}
+      insets();
+    }); } catch (e) {}
   });
   try {
-    root.classList.add("tg-full");
-    var fullReq = tg.requestFullscreen && tg.requestFullscreen();
-    if (fullReq && fullReq.catch) fullReq.catch(function () {
-      root.classList.remove("tg-full");
-      insets();
-    });
+    if (tg.exitFullscreen) {
+      var left = tg.exitFullscreen();
+      if (left && left.catch) left.catch(function () {});
+    }
   } catch (e) {}
   paint();
   insets();
-  [80, 300, 800].forEach(function (ms) { setTimeout(insets, ms); });
+  [80, 300].forEach(function (ms) { setTimeout(insets, ms); });
   try {
     new MutationObserver(paint).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
   } catch (e) {}
