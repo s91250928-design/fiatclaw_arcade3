@@ -583,13 +583,13 @@ dialog.page-dlg[open]{display:flex}
   html.dlg-lock,html.dlg-lock body{overflow:hidden;overscroll-behavior:none}
   html.dlg-lock .mnav{display:none!important}
   dialog.sheet-dlg,dialog.page-dlg{overscroll-behavior:contain}
-  #fundDialog,#withdrawDialog,#wdFinal,#cashDlg,#histDialog,#transferDialog{overflow-anchor:none}
+  #fundDialog,#fundWalletDlg,#withdrawDialog,#wdFinal,#cashDlg,#histDialog,#transferDialog{overflow-anchor:none}
   @media (max-width:900px){
     html.dlg-lock,html.dlg-lock body{position:fixed;width:100%;height:100lvh;overflow:hidden}
-    #fundDialog[open],#withdrawDialog[open],#wdFinal[open],#cashDlg[open],#histDialog[open],#transferDialog[open]{
+    #fundDialog[open],#fundWalletDlg[open],#withdrawDialog[open],#wdFinal[open],#cashDlg[open],#histDialog[open],#transferDialog[open]{
       position:fixed;inset:0;width:100%;max-width:none;height:100lvh;max-height:100lvh;margin:0;border:0;border-radius:0;overflow:hidden;display:flex;flex-direction:column
     }
-    #fundDialog .dlg-body,#withdrawDialog .dlg-body,#wdFinal .dlg-body,#cashDlg .dlg-body,#transferDialog .dlg-body{
+    #fundDialog .dlg-body,#fundWalletDlg .dlg-body,#withdrawDialog .dlg-body,#wdFinal .dlg-body,#cashDlg .dlg-body,#transferDialog .dlg-body{
       flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;overflow-anchor:none
     }
   }
@@ -2265,7 +2265,7 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 @keyframes fund-ring{to{stroke-dashoffset:0}}
 @keyframes fund-tick{to{stroke-dashoffset:0}}
 @keyframes fund-word{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-#fundDialog .inp input,#withdrawDialog .inp input,#transferDialog .inp input,#wdAddr{font-size:16px;touch-action:auto}
+#fundDialog .inp input,#fundWalletDlg .inp input,#withdrawDialog .inp input,#transferDialog .inp input,#wdAddr{font-size:16px;touch-action:auto}
 .arb-one{display:inline-flex;align-items:center;gap:6px;margin:8px 0 0;padding:5px 10px;border-radius:999px;font-weight:800;font-size:13px;color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
 .arb-one::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
 #wdDest{margin-top:12px}
@@ -2297,13 +2297,14 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 #fundKeeperGo{margin-top:8px}
 #wdNet:empty,#wdSpot:empty{display:none}
 .fund-min{margin:6px 2px 0}
+.fund-hl{margin-top:12px}
 .fund-send{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel2)}
 .fund-qr-wrap{width:168px;margin:10px auto 0;padding:8px;border-radius:16px;background:#fff}
 .fund-qr{display:block;width:100%;height:auto}
 .fund-token{margin:10px 0 0;text-align:center;font:800 14px "Manrope",var(--font)}
 .fund-copy{display:block;width:100%;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:700 12px var(--mono,ui-monospace,monospace);word-break:break-all;cursor:pointer;text-align:center}
 .fund-send .muted{margin:8px 0 0}
-#fundOther{margin-top:12px}
+#fundOther,#fundWalletOpen{margin-top:12px}
 #fundOtherBox{margin-top:4px}
 #fundOtherBox .fund-other{display:inline-block;margin-top:0;padding:0;border:0;background:none;color:var(--dim);font:inherit;font-size:13px;cursor:pointer}
 .fund-wait{margin:8px 0 0;color:var(--dim);font-size:13px}

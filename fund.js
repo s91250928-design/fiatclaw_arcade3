@@ -232,7 +232,33 @@ document.getElementById("fundCopy")?.addEventListener("click", async () => {
   btn.textContent = "Адрес скопирован";
   setTimeout(() => { if (btn.textContent === "Адрес скопирован") btn.textContent = prev; }, 1600);
 });
+function fundWalletShow() {
+  const to = document.getElementById("fundWalletTo");
+  const addr = fundAddr();
+  if (to) to.textContent = addr ? `Счёт ${fundShort(addr)}` : "Сначала подключите кошелёк";
+  fundHide("fundOut");
+  fundHide("fundErr");
+  const other = document.getElementById("fundOtherBox");
+  if (other) other.hidden = true;
+  const hl = document.getElementById("fundHlBox");
+  if (hl) hl.hidden = !addr;
+  fundKeeperNote();
+  const dlg = document.getElementById("fundWalletDlg");
+  dlg?.showModal();
+  pinDlg(dlg);
+  fundArm();
+  fundWatch();
+}
+
+document.getElementById("fundWalletOpen")?.addEventListener("click", fundWalletShow);
+document.getElementById("fundWalletClose")?.addEventListener("click", () => {
+  clearInterval(fundTimer);
+  run++;
+  document.getElementById("fundWalletDlg")?.close();
+});
+document.getElementById("fundWalletDlg")?.addEventListener("close", () => { clearInterval(fundTimer); run++; });
 document.getElementById("fundKeeperGo")?.addEventListener("click", () => {
+  document.getElementById("fundWalletDlg")?.close();
   fundDlg.close();
   document.getElementById("btnConnect")?.click();
 });
@@ -424,7 +450,7 @@ async function waitArrived(mine, before) {
     if (live == null) continue;
     if (live - before >= 5000000n) return live - before;
   }
-  throw new Error("USDC ещё идёт на кошелёк. Как появится, отправьте его на адрес Totum выше.");
+  throw new Error("USDC ещё идёт на кошелёк. Как появится, нажмите «Зачислить с кошелька».");
 }
 
 document.getElementById("fundGo")?.addEventListener("click", async () => {
@@ -455,16 +481,19 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
       if (mine !== run) return;
     }
     if (!j.sign) throw new Error("Перевод не собрался");
-    say("Подтвердите обмен в кошельке. Когда USDC придёт, отправьте его на адрес Totum выше.");
+    say("Подтвердите обмен в кошельке. Когда USDC придёт, зачислим его.");
     btn.textContent = "Ждём кошелёк…";
     await send(j.sign);
     if (mine !== run) return;
-    say("Обмен подписан. Ждём USDC на кошелёк.");
+    say("Обмен подписан. Ждём USDC и сразу зачислим.");
     btn.textContent = "Ждём USDC…";
     const credit = await waitArrived(mine, before);
     if (mine !== run) return;
-    btn.textContent = "Готово";
-    say("USDC уже на кошельке. Отправьте его обычным переводом на адрес Totum выше, сеть Arbitrum One.");
+    btn.textContent = "Зачисляем…";
+    say("USDC на кошельке. Подтвердите в кошельке: спишется только эта сумма.");
+    await hlCredit(credit);
+    if (mine !== run) return;
+    say("Успешно");
   } catch (e) {
     if (mine === run && e?.message) say(human(e), true);
   } finally {
@@ -475,8 +504,29 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
   }
 });
 
-document.getElementById("fundHl")?.addEventListener("click", () => {
-  say("Отправьте USDC на адрес выше. Разрешение в кошельке не нужно.");
+document.getElementById("fundHl")?.addEventListener("click", async () => {
+  const btn = document.getElementById("fundHl");
+  if (!btn || crediting) return;
+  fundUnlock();
+  const mine = ++run;
+  btn.disabled = true;
+  btn.textContent = "Ждём подпись…";
+  fundHide("fundErr");
+  try {
+    say("Подтвердите в кошельке. Списывается только введённая сумма.");
+    await hlCredit(units(document.getElementById("fundHlAmt").value));
+    if (mine !== run) return;
+    say("Успешно");
+    const amt = document.getElementById("fundHlAmt");
+    if (amt) amt.value = "";
+  } catch (e) {
+    if (mine === run && e?.message) say(human(e), true);
+  } finally {
+    if (mine === run) {
+      btn.disabled = false;
+      btn.textContent = "Зачислить с кошелька";
+    }
+  }
 });
 
 const wdDlg = document.getElementById("withdrawDialog");
