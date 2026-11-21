@@ -191,12 +191,12 @@ function fundKeeperNote() {
   const here = keeperTrade();
   if (box) {
     box.textContent = here && addr
-      ? "Это Keeper. Обмен и зачисление подтверждаются в нём — второй кошелёк не нужен."
+      ? "Это Keeper. USDC отправляйте из него на адрес ниже — тогда они придут на этот счёт."
       : here
-        ? "Вы в браузере Keeper. Подключите этот кошелёк: оба подтверждения придут сюда."
+        ? "Вы в браузере Keeper. Подключите кошелёк и отправьте USDC на адрес ниже."
         : addr
-          ? "Сейчас подключён другой кошелёк. Отключите его и выберите Keeper — тогда обмен и зачисление придут в одно приложение."
-          : "Keeper держит и TON, и Arbitrum. Откройте сайт в его браузере или подключите его как торговый кошелёк — обмен и зачисление придут в одно приложение, не в OKX.";
+          ? "Отправляйте USDC с подключённого кошелька на адрес ниже. Тогда они придут на этот счёт Totum."
+          : "Сеть Arbitrum One, токен USDC. Сканируйте код или скопируйте адрес и отправьте сами.";
   }
   if (go) go.hidden = !!addr;
 }
@@ -204,11 +204,9 @@ function fundKeeperNote() {
 function fundShow() {
   const to = document.getElementById("fundTo");
   const addr = fundAddr();
-  if (to) to.textContent = addr ? `Кошелёк ${fundShort(addr)}. USDC с него зачисляется на биржу.` : "Сначала подключите торговый счёт";
+  if (to) to.textContent = addr ? `Счёт Totum для ${fundShort(addr)}. Отправьте USDC с этого же кошелька.` : "Отправьте USDC. Счёт откроется у кошелька, с которого ушёл перевод.";
   fundHide("fundOut");
   fundHide("fundErr");
-  const hl = document.getElementById("fundHlBox");
-  if (hl) hl.hidden = !addr;
   const other = document.getElementById("fundOtherBox");
   if (other) other.hidden = true;
   fundKeeperNote();
@@ -218,7 +216,22 @@ function fundShow() {
   fundWatch();
 }
 
-document.getElementById("btnFund")?.addEventListener("click", fundShow);
+document.getElementById("fundCopy")?.addEventListener("click", async () => {
+  const btn = document.getElementById("fundCopy");
+  const addr = btn?.dataset.addr || "";
+  if (!addr) return;
+  try { await navigator.clipboard.writeText(addr); } catch {
+    const t = document.createElement("textarea");
+    t.value = addr;
+    document.body.appendChild(t);
+    t.select();
+    try { document.execCommand("copy"); } catch {}
+    t.remove();
+  }
+  const prev = btn.textContent;
+  btn.textContent = "Адрес скопирован";
+  setTimeout(() => { if (btn.textContent === "Адрес скопирован") btn.textContent = prev; }, 1600);
+});
 document.getElementById("fundKeeperGo")?.addEventListener("click", () => {
   fundDlg.close();
   document.getElementById("btnConnect")?.click();
@@ -411,7 +424,7 @@ async function waitArrived(mine, before) {
     if (live == null) continue;
     if (live - before >= 5000000n) return live - before;
   }
-  throw new Error("USDC ещё идёт на кошелёк. Как появится — нажмите «Зачислить на биржу». Отдельно покупать ничего не нужно.");
+  throw new Error("USDC ещё идёт на кошелёк. Как появится, отправьте его на адрес Totum выше.");
 }
 
 document.getElementById("fundGo")?.addEventListener("click", async () => {
@@ -442,21 +455,16 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
       if (mine !== run) return;
     }
     if (!j.sign) throw new Error("Перевод не собрался");
-    say("Подтвердите обмен в кошельке. Как USDC придёт, сразу зачислим его на биржу.");
+    say("Подтвердите обмен в кошельке. Когда USDC придёт, отправьте его на адрес Totum выше.");
     btn.textContent = "Ждём кошелёк…";
     await send(j.sign);
     if (mine !== run) return;
-    say("Обмен подписан. Ждём USDC на кошелёк и сразу отправляем на биржу.");
+    say("Обмен подписан. Ждём USDC на кошелёк.");
     btn.textContent = "Ждём USDC…";
     const credit = await waitArrived(mine, before);
     if (mine !== run) return;
-    btn.textContent = "Зачисляем…";
-    say("Сначала кошелёк спросит сеть Arbitrum One, потом ровно эту сумму USDC. Это не доступ ко всем деньгам. Комиссию сети платим мы.");
-    const hash = await hlCredit(credit);
-    if (mine !== run) return;
-    const hl = document.getElementById("fundHlAmt");
-    if (hl) hl.value = "";
-    say("Успешно");
+    btn.textContent = "Готово";
+    say("USDC уже на кошельке. Отправьте его обычным переводом на адрес Totum выше, сеть Arbitrum One.");
   } catch (e) {
     if (mine === run && e?.message) say(human(e), true);
   } finally {
@@ -467,29 +475,8 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
   }
 });
 
-document.getElementById("fundHl")?.addEventListener("click", async () => {
-  const btn = document.getElementById("fundHl");
-  if (crediting) return;
-  fundUnlock();
-  const mine = ++run;
-  btn.disabled = true;
-  btn.textContent = "Ждём подпись…";
-  fundHide("fundErr");
-  try {
-    say("Кошелёк спросит сеть Arbitrum One, затем ровно эту сумму USDC. Это не доступ ко всем деньгам.");
-    const hash = await hlCredit(units(document.getElementById("fundHlAmt").value));
-    if (mine !== run) return;
-    say("Успешно");
-    const amt = document.getElementById("fundHlAmt");
-    if (amt) amt.value = "";
-  } catch (e) {
-    if (mine === run && e?.message) say(human(e), true);
-  } finally {
-    if (mine === run) {
-      btn.disabled = false;
-      btn.textContent = "Зачислить на биржу";
-    }
-  }
+document.getElementById("fundHl")?.addEventListener("click", () => {
+  say("Отправьте USDC на адрес выше. Разрешение в кошельке не нужно.");
 });
 
 const wdDlg = document.getElementById("withdrawDialog");
@@ -724,7 +711,7 @@ function wdOpenReview() {
       ? "Вы подтвердили: это ваш адрес в сети Arbitrum One."
       : "Вы подтвердили: адрес ваш и он в сети Arbitrum One. На чужой адрес деньги не вернуть.";
     box.innerHTML = `<div class="wd-grid">${[
-      wdRow("Откуда", "Биржа"),
+      wdRow("Откуда", "Totum"),
       wdRow("Куда", wdPending.own ? "На подключённый кошелёк" : "На другой адрес"),
     ].join("")}</div>` + [
       wdRow("Адрес", wdPending.dest, "addr"),
@@ -1026,8 +1013,8 @@ async function cashHistory() {
       const where = (out && saved?.addr) ? saved.addr : addr;
       const when = new Date(x.time).toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
       const route = out
-        ? `Откуда биржа · куда ${fundShort(where)} · Arbitrum One · USDC`
-        : `Откуда ${fundShort(where)} · куда биржа · USDC`;
+        ? `Откуда Totum · куда ${fundShort(where)} · Arbitrum One · USDC`
+        : `Откуда ${fundShort(where)} · куда Totum · USDC`;
       const extra = out ? ` · на кошелёк ${money(net)}` : "";
       return `<div class="cash-row"><b>${out ? "Вывод" : "Пополнение"}</b><small>${esc(when)} · ${esc(route)}${esc(extra)}</small><em class="${out ? "neg" : "pos"}">${out ? "−" : "+"}${esc(money(sum))} USDC</em></div>`;
     }).join("");
