@@ -15,10 +15,6 @@
 
   try { tg.ready(); } catch (e) {}
   try { tg.expand(); } catch (e) {}
-  try {
-    var full = tg.requestFullscreen && tg.requestFullscreen();
-    if (full && full.catch) full.catch(function () {});
-  } catch (e) {}
   try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {}
 
   function paint() {
@@ -32,7 +28,11 @@
   function insets() {
     var s = tg.safeAreaInset || {};
     var c = tg.contentSafeAreaInset || {};
-    var top = (Number(s.top) || 0) + (Number(c.top) || 0);
+    var reported = (Number(s.top) || 0) + (Number(c.top) || 0);
+    var full = root.classList.contains("tg-full");
+    try { if (tg.isFullscreen) full = true; } catch (e) {}
+    root.classList.toggle("tg-full", full);
+    var top = full ? Math.max(reported, 72) : reported;
     var bottom = (Number(s.bottom) || 0) + (Number(c.bottom) || 0);
     root.style.setProperty("--tg-top", top + "px");
     root.style.setProperty("--tg-bottom", bottom + "px");
@@ -40,8 +40,17 @@
   ["safeAreaChanged", "contentSafeAreaChanged", "viewportChanged", "fullscreenChanged"].forEach(function (ev) {
     try { tg.onEvent(ev, insets); } catch (e) {}
   });
+  try {
+    root.classList.add("tg-full");
+    var fullReq = tg.requestFullscreen && tg.requestFullscreen();
+    if (fullReq && fullReq.catch) fullReq.catch(function () {
+      root.classList.remove("tg-full");
+      insets();
+    });
+  } catch (e) {}
   paint();
   insets();
+  [80, 300, 800].forEach(function (ms) { setTimeout(insets, ms); });
   try {
     new MutationObserver(paint).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
   } catch (e) {}

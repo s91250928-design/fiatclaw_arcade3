@@ -758,7 +758,7 @@ body:not(.connected) #trRow{display:none}
 
   html.tg-app body{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px) + var(--tg-bottom,0px))}
   html.tg-app .mnav{bottom:calc(10px + env(safe-area-inset-bottom,0px) + var(--tg-bottom,0px))}
-  html.tg-app .top{padding-top:calc(8px + var(--tg-top,0px))}
+  html.tg-app .top{padding-top:max(calc(8px + var(--tg-top, 0px)), calc(8px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)))}
   html.tg-app dialog.sheet-dlg[open],html.tg-app dialog.page-dlg[open]{padding-top:var(--tg-top,0px)}
 
   /* Разделы-страницы */
