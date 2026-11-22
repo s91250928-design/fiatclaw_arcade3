@@ -2699,8 +2699,8 @@ async function submit({ address, usd, deadline, nonce, sig, ip }) {
   }
   if (!/^0x[0-9a-fA-F]{130}$/.test(String(sig || "")) && !/^[0-9a-fA-F]{130}$/.test(String(sig || ""))) throw fail(400, "\u041F\u043E\u0434\u043F\u0438\u0441\u044C \u043D\u0435 \u0440\u0430\u0437\u043E\u0431\u0440\u0430\u043B\u0430\u0441\u044C");
   const signature = String(sig).startsWith("0x") ? String(sig) : "0x" + sig;
-  if (limited("a:" + owner, 8, 10 * 60 * 1e3) || limited("i:" + (ip || "x"), 30, 60 * 60 * 1e3)) {
-    throw fail(429, "\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u0447\u0430\u0441\u0442\u043E. \u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 \u043F\u0430\u0440\u0443 \u043C\u0438\u043D\u0443\u0442.");
+  if (limited("a:" + owner, 8, 10 * 60 * 1e3) || limited("i:" + (ip || "x"), 30, 60 * 60 * 1e3) || limited("g:relay", 40, 60 * 60 * 1e3)) {
+    throw fail(429, "\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u0447\u0430\u0441\u0442\u043E. \u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 \u043F\u0430\u0440\u0443 \u043C\u0438\u043D\u0443\u0442. \u0414\u0435\u043D\u044C\u0433\u0438 \u043D\u0430 \u043C\u0435\u0441\u0442\u0435.");
   }
   const value = BigInt(usd);
   const until = BigInt(deadline);
