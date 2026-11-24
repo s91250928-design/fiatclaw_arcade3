@@ -117,7 +117,7 @@ function boot() {
       } catch (e) { bad.push(`Стоп в плюсе: ${T.err(e)}`); }
       if (bad.length) T.toast(`Не всё встало: ${bad.join("; ")}. Проверьте открытые ордера.`, "err");
       else {
-        T.toast("Лимит Про на бирже. Вкладку можно закрыть.", "ok");
+        T.toast("Лимит Про в Totum. Вкладку можно закрыть.", "ok");
         el("tpslDialog").close();
       }
       T.touch();

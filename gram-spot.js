@@ -24,7 +24,7 @@ let pay = USDC;
 let recv = GRAM_ASSET;
 let quoteTimer = 0;
 let tf = 1;
-let source = "perp";
+let source = "spot";
 
 function say(text, bad) {
   const n = document.getElementById("gramErr");
@@ -63,10 +63,6 @@ function available() {
   return source === "spot" ? book.spot : book.perp;
 }
 
-function sourceLabel() {
-  return source === "spot" ? "Со спота" : "С фьючерсного счёта";
-}
-
 async function api(body) {
   const r = await fetch("/api/ton-manifest", {
     method: "POST",
@@ -89,13 +85,16 @@ function paintIcons() {
   const pair = document.getElementById("tsPair");
   if (pair) pair.textContent = "GRAM";
   const have = available();
+  const book = accountBook();
   const sub = document.getElementById("tsPayUsd");
   const max = document.getElementById("tsMax");
   const src = document.getElementById("tsSource");
-  if (src) {
-    src.hidden = !pay.account;
-    src.textContent = sourceLabel();
-  }
+  if (src) src.hidden = !pay.account;
+  const spotB = document.getElementById("tsSpotBal");
+  const perpB = document.getElementById("tsPerpBal");
+  if (spotB) spotB.textContent = book ? `${fmt(book.spot, 2)} USDC` : "—";
+  if (perpB) perpB.textContent = book ? `${fmt(book.perp, 2)} USDC` : "—";
+  src?.querySelectorAll("[data-src]").forEach((b) => b.classList.toggle("on", b.dataset.src === source));
   if (sub && !sub.dataset.usd) {
     if (!pay.account) sub.textContent = have > 0 ? `На споте ${fmt(have, 4)} GRAM` : "Нет денег";
     else if (have == null) sub.textContent = "На счёте";
@@ -258,8 +257,10 @@ document.getElementById("tsMax")?.addEventListener("click", () => {
   input.value = have.toFixed(pay.account ? 2 : 4).replace(/\.?0+$/, "");
   schedule();
 });
-document.getElementById("tsSource")?.addEventListener("click", () => {
-  source = source === "spot" ? "perp" : "spot";
+document.getElementById("tsSource")?.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-src]");
+  if (!b || b.dataset.src === source) return;
+  source = b.dataset.src === "perp" ? "perp" : "spot";
   say("");
   schedule();
 });
@@ -274,7 +275,7 @@ document.getElementById("gramGo")?.addEventListener("click", () => {
   if (!(have > 0) || !(raw > 0)) { say("Нет денег", true); return; }
   if (raw > have + 1e-8) { say("Нет денег", true); return; }
   if (!pay.account) { say("Нет денег", true); return; }
-  say("Со счёта в GRAM на спот пока нельзя: биржа хранит только USDC.", true);
+  say("В GRAM на спот Totum пока не зачисляет: на счёте только USDC.", true);
 });
 
 api({ action: "assets" }).then((j) => {

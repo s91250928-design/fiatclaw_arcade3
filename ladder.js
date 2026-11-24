@@ -1,6 +1,6 @@
 /* Лестница: первый стоп и два тейка живут на Hyperliquid.
    Стоп в плюсе — трейлинг с ценой активации на первом тейке.
-   Биржа включает его сама, вкладку можно закрыть. Ключ с сервера не уходит. */
+   Totum включает его сам, вкладку можно закрыть. Ключ с сервера не уходит. */
 
 export function validateLadder({ long, entry, sl, tp1, profit, tp2, notional, frac }) {
   if (!(entry > 0)) return "Нет цены входа";
@@ -115,7 +115,7 @@ function boot() {
     const res = await ex.order({ orders: [order], grouping: "na", builder: T.builder() });
     const st = res?.response?.data?.statuses?.[0];
     if (st?.error) throw new Error(typeof st.error === "string" ? st.error : JSON.stringify(st.error));
-    if (!st || st.error) throw new Error("Биржа не приняла ордер");
+    if (!st || st.error) throw new Error("Totum не принял ордер");
   }
 
   window.__totumLadder = async ({ long, asset, limitPx, sz }) => {
@@ -187,7 +187,7 @@ function boot() {
     }
     const sideNote = long && L.profit <= avg ? " Стоп в плюсе не выше фактического входа — проверьте цену." : !long && L.profit >= avg ? " Стоп в плюсе не ниже фактического входа — проверьте цену." : "";
     if (bad.length) T.toast(`Позиция открыта. Не встало: ${bad.join("; ")}.${sideNote}`, "err");
-    else T.toast(`Лимит Про на бирже: стоп, ${Math.round(L.frac * 100)}% на первом тейке, стоп в плюсе и второй тейк. Вкладку можно закрыть.${sideNote}`, "ok");
+    else T.toast(`Лимит Про в Totum: стоп, ${Math.round(L.frac * 100)}% на первом тейке, стоп в плюсе и второй тейк. Вкладку можно закрыть.${sideNote}`, "ok");
     T.sheet();
     await T.refresh();
   };

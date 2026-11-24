@@ -1,5 +1,5 @@
 /* Пополнение. С другого кошелька TON приходит USDC на торговый адрес.
-   На биржу его зачисляет подпись разрешения: газ платит наш пустой адрес, не человек. */
+   На счёт Totum его зачисляет подпись разрешения: газ платит наш пустой адрес, не человек. */
 
 import { TonConnect, toUserFriendlyAddress } from "./vendor/tonconnect.js";
 
@@ -406,7 +406,7 @@ async function hlCredit(want) {
     const live = await usdcNow();
     let amt = want;
     if (live != null && (amt == null || amt > live)) amt = live;
-    if (amt == null || amt < 5000000n) throw new Error("Меньше 5 USDC биржа не зачислит. Не отправляем.");
+    if (amt == null || amt < 5000000n) throw new Error("Меньше 5 USDC Totum не зачислит. Не отправляем.");
     const prep = await fetch("/api/fund-quote", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -415,7 +415,7 @@ async function hlCredit(want) {
     const ready = await prep.json().catch(() => ({}));
     if (!prep.ok || !ready.ok) throw new Error(ready.error || "Зачисление не собралось");
     if (String(ready.typed?.message?.owner || "").toLowerCase() !== from) throw new Error("Подпись собрана не на ваш счёт. Отменено.");
-    if (String(ready.typed?.message?.spender || "").toLowerCase() !== BRIDGE) throw new Error("Подпись ведёт не на биржу. Отменено.");
+    if (String(ready.typed?.message?.spender || "").toLowerCase() !== BRIDGE) throw new Error("Подпись ведёт не в Totum. Отменено.");
     const tryList = [];
     if (window.okxwallet?.request && await sameWallet(window.okxwallet, from)) tryList.push(window.okxwallet);
     if (window.ethereum?.request && window.ethereum !== window.okxwallet && await sameWallet(window.ethereum, from)) tryList.push(window.ethereum);
@@ -555,8 +555,8 @@ function wdSay(text, bad) {
 
 function wdHuman(e) {
   const m = String(e?.message || e || "").trim();
-  if (!m) return "Вывод не прошёл. Деньги на бирже.";
-  if (/reject|denied|cancel|отклон/i.test(m)) return "Подпись отменена. Деньги на бирже.";
+  if (!m) return "Вывод не прошёл. Деньги в Totum.";
+  if (/reject|denied|cancel|отклон/i.test(m)) return "Подпись отменена. Деньги в Totum.";
   if (/does not exist|not available|unsupported method|not supported/i.test(m)) return "Кошелёк не дал подписать. Отключите его и подключите ещё раз.";
   if (/insufficient|withdrawable|not enough/i.test(m)) return "Этой суммы нет в доступном балансе. Деньги в открытых позициях вывести нельзя.";
   return m;
@@ -730,7 +730,7 @@ function wdOpenReview() {
   let info = null;
   try { info = window.totumWallet?.out?.() || null; } catch { info = null; }
   const max = info ? (info.unified ? info.spot : info.perp) : 0;
-  if (!(n > 1)) { wdSay("Сумма должна быть больше 1 USDC: биржа удерживает 1.", true); return; }
+  if (!(n > 1)) { wdSay("Сумма должна быть больше 1 USDC: Totum удерживает 1.", true); return; }
   if (n > max + 1e-8) { wdSay(`Можно вывести ${money(max)} USDC.`, true); return; }
   const picked = wdDestination();
   if (!picked.dest || !picked.state.ok) {
@@ -888,7 +888,7 @@ document.getElementById("wdSend")?.addEventListener("click", async () => {
     const live = String(window.totumWallet.addr() || "").toLowerCase();
     if (live !== String(pending.mine || "").toLowerCase()) throw new Error("Кошелёк сменился. Откройте вывод ещё раз.");
     const res = await ex.withdraw3({ destination: pending.dest, amount: pending.amount });
-    if (res && res.status && res.status !== "ok") throw new Error("Биржа не приняла вывод. Деньги на месте.");
+    if (res && res.status && res.status !== "ok") throw new Error("Totum не принял вывод. Деньги на месте.");
     wdSave({
       addr: pending.dest,
       amount: pending.amount,
@@ -906,7 +906,7 @@ document.getElementById("wdSend")?.addEventListener("click", async () => {
     wdDlg.close();
     cashOpen();
     cashWatch();
-    try { await window.totumWallet.refresh?.(); } catch { /* баланс биржи обновится сам */ }
+    try { await window.totumWallet.refresh?.(); } catch { /* баланс Totum обновится сам */ }
   } catch (e) {
     if (e?.message) fail(wdHuman(e));
   } finally {
@@ -963,7 +963,7 @@ function cashPaint() {
   if (addr) {
     addr.textContent = job.phase === "ok"
       ? `${job.net} USDC на ${job.addr} в сети Arbitrum One.`
-      : `На ${job.addr} в сети Arbitrum One придёт ${job.net} USDC. С биржи списано ${job.amount}, комиссия 1.`;
+      : `На ${job.addr} в сети Arbitrum One придёт ${job.net} USDC. С Totum списано ${job.amount}, комиссия 1.`;
   }
   if (eta) {
     eta.hidden = job.phase === "ok";
