@@ -168,7 +168,9 @@
   <div class="pair" id="pairBox">
     <button id="pairBtn" class="pair-btn" type="button" aria-haspopup="true"><span class="coin-ic" id="pairIc">B</span><b id="pairName">BTC-USDC</b><i class="chev"></i></button>
     <span class="pair-type" id="pairType">Бессрочный</span>
+    <button id="gramChip" class="gram-chip" data-gram-open type="button">GRAM · TON</button>
     <div id="pairPop" class="pair-pop" hidden>
+      <button class="gram-pin" data-gram-open type="button"><span class="coin-ic gram-ic">G</span><span class="gram-pin-t"><b>GRAM</b><small>Спот · сеть TON · не Hyperliquid</small></span><em>Купить</em></button>
       <div class="pp-mkt mk-tabs"><button data-mk="all" type="button">Все</button><button data-mk="perp" class="on" type="button">Фьючерсы</button><button data-mk="spot" type="button">Спот</button><button data-mk="crypto" type="button">Крипто</button><button data-mk="tradfi" type="button">Традфи</button><button data-mk="hip3" type="button">HIP-3</button><button data-mk="trend" type="button">В тренде</button></div>
       <label class="pp-search"><span>⌕</span><input id="pairSearch" type="text" placeholder="Поиск пары" autocomplete="off"></label>
       <div class="pp-tabs"><button data-pt="fav" type="button">Избранное</button><button data-pt="all" class="on" type="button">Все</button><button data-pt="gain" type="button">Растут</button><button data-pt="loss" type="button">Падают</button></div>
@@ -480,6 +482,7 @@
 <section class="app-page" id="pgHome"></section>
 <section class="app-page" id="pgMarkets">
   <h1 class="pg-title">Рынки</h1>
+  <button class="gram-pin" data-gram-open type="button"><span class="coin-ic gram-ic">G</span><span class="gram-pin-t"><b>GRAM</b><small>Спот · сеть TON · не Hyperliquid</small></span><em>Купить</em></button>
   <div class="pp-mkt mk-tabs" id="mMkt"><button data-mmk="all" type="button">Все</button><button data-mmk="perp" class="on" type="button">Фьючерсы</button><button data-mmk="spot" type="button">Спот</button><button data-mmk="crypto" type="button">Крипто</button><button data-mmk="tradfi" type="button">Традфи</button><button data-mmk="hip3" type="button">HIP-3</button><button data-mmk="trend" type="button">В тренде</button></div>
   <label class="pp-search"><span>⌕</span><input id="mSearch" type="text" placeholder="Поиск монеты" autocomplete="off"></label>
   <div class="pp-tabs" id="mTabs"><button data-mt="fav" type="button">Избранное</button><button data-mt="all" class="on" type="button">Все</button><button data-mt="gain" type="button">Растут</button><button data-mt="loss" type="button">Падают</button></div>
@@ -655,6 +658,21 @@
   <div class="row"><button id="fundWalletClose" class="btn ghost grow" type="button">Закрыть</button></div>
   </div>
 </dialog>
+
+<dialog id="gramDialog" class="sheet-dlg">
+  <div class="dlg-body">
+    <h2>GRAM · сеть TON</h2>
+    <p class="muted small">Спот на STON.fi, не каталог Hyperliquid. Платишь USDT с TON-кошелька — GRAM сразу на нём. Вывод это перевод на любой адрес TON. Деньги с фьючерсного счёта сюда сами не переезжают.</p>
+    <div class="seg" id="gramSide"><button type="button" data-side="buy" class="on">Купить</button><button type="button" data-side="sell">Продать</button></div>
+    <label class="inp"><span id="gramAmtLabel">Отдаёшь, USDT</span><input id="gramAmt" inputmode="decimal" value="10" autocomplete="off" autocorrect="off" spellcheck="false"></label>
+    <p id="gramQuote" class="muted small">Считаем курс…</p>
+    <button id="gramWallet" class="btn ghost wide-btn" type="button">Выбрать TON-кошелёк</button>
+    <div id="gramWallets" class="fund-wallets" hidden></div>
+    <button id="gramGo" class="btn wide-btn" type="button">Купить GRAM</button>
+    <p id="gramErr" class="neg small" hidden></p>
+    <div class="row"><button id="gramClose" class="btn ghost grow" type="button">Закрыть</button></div>
+  </div>
+</dialog>
 <dialog id="withdrawDialog" class="sheet-dlg">
   <div class="dlg-body">
   <h2>Вывести</h2>
@@ -732,6 +750,7 @@
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
 <script type="module" src="fund.js?v=1795234000"></script>
+<script type="module" src="gram-spot.js?v=1795600000"></script>
 <script src="liq.js?v=1795032614"></script>
 </body>
 </html>

@@ -2332,3 +2332,11 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .cash-row .pos{color:#22c55e}
 .cash-row .neg{color:#f43f5e}
 #cashHist{margin-top:12px}
+
+.gram-pin{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:color-mix(in srgb,var(--accent,#22d3ee) 10%,var(--panel));border:1px solid color-mix(in srgb,var(--accent,#22d3ee) 35%,var(--line));border-radius:10px;padding:8px 10px;cursor:pointer}
+.gram-pin-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.gram-pin-t b{font-size:14px}
+.gram-pin-t small{color:var(--muted);font-size:11px}
+.gram-pin em{font-style:normal;font-size:12px;font-weight:700;color:var(--accent,#22d3ee)}
+.gram-ic{background:linear-gradient(135deg,#38bdf8,#0369a1)}
+.gram-chip{border:1px solid color-mix(in srgb,var(--accent,#22d3ee) 45%,var(--line));background:color-mix(in srgb,var(--accent,#22d3ee) 12%,transparent);color:var(--text);border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer}
