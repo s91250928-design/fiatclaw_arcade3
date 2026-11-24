@@ -362,69 +362,8 @@ async function findPayment(user, desk, amount, source) {
   return hits;
 }
 
-async function gramFill(body) {
-  const user = String(body.user || "").toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(user)) throw new Error("Сначала подключите кошелёк, которым торгуете");
-  const side = body.side === "sell" ? "sell" : "buy";
-  const source = body.source === "perp" ? "perp" : "spot";
-  const amount = Number(String(body.amount || "").replace(",", "."));
-  if (!(amount > 0)) throw new Error("Введите сумму");
-  const desk = await gramDesk(user);
-  const px = desk.price;
-  if (side === "buy") {
-    if (amount < 1) throw new Error("Минимум 1 USDC");
-    const gram = amount / px;
-    if (gram > desk.free + 1e-8) throw new Error(`Сейчас можно до ${nanoToGram(BigInt(Math.floor(desk.free * 1e9)))} GRAM`);
-    let hit = null;
-    for (let i = 0; i < (body.only ? 1 : 8); i++) {
-      const rows = await findPayment(user, desk.desk, amount, source);
-      for (const row of rows) {
-        const seen = await kv([["SISMEMBER", "totum:gram:seen", row.hash || `${row.time}`]]);
-        if (Number(seen[0]) === 1) continue;
-        hit = row;
-        break;
-      }
-      if (hit || body.only) break;
-      await new Promise((r) => setTimeout(r, 700));
-    }
-    if (!hit) throw new Error("Перевод USDC не найден");
-    const add = BigInt(Math.round(gram * 1e9));
-    await kv([
-      ["INCRBY", "totum:gram:locked", add.toString()],
-      ["HINCRBY", "totum:gram:bal", user, add.toString()],
-      ["SADD", "totum:gram:seen", hit.hash || `${hit.time}`],
-    ]);
-    const yours = (await kv([["HGET", "totum:gram:bal", user]]))[0];
-    return { ok: true, got: nanoToGram(add), yours: nanoToGram(BigInt(yours || 0)) };
-  }
-  const have = BigInt(Math.round(desk.yours * 1e9));
-  const want = BigInt(Math.round(amount * 1e9));
-  if (want > have) throw new Error("Нет денег");
-  const usdc = Math.floor(amount * px * 1e6) / 1e6;
-  if (usdc < 1) throw new Error("Минимум около 1 USDC");
-  const gas = relayer();
-  const books = await houseBooks(gas.address);
-  const usd = usdc.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
-  const short = (have) => have + 1e-6 < usdc;
-  if (source === "spot") {
-    if (short(books.spot)) {
-      if (books.perp < usdc) throw new Error("USDC для обратного обмена ещё не пришли");
-      await hlPay({ priv: gas.priv, amount: usd, toPerp: false });
-    }
-    await hlPay({ priv: gas.priv, destination: user, amount: usd, token: SPOT_USDC });
-  } else {
-    if (short(books.perp)) {
-      if (books.spot < usdc) throw new Error("USDC для обратного обмена ещё не пришли");
-      await hlPay({ priv: gas.priv, amount: usd, toPerp: true });
-    }
-    await hlPay({ priv: gas.priv, destination: user, amount: usd });
-  }
-  await kv([
-    ["INCRBY", "totum:gram:locked", (-want).toString()],
-    ["HINCRBY", "totum:gram:bal", user, (-want).toString()],
-  ]);
-  const yours = (await kv([["HGET", "totum:gram:bal", user]]))[0];
-  return { ok: true, got: usd, yours: nanoToGram(BigInt(yours || 0)) };
+async function gramFill() {
+  throw new Error("Обмен из запаса Totum выключен. Нужна ликвидность пула, не наши GRAM.");
 }
 
 async function gasTon() {

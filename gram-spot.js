@@ -88,50 +88,7 @@ function usdStr(n) {
 }
 
 async function swap() {
-  const raw = Number(amount());
-  const have = available();
-  const addr = window.totumWallet?.addr?.();
-  if (!addr) {
-    say("Сначала подключите кошелёк, которым торгуете", true);
-    document.getElementById("btnConnect")?.click();
-    return;
-  }
-  if (!(have > 0) || !(raw > 0) || raw > have + 1e-8) { say("Нет денег", true); return; }
-  await loadDesk();
-  if (!desk?.price) { say("Курс GRAM не пришёл", true); return; }
-  if (pay.account) {
-    const gram = raw / desk.price;
-    if (gram > desk.free + 1e-8) {
-      say(desk.free > 0 ? `Сейчас можно до ${fmt(desk.free, 4)} GRAM` : "Сейчас GRAM для обмена нет", true);
-      return;
-    }
-    const ex = window.totumWallet.ex?.();
-    if (!ex) { say("Подключите кошелёк ещё раз", true); return; }
-    const amt = usdStr(raw);
-    let credited = null;
-    try {
-      credited = await api({ action: "gram-fill", user: addr, side: "buy", amount: amt, source, only: true });
-    } catch (err) {
-      if (!/не найден/i.test(err.message || "")) throw err;
-    }
-    if (!credited) {
-      say("Подтвердите перевод USDC в кошельке");
-      if (source === "spot") await ex.spotSend({ destination: desk.desk, token: desk.token, amount: amt });
-      else await ex.usdSend({ destination: desk.desk, amount: amt });
-      credited = await api({ action: "gram-fill", user: addr, side: "buy", amount: amt, source });
-    }
-    gramBal = Number(credited.yours) || gramBal;
-    say(`Готово: ${credited.got} GRAM на споте`);
-  } else {
-    const amt = String(raw);
-    const credited = await api({ action: "gram-fill", user: addr, side: "sell", amount: amt, source });
-    gramBal = Number(credited.yours) || 0;
-    say(`Готово: ${credited.got} USDC ${source === "spot" ? "на споте" : "на фьючерсах"}`);
-  }
-  const input = document.getElementById("gramAmt");
-  if (input) input.value = "";
-  schedule();
-  window.totumWallet?.refresh?.().catch(() => {});
+  say("Так нельзя: это был обмен из наших GRAM. Нужен пул, не наш запас.", true);
 }
 
 async function api(body) {
