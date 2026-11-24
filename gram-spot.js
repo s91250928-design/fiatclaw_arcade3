@@ -24,6 +24,7 @@ let pay = USDC;
 let recv = GRAM_ASSET;
 let quoteTimer = 0;
 let tf = 1;
+let source = "perp";
 
 function say(text, bad) {
   const n = document.getElementById("gramErr");
@@ -40,20 +41,30 @@ function fmt(n, dp) {
   return x.toLocaleString("ru-RU", { maximumFractionDigits: d });
 }
 
-function accountUsdc() {
+function accountBook() {
   try {
     const info = window.totumWallet?.out?.();
     if (!info) return null;
-    const n = info.unified ? Number(info.spot) : Number(info.perp);
-    return Number.isFinite(n) ? n : 0;
+    const perp = Number(info.perp);
+    const spot = Number(info.spot);
+    return {
+      perp: Number.isFinite(perp) ? perp : 0,
+      spot: Number.isFinite(spot) ? spot : 0,
+    };
   } catch {
     return null;
   }
 }
 
 function available() {
-  if (pay.account) return accountUsdc();
-  return 0;
+  if (!pay.account) return 0;
+  const book = accountBook();
+  if (!book) return null;
+  return source === "spot" ? book.spot : book.perp;
+}
+
+function sourceLabel() {
+  return source === "spot" ? "Со спота" : "С фьючерсного счёта";
 }
 
 async function api(body) {
@@ -80,11 +91,18 @@ function paintIcons() {
   const have = available();
   const sub = document.getElementById("tsPayUsd");
   const max = document.getElementById("tsMax");
-  if (sub && !sub.dataset.usd) {
-    if (pay.account) sub.textContent = have == null ? "На счёте" : `На счёте ${fmt(have, 2)} USDC`;
-    else sub.textContent = "На споте 0 GRAM";
+  const src = document.getElementById("tsSource");
+  if (src) {
+    src.hidden = !pay.account;
+    src.textContent = sourceLabel();
   }
-  if (max) max.hidden = !(pay.account && have > 0);
+  if (sub && !sub.dataset.usd) {
+    if (!pay.account) sub.textContent = have > 0 ? `На споте ${fmt(have, 4)} GRAM` : "Нет денег";
+    else if (have == null) sub.textContent = "На счёте";
+    else if (!(have > 0)) sub.textContent = "Нет денег";
+    else sub.textContent = source === "spot" ? `На споте ${fmt(have, 2)} USDC` : `На фьючерсах ${fmt(have, 2)} USDC`;
+  }
+  if (max) max.hidden = !(have > 0);
   const where = document.getElementById("tsRecvUsd");
   if (where && !where.dataset.usd) where.textContent = recv.account ? "На счёт" : "На спот";
 }
@@ -161,7 +179,9 @@ async function refresh() {
     if (payUsd) {
       payUsd.dataset.usd = "1";
       const have = available();
-      const where = pay.account ? (have == null ? "" : ` · на счёте ${fmt(have, 2)}`) : " · на споте 0";
+      const where = !pay.account
+        ? " · нет денег"
+        : have == null ? "" : ` · ${source === "spot" ? "на споте" : "на фьючерсах"} ${fmt(have, 2)}`;
       payUsd.textContent = `≈ $${j.payUsd || "—"}${where}`;
     }
     if (recvUsd) {
@@ -201,7 +221,7 @@ function flip() {
   pay = recv;
   recv = next;
   const input = document.getElementById("gramAmt");
-  if (input && (!input.value || input.value === "10" || input.value === "5")) input.value = pay.account ? "10" : "5";
+  if (input && !(available() > 0)) input.value = "";
   say("");
   schedule();
 }
@@ -232,28 +252,29 @@ document.getElementById("tsTf")?.addEventListener("click", (e) => {
 });
 document.getElementById("gramAmt")?.addEventListener("input", schedule);
 document.getElementById("tsMax")?.addEventListener("click", () => {
-  const have = accountUsdc();
+  const have = available();
   const input = document.getElementById("gramAmt");
   if (!input || !(have > 0)) return;
-  input.value = String(Math.floor(have * 100) / 100);
+  input.value = have.toFixed(pay.account ? 2 : 4).replace(/\.?0+$/, "");
+  schedule();
+});
+document.getElementById("tsSource")?.addEventListener("click", () => {
+  source = source === "spot" ? "perp" : "spot";
+  say("");
   schedule();
 });
 document.getElementById("gramGo")?.addEventListener("click", () => {
   const raw = Number(amount());
-  if (!(raw > 0)) { say("Введите сумму", true); return; }
+  const have = available();
   if (!window.totumWallet?.addr?.()) {
     say("Сначала подключите кошелёк, которым торгуете", true);
     document.getElementById("btnConnect")?.click();
     return;
   }
-  if (pay.account) {
-    const have = accountUsdc();
-    if (have == null) { say("Баланс счёта не виден", true); return; }
-    if (raw > have + 1e-8) { say(`На счёте ${fmt(have, 2)} USDC`, true); return; }
-    say("Со счёта в GRAM на спот пока нельзя: биржа хранит только USDC.", true);
-    return;
-  }
-  say("На споте GRAM нет. Меняют USDC со счёта.", true);
+  if (!(have > 0) || !(raw > 0)) { say("Нет денег", true); return; }
+  if (raw > have + 1e-8) { say("Нет денег", true); return; }
+  if (!pay.account) { say("Нет денег", true); return; }
+  say("Со счёта в GRAM на спот пока нельзя: биржа хранит только USDC.", true);
 });
 
 api({ action: "assets" }).then((j) => {

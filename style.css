@@ -2380,6 +2380,8 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .ts-opt small{color:var(--muted);font-weight:500}
 .ts-opt em{font-style:normal;font-weight:700;font-size:12px}
 #gramGo{margin-top:10px}
+.ts-source{display:block;width:100%;margin:10px 0 0;padding:4px;border:0;background:transparent;color:var(--text);font-size:13px;font-weight:700;text-align:center}
+.ts-source[hidden]{display:none!important}
 @media (max-width:900px){
   #gramDialog[open]{position:fixed;inset:0;width:100%;max-width:none;height:100lvh;max-height:100lvh;margin:0;border:0;border-radius:0;overflow:hidden;display:flex;flex-direction:column}
   #gramDialog .dlg-body{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
