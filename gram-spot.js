@@ -35,10 +35,10 @@ function paintWallet() {
 
 async function quote(build) {
   const amount = document.getElementById("gramAmt")?.value || "";
-  const r = await fetch("/api/gram-spot", {
+  const r = await fetch("/api/ton-manifest", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ side, amount, from: build ? tonAddr : "", build: !!build }),
+    body: JSON.stringify({ kind: "gram-spot", side, amount, from: build ? tonAddr : "", build: !!build }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.ok) throw new Error(j.error || "Не посчиталось");
