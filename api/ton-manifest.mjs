@@ -1,6 +1,7 @@
 import { createRequire } from "module";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { relayer } from "../lib/fund-credit.mjs";
 
 const NATIVE = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c";
 const ADDR = /^EQ[A-Za-z0-9_-]{46}$/;
@@ -9,7 +10,7 @@ const WALLET = /^[EU]Q[A-Za-z0-9_-]{46}$/;
 function loadSwap() {
   const file = join(dirname(fileURLToPath(import.meta.url)), "..", "lib", "gram-swap.cjs");
   const loaded = createRequire(import.meta.url)(file);
-  if (typeof loaded.gramSwap !== "function" || typeof loaded.gramBuy !== "function" || typeof loaded.tonSwap !== "function") {
+  if (typeof loaded.gramSwap !== "function" || typeof loaded.gramBuy !== "function" || typeof loaded.tonSwap !== "function" || typeof loaded.tonGasWallet !== "function") {
     throw new Error("обмен не загрузился");
   }
   return loaded;
@@ -251,12 +252,26 @@ function send(res, status, body) {
   res.status(status).send(JSON.stringify(body));
 }
 
+async function gasTon() {
+  const gas = relayer();
+  const ton = loadSwap().tonGasWallet(process.env.GAS_RELAYER_KEY);
+  let nano = null;
+  try {
+    const r = await fetch(`https://tonapi.io/v2/accounts/${encodeURIComponent(ton.uq)}`, { signal: AbortSignal.timeout(8e3) });
+    const j = await r.json();
+    if (r.ok && j.balance != null) nano = BigInt(j.balance);
+  } catch { /* адрес всё равно отдаём */ }
+  const gram = nano == null ? null : (Number(nano) / 1e9);
+  return { ok: true, eth: gas.address, uq: ton.uq, eq: ton.eq, wallet: "v4r2", gram };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return manifest(req, res);
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     if (body.kind === "gram-spot") return send(res, 200, await legacyGram(body));
     if (body.kind !== "ton-swap") return manifest(req, res);
+    if (body.action === "gas-address") return send(res, 200, await gasTon());
     if (body.action === "assets") {
       const q = String(body.q || "").trim().slice(0, 32);
       const list = q
