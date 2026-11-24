@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795234000">
+<link rel="stylesheet" href="style.css?v=1795612000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -168,9 +168,9 @@
   <div class="pair" id="pairBox">
     <button id="pairBtn" class="pair-btn" type="button" aria-haspopup="true"><span class="coin-ic" id="pairIc">B</span><b id="pairName">BTC-USDC</b><i class="chev"></i></button>
     <span class="pair-type" id="pairType">Бессрочный</span>
-    <button id="gramChip" class="gram-chip" data-gram-open type="button">GRAM · TON</button>
+    <button id="gramChip" class="gram-chip" data-gram-open type="button">TON Swap</button>
     <div id="pairPop" class="pair-pop" hidden>
-      <button class="gram-pin" data-gram-open type="button"><span class="coin-ic gram-ic">G</span><span class="gram-pin-t"><b>GRAM</b><small>Спот · сеть TON · не Hyperliquid</small></span><em>Купить</em></button>
+      <button class="ton-swap-row" data-gram-open type="button"><img src="https://app.hyperliquid.xyz/coins/GRAM.svg" alt="" width="22" height="22"><b>TON Swap</b><span class="ton-swap-market">GRAM</span><span class="ton-swap-px" data-ton-px>—</span><i class="chev"></i></button>
       <div class="pp-mkt mk-tabs"><button data-mk="all" type="button">Все</button><button data-mk="perp" class="on" type="button">Фьючерсы</button><button data-mk="spot" type="button">Спот</button><button data-mk="crypto" type="button">Крипто</button><button data-mk="tradfi" type="button">Традфи</button><button data-mk="hip3" type="button">HIP-3</button><button data-mk="trend" type="button">В тренде</button></div>
       <label class="pp-search"><span>⌕</span><input id="pairSearch" type="text" placeholder="Поиск пары" autocomplete="off"></label>
       <div class="pp-tabs"><button data-pt="fav" type="button">Избранное</button><button data-pt="all" class="on" type="button">Все</button><button data-pt="gain" type="button">Растут</button><button data-pt="loss" type="button">Падают</button></div>
@@ -482,7 +482,7 @@
 <section class="app-page" id="pgHome"></section>
 <section class="app-page" id="pgMarkets">
   <h1 class="pg-title">Рынки</h1>
-  <button class="gram-pin" data-gram-open type="button"><span class="coin-ic gram-ic">G</span><span class="gram-pin-t"><b>GRAM</b><small>Спот · сеть TON · не Hyperliquid</small></span><em>Купить</em></button>
+  <button class="ton-swap-row" data-gram-open type="button"><img src="https://app.hyperliquid.xyz/coins/GRAM.svg" alt="" width="22" height="22"><b>TON Swap</b><span class="ton-swap-market">GRAM</span><span class="ton-swap-px" data-ton-px>—</span><i class="chev"></i></button>
   <div class="pp-mkt mk-tabs" id="mMkt"><button data-mmk="all" type="button">Все</button><button data-mmk="perp" class="on" type="button">Фьючерсы</button><button data-mmk="spot" type="button">Спот</button><button data-mmk="crypto" type="button">Крипто</button><button data-mmk="tradfi" type="button">Традфи</button><button data-mmk="hip3" type="button">HIP-3</button><button data-mmk="trend" type="button">В тренде</button></div>
   <label class="pp-search"><span>⌕</span><input id="mSearch" type="text" placeholder="Поиск монеты" autocomplete="off"></label>
   <div class="pp-tabs" id="mTabs"><button data-mt="fav" type="button">Избранное</button><button data-mt="all" class="on" type="button">Все</button><button data-mt="gain" type="button">Растут</button><button data-mt="loss" type="button">Падают</button></div>
@@ -661,16 +661,44 @@
 
 <dialog id="gramDialog" class="sheet-dlg">
   <div class="dlg-body">
-    <h2>GRAM · сеть TON</h2>
-    <p class="muted small">Спот на STON.fi, не каталог Hyperliquid. Платишь USDT с TON-кошелька — GRAM сразу на нём. Вывод это перевод на любой адрес TON. Деньги с фьючерсного счёта сюда сами не переезжают.</p>
-    <div class="seg" id="gramSide"><button type="button" data-side="buy" class="on">Купить</button><button type="button" data-side="sell">Продать</button></div>
-    <label class="inp"><span id="gramAmtLabel">Отдаёшь, USDT</span><input id="gramAmt" inputmode="decimal" value="10" autocomplete="off" autocorrect="off" spellcheck="false"></label>
-    <p id="gramQuote" class="muted small">Считаем курс…</p>
-    <button id="gramWallet" class="btn ghost wide-btn" type="button">Выбрать TON-кошелёк</button>
-    <div id="gramWallets" class="fund-wallets" hidden></div>
-    <button id="gramGo" class="btn wide-btn" type="button">Купить GRAM</button>
-    <p id="gramErr" class="neg small" hidden></p>
-    <div class="row"><button id="gramClose" class="btn ghost grow" type="button">Закрыть</button></div>
+    <header class="ts-top">
+      <button id="tsBack" class="ts-back" type="button" hidden>Назад</button>
+      <b id="tsTitle">TON Swap</b>
+      <button id="gramClose" class="ts-x" type="button" aria-label="Закрыть">✕</button>
+    </header>
+    <div id="tsMain">
+      <div class="ts-chart">
+        <div class="ts-chart-meta"><b id="tsPx">—</b><span id="tsCh"></span><small id="tsPair">GRAM</small></div>
+        <div class="ts-tf" id="tsTf"><button type="button" data-tf="1" class="on">24ч</button><button type="button" data-tf="7">7д</button></div>
+        <svg id="tsChart" viewBox="0 0 320 84" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+      <div class="ts-card">
+        <div class="ts-card-h"><span>Отдаёте</span><button id="tsMax" type="button" hidden>Макс</button></div>
+        <div class="ts-card-r">
+          <input id="gramAmt" inputmode="decimal" value="10" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Сумма">
+          <button type="button" class="ts-asset" id="tsPayBtn"><img id="tsPayIc" alt="" width="22" height="22"><b id="tsPaySym">USDT</b></button>
+        </div>
+        <small id="tsPayUsd"></small>
+      </div>
+      <button id="tsFlip" class="ts-flip" type="button" aria-label="Поменять местами">↕</button>
+      <div class="ts-card">
+        <div class="ts-card-h"><span>Получаете</span></div>
+        <div class="ts-card-r">
+          <b id="tsRecv" class="ts-recv">—</b>
+          <button type="button" class="ts-asset" id="tsRecvBtn"><img id="tsRecvIc" alt="" width="22" height="22"><b id="tsRecvSym">GRAM</b></button>
+        </div>
+        <small id="tsRecvUsd"></small>
+      </div>
+      <div class="ts-meta" id="gramQuote"></div>
+      <button id="gramWallet" class="btn ghost wide-btn" type="button">Выбрать TON-кошелёк</button>
+      <div id="gramWallets" class="fund-wallets" hidden></div>
+      <button id="gramGo" class="btn wide-btn" type="button">Обменять</button>
+      <p id="gramErr" class="neg small" hidden></p>
+    </div>
+    <div id="tsPick" class="ts-pick" hidden>
+      <label class="pp-search"><span>⌕</span><input id="tsSearch" type="text" placeholder="Поиск токена" autocomplete="off"></label>
+      <div id="tsList" class="ts-list"></div>
+    </div>
   </div>
 </dialog>
 <dialog id="withdrawDialog" class="sheet-dlg">
@@ -750,7 +778,7 @@
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
 <script type="module" src="fund.js?v=1795234000"></script>
-<script type="module" src="gram-spot.js?v=1795600000"></script>
+<script type="module" src="gram-spot.js?v=1795612000"></script>
 <script src="liq.js?v=1795032614"></script>
 </body>
 </html>

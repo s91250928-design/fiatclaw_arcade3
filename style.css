@@ -2333,10 +2333,52 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .cash-row .neg{color:#f43f5e}
 #cashHist{margin-top:12px}
 
-.gram-pin{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:color-mix(in srgb,var(--accent,#22d3ee) 10%,var(--panel));border:1px solid color-mix(in srgb,var(--accent,#22d3ee) 35%,var(--line));border-radius:10px;padding:8px 10px;cursor:pointer}
-.gram-pin-t{display:flex;flex-direction:column;min-width:0;flex:1}
-.gram-pin-t b{font-size:14px}
-.gram-pin-t small{color:var(--muted);font-size:11px}
-.gram-pin em{font-style:normal;font-size:12px;font-weight:700;color:var(--accent,#22d3ee)}
-.gram-ic{background:linear-gradient(135deg,#38bdf8,#0369a1)}
-.gram-chip{border:1px solid color-mix(in srgb,var(--accent,#22d3ee) 45%,var(--line));background:color-mix(in srgb,var(--accent,#22d3ee) 12%,transparent);color:var(--text);border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer}
+.ton-swap-row{display:flex;align-items:center;gap:8px;width:100%;margin:0;padding:6px 6px;border:0;border-radius:8px;background:transparent;color:var(--text);text-align:left;cursor:pointer}
+.ton-swap-row:hover{background:var(--panel2)}
+.ton-swap-row img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex:none;background:var(--panel2)}
+.ton-swap-row b{font-size:13px;font-weight:700}
+.ton-swap-market{color:var(--muted);font-size:12px;font-weight:600}
+.ton-swap-px{margin-left:auto;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.ton-swap-row .chev{margin-left:6px;flex:none}
+.gram-chip{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer}
+#gramDialog{width:min(440px,calc(100% - 24px));max-height:min(92vh,760px);padding:0;border:1px solid var(--line);background:var(--panel);color:var(--text)}
+#gramDialog::backdrop{background:rgba(0,0,0,.55)}
+#gramDialog .dlg-body{padding:14px 14px 16px;overflow:auto}
+.ts-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ts-top b{flex:1;font-family:"Unbounded",var(--font);font-size:16px;letter-spacing:-.02em}
+.ts-x,.ts-back{border:0;background:transparent;color:var(--muted);padding:0}
+.ts-x{width:32px;height:32px;border-radius:8px;font-size:16px}
+.ts-back{color:var(--accent);font-weight:700}
+.ts-x:hover{background:var(--panel2)}
+.ts-chart{position:relative;margin:0 0 12px;padding:10px 10px 4px;border:1px solid var(--line);border-radius:14px;background:var(--panel2)}
+.ts-chart-meta{display:flex;align-items:baseline;gap:8px;padding-right:78px}
+.ts-chart-meta b{font-size:20px;font-weight:800;letter-spacing:-.03em}
+.ts-chart-meta small{color:var(--muted);font-weight:700}
+.ts-tf{position:absolute;right:8px;top:8px;display:flex;gap:2px}
+.ts-tf button{border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:700;padding:3px 6px;border-radius:6px}
+.ts-tf button.on{background:var(--panel);color:var(--text)}
+#tsChart{display:block;width:100%;height:84px;margin-top:2px}
+.ts-card{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel2)}
+.ts-card-h{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;font-weight:600}
+.ts-card-h button{border:0;background:transparent;color:var(--accent);font-weight:700;font-size:12px;padding:0}
+.ts-card-r{display:flex;align-items:center;gap:8px;margin-top:2px}
+.ts-card-r input{flex:1;min-width:0;border:0;background:transparent;outline:0;font-size:24px;font-weight:800;padding:0;width:0}
+.ts-recv{flex:1;min-width:0;font-size:24px;font-weight:800;letter-spacing:-.03em;overflow:hidden;text-overflow:ellipsis}
+.ts-asset{display:flex;align-items:center;gap:6px;border:0;background:var(--panel);border-radius:999px;padding:4px 10px 4px 4px;font-weight:800;flex:none}
+.ts-asset img{width:22px;height:22px;border-radius:50%;object-fit:cover;background:var(--panel2)}
+.ts-card small{display:block;min-height:16px;color:var(--muted)}
+.ts-flip{display:grid;place-items:center;width:34px;height:34px;margin:-8px auto;border-radius:50%;border:3px solid var(--panel);background:var(--panel2);color:var(--text);position:relative;z-index:1;font-size:16px;line-height:1}
+.ts-meta{display:flex;flex-wrap:wrap;gap:4px 12px;margin:10px 2px 0;color:var(--muted);font-size:12px}
+.ts-pick{display:flex;flex-direction:column;gap:8px;min-height:280px}
+.ts-list{overflow:auto;max-height:min(58vh,480px);display:flex;flex-direction:column}
+.ts-opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;border-radius:10px;padding:8px 6px}
+.ts-opt:hover,.ts-opt.on{background:var(--panel2)}
+.ts-opt img{width:28px;height:28px;border-radius:50%;object-fit:cover;background:var(--panel2);flex:none}
+.ts-opt span{display:flex;flex-direction:column;min-width:0;flex:1}
+.ts-opt small{color:var(--muted);font-weight:500}
+.ts-opt em{font-style:normal;font-weight:700;font-size:12px}
+#gramWallet,#gramGo{margin-top:10px}
+@media (max-width:900px){
+  #gramDialog[open]{position:fixed;inset:0;width:100%;max-width:none;height:100lvh;max-height:100lvh;margin:0;border:0;border-radius:0;overflow:hidden;display:flex;flex-direction:column}
+  #gramDialog .dlg-body{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+}
