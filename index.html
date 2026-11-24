@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795612000">
+<link rel="stylesheet" href="style.css?v=1795614000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -676,22 +676,20 @@
         <div class="ts-card-h"><span>Отдаёте</span><button id="tsMax" type="button" hidden>Макс</button></div>
         <div class="ts-card-r">
           <input id="gramAmt" inputmode="decimal" value="10" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Сумма">
-          <button type="button" class="ts-asset" id="tsPayBtn"><img id="tsPayIc" alt="" width="22" height="22"><b id="tsPaySym">USDT</b></button>
+          <span class="ts-asset" id="tsPayBtn"><img id="tsPayIc" alt="" width="22" height="22"><b id="tsPaySym">USDC</b></span>
         </div>
-        <small id="tsPayUsd"></small>
+        <small id="tsPayUsd">На счёте</small>
       </div>
-      <button id="tsFlip" class="ts-flip" type="button" aria-label="Поменять местами">↕</button>
+      <button id="tsFlip" class="ts-flip" type="button" aria-label="Поменять USDC и GRAM"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></svg></button>
       <div class="ts-card">
         <div class="ts-card-h"><span>Получаете</span></div>
         <div class="ts-card-r">
           <b id="tsRecv" class="ts-recv">—</b>
-          <button type="button" class="ts-asset" id="tsRecvBtn"><img id="tsRecvIc" alt="" width="22" height="22"><b id="tsRecvSym">GRAM</b></button>
+          <span class="ts-asset" id="tsRecvBtn"><img id="tsRecvIc" alt="" width="22" height="22"><b id="tsRecvSym">GRAM</b></span>
         </div>
-        <small id="tsRecvUsd"></small>
+        <small id="tsRecvUsd">На спот</small>
       </div>
       <div class="ts-meta" id="gramQuote"></div>
-      <button id="gramWallet" class="btn ghost wide-btn" type="button">Выбрать TON-кошелёк</button>
-      <div id="gramWallets" class="fund-wallets" hidden></div>
       <button id="gramGo" class="btn wide-btn" type="button">Обменять</button>
       <p id="gramErr" class="neg small" hidden></p>
     </div>
@@ -778,7 +776,7 @@
 <script type="module" src="position.js?v=1794152000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
 <script type="module" src="fund.js?v=1795234000"></script>
-<script type="module" src="gram-spot.js?v=1795612000"></script>
+<script type="module" src="gram-spot.js?v=1795614000"></script>
 <script src="liq.js?v=1795032614"></script>
 </body>
 </html>

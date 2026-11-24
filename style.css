@@ -2367,7 +2367,9 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .ts-asset{display:flex;align-items:center;gap:6px;border:0;background:var(--panel);border-radius:999px;padding:4px 10px 4px 4px;font-weight:800;flex:none}
 .ts-asset img{width:22px;height:22px;border-radius:50%;object-fit:cover;background:var(--panel2)}
 .ts-card small{display:block;min-height:16px;color:var(--muted)}
-.ts-flip{display:grid;place-items:center;width:34px;height:34px;margin:-8px auto;border-radius:50%;border:3px solid var(--panel);background:var(--panel2);color:var(--text);position:relative;z-index:1;font-size:16px;line-height:1}
+.ts-flip{display:grid;place-items:center;width:40px;height:40px;margin:8px auto;padding:0;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);box-shadow:none}
+.ts-flip svg{width:18px;height:18px;display:block}
+.ts-flip:active{background:var(--panel2)}
 .ts-meta{display:flex;flex-wrap:wrap;gap:4px 12px;margin:10px 2px 0;color:var(--muted);font-size:12px}
 .ts-pick{display:flex;flex-direction:column;gap:8px;min-height:280px}
 .ts-list{overflow:auto;max-height:min(58vh,480px);display:flex;flex-direction:column}
@@ -2377,7 +2379,7 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .ts-opt span{display:flex;flex-direction:column;min-width:0;flex:1}
 .ts-opt small{color:var(--muted);font-weight:500}
 .ts-opt em{font-style:normal;font-weight:700;font-size:12px}
-#gramWallet,#gramGo{margin-top:10px}
+#gramGo{margin-top:10px}
 @media (max-width:900px){
   #gramDialog[open]{position:fixed;inset:0;width:100%;max-width:none;height:100lvh;max-height:100lvh;margin:0;border:0;border-radius:0;overflow:hidden;display:flex;flex-direction:column}
   #gramDialog .dlg-body{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
