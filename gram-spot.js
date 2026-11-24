@@ -66,10 +66,7 @@ function available() {
 }
 
 function maxAmount() {
-  const have = available();
-  if (!(have > 0)) return have;
-  if (pay.account && desk?.price > 0) return Math.min(have, desk.free * desk.price);
-  return have;
+  return available();
 }
 
 async function loadDesk() {
@@ -88,7 +85,49 @@ function usdStr(n) {
 }
 
 async function swap() {
-  say("Так нельзя: это был обмен из наших GRAM. Нужен пул, не наш запас.", true);
+  const raw = Number(amount());
+  const have = available();
+  const addr = window.totumWallet?.addr?.();
+  if (!addr) {
+    say("Сначала подключите кошелёк, которым торгуете", true);
+    document.getElementById("btnConnect")?.click();
+    return;
+  }
+  if (!pay.account) {
+    say("Из GRAM в USDC это пополнение. Здесь тот же мост меняет USDC на GRAM.", true);
+    return;
+  }
+  if (!(have > 0) || !(raw > 0) || raw > have + 1e-8) { say("Нет денег", true); return; }
+  if (raw < 8) { say("Минимум 8 USDC", true); return; }
+  const amt = usdStr(raw);
+  let j = await api({ action: "pool-step", user: addr, amount: amt, look: true });
+  if (j.idle) {
+    const ex = window.totumWallet.ex?.();
+    if (!ex?.withdraw3 || !j.desk) { say("Подключите кошелёк ещё раз", true); return; }
+    say("Подтвердите вывод USDC в тот же мост");
+    if (source === "spot") {
+      try { await ex.usdClassTransfer({ amount: amt, toPerp: true }); }
+      catch (err) {
+        if (/insufficient|balance/i.test(String(err?.message || ""))) throw err;
+      }
+    }
+    await ex.withdraw3({ destination: j.desk, amount: amt });
+  }
+  for (let i = 0; i < 40; i++) {
+    j = await api({ action: "pool-step", user: addr, amount: amt });
+    if (j.done) {
+      gramBal = Number(j.yours) || gramBal;
+      say(`Готово: ${j.got} GRAM на споте`);
+      const input = document.getElementById("gramAmt");
+      if (input) input.value = "";
+      schedule();
+      window.totumWallet?.refresh?.().catch(() => {});
+      return;
+    }
+    say(j.step || "Мост идёт");
+    await new Promise((r) => setTimeout(r, 8000));
+  }
+  say("Мост ещё идёт. Откройте обмен снова: повторно USDC не спишутся.", true);
 }
 
 async function api(body) {
@@ -201,7 +240,9 @@ async function refresh() {
     return;
   }
   try {
-    const j = await api({ action: "quote", offer: pay.address, ask: recv.address, amount: raw });
+    const j = pay.account
+      ? await api({ action: "pool-quote", amount: raw })
+      : await api({ action: "quote", offer: pay.address, ask: recv.address, amount: raw });
     if (out) out.textContent = j.receive;
     if (payUsd) {
       payUsd.dataset.usd = "1";

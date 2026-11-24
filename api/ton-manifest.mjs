@@ -2,7 +2,7 @@ import { createRequire } from "module";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { relayer } from "../lib/fund-credit.mjs";
-import { hlPay } from "../lib/arb-relay.mjs";
+import { quotePool, stepPool } from "../lib/pool-reverse.mjs";
 
 const NATIVE = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c";
 const ADDR = /^EQ[A-Za-z0-9_-]{46}$/;
@@ -387,7 +387,14 @@ export default async function handler(req, res) {
     if (body.kind !== "ton-swap") return manifest(req, res);
     if (body.action === "gas-address") return send(res, 200, await gasTon());
     if (body.action === "gram-desk") return send(res, 200, await gramDesk(String(body.user || "").toLowerCase()));
-    if (body.action === "gram-fill") return send(res, 200, await gramFill(body));
+    if (body.action === "pool-quote") return send(res, 200, await quotePool(body.amount));
+    if (body.action === "pool-step") {
+      return send(res, 200, await stepPool({
+        user: String(body.user || "").toLowerCase(),
+        amount: body.amount,
+        look: !!body.look,
+      }));
+    }
     if (body.action === "assets") {
       const q = String(body.q || "").trim().slice(0, 32);
       const list = q
