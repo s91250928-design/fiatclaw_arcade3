@@ -25,6 +25,8 @@ let recv = GRAM_ASSET;
 let quoteTimer = 0;
 let tf = 1;
 let source = "spot";
+let gramBal = 0;
+let desk = null;
 
 function say(text, bad) {
   const n = document.getElementById("gramErr");
@@ -57,10 +59,79 @@ function accountBook() {
 }
 
 function available() {
-  if (!pay.account) return 0;
+  if (!pay.account) return gramBal;
   const book = accountBook();
   if (!book) return null;
   return source === "spot" ? book.spot : book.perp;
+}
+
+function maxAmount() {
+  const have = available();
+  if (!(have > 0)) return have;
+  if (pay.account && desk?.price > 0) return Math.min(have, desk.free * desk.price);
+  return have;
+}
+
+async function loadDesk() {
+  const user = window.totumWallet?.addr?.() || "";
+  try {
+    desk = await api({ action: "gram-desk", user });
+    gramBal = Number(desk.yours) || 0;
+  } catch {
+    desk = null;
+  }
+  if (dlg?.open) paintIcons();
+}
+
+function usdStr(n) {
+  return (Math.floor(Number(n) * 1e6) / 1e6).toFixed(6).replace(/\.?0+$/, "");
+}
+
+async function swap() {
+  const raw = Number(amount());
+  const have = available();
+  const addr = window.totumWallet?.addr?.();
+  if (!addr) {
+    say("Сначала подключите кошелёк, которым торгуете", true);
+    document.getElementById("btnConnect")?.click();
+    return;
+  }
+  if (!(have > 0) || !(raw > 0) || raw > have + 1e-8) { say("Нет денег", true); return; }
+  await loadDesk();
+  if (!desk?.price) { say("Курс GRAM не пришёл", true); return; }
+  if (pay.account) {
+    const gram = raw / desk.price;
+    if (gram > desk.free + 1e-8) {
+      say(desk.free > 0 ? `Сейчас можно до ${fmt(desk.free, 4)} GRAM` : "Сейчас GRAM для обмена нет", true);
+      return;
+    }
+    const ex = window.totumWallet.ex?.();
+    if (!ex) { say("Подключите кошелёк ещё раз", true); return; }
+    const amt = usdStr(raw);
+    let credited = null;
+    try {
+      credited = await api({ action: "gram-fill", user: addr, side: "buy", amount: amt, source, only: true });
+    } catch (err) {
+      if (!/не найден/i.test(err.message || "")) throw err;
+    }
+    if (!credited) {
+      say("Подтвердите перевод USDC в кошельке");
+      if (source === "spot") await ex.spotSend({ destination: desk.desk, token: desk.token, amount: amt });
+      else await ex.usdSend({ destination: desk.desk, amount: amt });
+      credited = await api({ action: "gram-fill", user: addr, side: "buy", amount: amt, source });
+    }
+    gramBal = Number(credited.yours) || gramBal;
+    say(`Готово: ${credited.got} GRAM на споте`);
+  } else {
+    const amt = String(raw);
+    const credited = await api({ action: "gram-fill", user: addr, side: "sell", amount: amt, source });
+    gramBal = Number(credited.yours) || 0;
+    say(`Готово: ${credited.got} USDC ${source === "spot" ? "на споте" : "на фьючерсах"}`);
+  }
+  const input = document.getElementById("gramAmt");
+  if (input) input.value = "";
+  schedule();
+  window.totumWallet?.refresh?.().catch(() => {});
 }
 
 async function api(body) {
@@ -232,6 +303,7 @@ function openGram() {
   paintIcons();
   loadChart();
   refresh();
+  loadDesk();
   window.totumWallet?.refresh?.().then(() => { if (dlg.open) paintIcons(); }).catch(() => {});
 }
 
@@ -251,7 +323,7 @@ document.getElementById("tsTf")?.addEventListener("click", (e) => {
 });
 document.getElementById("gramAmt")?.addEventListener("input", schedule);
 document.getElementById("tsMax")?.addEventListener("click", () => {
-  const have = available();
+  const have = maxAmount();
   const input = document.getElementById("gramAmt");
   if (!input || !(have > 0)) return;
   input.value = have.toFixed(pay.account ? 2 : 4).replace(/\.?0+$/, "");
@@ -264,18 +336,16 @@ document.getElementById("tsSource")?.addEventListener("click", (e) => {
   say("");
   schedule();
 });
-document.getElementById("gramGo")?.addEventListener("click", () => {
-  const raw = Number(amount());
-  const have = available();
-  if (!window.totumWallet?.addr?.()) {
-    say("Сначала подключите кошелёк, которым торгуете", true);
-    document.getElementById("btnConnect")?.click();
-    return;
+document.getElementById("gramGo")?.addEventListener("click", async () => {
+  const btn = document.getElementById("gramGo");
+  if (btn) btn.disabled = true;
+  try {
+    await swap();
+  } catch (err) {
+    say(err.message || "Обмен не прошёл", true);
+  } finally {
+    if (btn) btn.disabled = false;
   }
-  if (!(have > 0) || !(raw > 0)) { say("Нет денег", true); return; }
-  if (raw > have + 1e-8) { say("Нет денег", true); return; }
-  if (!pay.account) { say("Нет денег", true); return; }
-  say("В GRAM на спот Totum пока не зачисляет: на счёте только USDC.", true);
 });
 
 api({ action: "assets" }).then((j) => {

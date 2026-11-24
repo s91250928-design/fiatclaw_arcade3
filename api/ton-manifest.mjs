@@ -2,6 +2,7 @@ import { createRequire } from "module";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { relayer } from "../lib/fund-credit.mjs";
+import { hlPay } from "../lib/arb-relay.mjs";
 
 const NATIVE = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c";
 const ADDR = /^EQ[A-Za-z0-9_-]{46}$/;
@@ -252,6 +253,180 @@ function send(res, status, body) {
   res.status(status).send(JSON.stringify(body));
 }
 
+const SPOT_USDC = "USDC:0x6d1e7cde53ba9467b783cb7c530ce054";
+const RESERVE = 400000000n;
+
+function kvEnv() {
+  const pick = (end) => process.env[`KV_${end}`] || Object.entries(process.env).find(([k]) => k.endsWith(`_${end}`) && !k.includes("READ_ONLY"))?.[1];
+  const url = pick("REST_API_URL");
+  const token = pick("REST_API_TOKEN");
+  return url && token ? { url, token } : null;
+}
+
+async function kv(cmds) {
+  const k = kvEnv();
+  if (!k) throw new Error("Запись обмена не настроена");
+  const r = await fetch(`${k.url}/pipeline`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${k.token}`, "content-type": "application/json" },
+    body: JSON.stringify(cmds),
+    signal: AbortSignal.timeout(8e3),
+  });
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !Array.isArray(j)) throw new Error("Запись обмена не ответила");
+  return j.map((row) => row?.result);
+}
+
+function nanoToGram(n) {
+  const x = BigInt(n);
+  const w = x / 1000000000n;
+  const f = (x % 1000000000n).toString().padStart(9, "0").replace(/0+$/, "");
+  return f ? `${w}.${f}` : `${w}`;
+}
+
+async function gramPrice() {
+  const r = await fetch(`https://api.ston.fi/v1/assets/${NATIVE}`, { signal: AbortSignal.timeout(8e3) });
+  const j = await r.json().catch(() => ({}));
+  const px = Number(j.asset?.dex_price_usd || j.dex_price_usd);
+  if (!r.ok || !(px > 0)) throw new Error("Курс GRAM не пришёл");
+  return px;
+}
+
+async function houseBooks(addr) {
+  const info = async (body) => {
+    const r = await fetch("https://api.hyperliquid.xyz/info", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(12e3),
+    });
+    if (!r.ok) throw new Error("Счёт не ответил");
+    return r.json();
+  };
+  const [perp, spot] = await Promise.all([
+    info({ type: "clearinghouseState", user: addr }),
+    info({ type: "spotClearinghouseState", user: addr }),
+  ]);
+  const spotUsdc = Number((spot.balances || []).find((b) => b.coin === "USDC")?.total || 0);
+  return { perp: Number(perp.withdrawable || 0), spot: spotUsdc, info };
+}
+
+async function gramDesk(user) {
+  const gas = await gasTon();
+  const px = await gramPrice();
+  const houseNano = BigInt(Math.round(Number(gas.gram || 0) * 1e9));
+  let locked = 0n;
+  let yours = 0n;
+  if (kvEnv()) {
+    const [lock, bal] = await kv([
+      ["GET", "totum:gram:locked"],
+      ["HGET", "totum:gram:bal", user || "0x"],
+    ]);
+    locked = BigInt(lock || 0);
+    yours = BigInt(bal || 0);
+  }
+  const free = houseNano > locked + RESERVE ? houseNano - locked - RESERVE : 0n;
+  return {
+    ok: true,
+    desk: gas.eth,
+    token: SPOT_USDC,
+    price: px,
+    free: Number(free) / 1e9,
+    yours: Number(yours) / 1e9,
+    house: Number(houseNano) / 1e9,
+  };
+}
+
+async function findPayment(user, desk, amount, source) {
+  const info = await fetch("https://api.hyperliquid.xyz/info", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ type: "userNonFundingLedgerUpdates", user, startTime: Date.now() - 20 * 60 * 1000 }),
+    signal: AbortSignal.timeout(12e3),
+  });
+  const rows = info.ok ? await info.json() : [];
+  const want = Number(amount);
+  const hits = [];
+  for (const row of rows || []) {
+    const d = row.delta || {};
+    if (d.type !== "send") continue;
+    if (source === "spot" ? d.sourceDex !== "spot" : d.sourceDex === "spot") continue;
+    if (String(d.destination || "").toLowerCase() !== desk.toLowerCase()) continue;
+    const amt = Number(d.amount);
+    const fee = Number(d.fee || 0);
+    const close = Math.abs(amt - want) <= 0.02 || (fee > 0 && Math.abs(amt + fee - want) <= 0.05);
+    if (!close) continue;
+    hits.push(row);
+  }
+  hits.sort((a, b) => b.time - a.time);
+  return hits;
+}
+
+async function gramFill(body) {
+  const user = String(body.user || "").toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(user)) throw new Error("Сначала подключите кошелёк, которым торгуете");
+  const side = body.side === "sell" ? "sell" : "buy";
+  const source = body.source === "perp" ? "perp" : "spot";
+  const amount = Number(String(body.amount || "").replace(",", "."));
+  if (!(amount > 0)) throw new Error("Введите сумму");
+  const desk = await gramDesk(user);
+  const px = desk.price;
+  if (side === "buy") {
+    if (amount < 1) throw new Error("Минимум 1 USDC");
+    const gram = amount / px;
+    if (gram > desk.free + 1e-8) throw new Error(`Сейчас можно до ${nanoToGram(BigInt(Math.floor(desk.free * 1e9)))} GRAM`);
+    let hit = null;
+    for (let i = 0; i < (body.only ? 1 : 8); i++) {
+      const rows = await findPayment(user, desk.desk, amount, source);
+      for (const row of rows) {
+        const seen = await kv([["SISMEMBER", "totum:gram:seen", row.hash || `${row.time}`]]);
+        if (Number(seen[0]) === 1) continue;
+        hit = row;
+        break;
+      }
+      if (hit || body.only) break;
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    if (!hit) throw new Error("Перевод USDC не найден");
+    const add = BigInt(Math.round(gram * 1e9));
+    await kv([
+      ["INCRBY", "totum:gram:locked", add.toString()],
+      ["HINCRBY", "totum:gram:bal", user, add.toString()],
+      ["SADD", "totum:gram:seen", hit.hash || `${hit.time}`],
+    ]);
+    const yours = (await kv([["HGET", "totum:gram:bal", user]]))[0];
+    return { ok: true, got: nanoToGram(add), yours: nanoToGram(BigInt(yours || 0)) };
+  }
+  const have = BigInt(Math.round(desk.yours * 1e9));
+  const want = BigInt(Math.round(amount * 1e9));
+  if (want > have) throw new Error("Нет денег");
+  const usdc = Math.floor(amount * px * 1e6) / 1e6;
+  if (usdc < 1) throw new Error("Минимум около 1 USDC");
+  const gas = relayer();
+  const books = await houseBooks(gas.address);
+  const usd = usdc.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  const short = (have) => have + 1e-6 < usdc;
+  if (source === "spot") {
+    if (short(books.spot)) {
+      if (books.perp < usdc) throw new Error("USDC для обратного обмена ещё не пришли");
+      await hlPay({ priv: gas.priv, amount: usd, toPerp: false });
+    }
+    await hlPay({ priv: gas.priv, destination: user, amount: usd, token: SPOT_USDC });
+  } else {
+    if (short(books.perp)) {
+      if (books.spot < usdc) throw new Error("USDC для обратного обмена ещё не пришли");
+      await hlPay({ priv: gas.priv, amount: usd, toPerp: true });
+    }
+    await hlPay({ priv: gas.priv, destination: user, amount: usd });
+  }
+  await kv([
+    ["INCRBY", "totum:gram:locked", (-want).toString()],
+    ["HINCRBY", "totum:gram:bal", user, (-want).toString()],
+  ]);
+  const yours = (await kv([["HGET", "totum:gram:bal", user]]))[0];
+  return { ok: true, got: usd, yours: nanoToGram(BigInt(yours || 0)) };
+}
+
 async function gasTon() {
   const gas = relayer();
   const ton = loadSwap().tonGasWallet(process.env.GAS_RELAYER_KEY);
@@ -272,6 +447,8 @@ export default async function handler(req, res) {
     if (body.kind === "gram-spot") return send(res, 200, await legacyGram(body));
     if (body.kind !== "ton-swap") return manifest(req, res);
     if (body.action === "gas-address") return send(res, 200, await gasTon());
+    if (body.action === "gram-desk") return send(res, 200, await gramDesk(String(body.user || "").toLowerCase()));
+    if (body.action === "gram-fill") return send(res, 200, await gramFill(body));
     if (body.action === "assets") {
       const q = String(body.q || "").trim().slice(0, 32);
       const list = q
