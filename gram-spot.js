@@ -375,19 +375,35 @@ function esc(s) {
 let held = [];
 let painting = false;
 
+function money(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "—";
+  return `${x.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+}
+
 function paintHoldings() {
   if (painting) return;
   painting = true;
   document.querySelectorAll("[data-ton-hold]").forEach((n) => n.remove());
   const rows = held.filter((row) => Number(row.amount) > 0);
+  const tonUsd = rows.reduce((sum, row) => sum + (Number(row.usd) || 0), 0);
+  window.totumTonUsd = tonUsd;
   const body = document.getElementById("spotBody");
   if (body) {
+    const total = [...body.rows].find((tr) => tr.dataset.hl != null || tr.textContent.includes("Итого"));
     for (const row of rows) {
       const tr = document.createElement("tr");
       tr.dataset.tonHold = "1";
       const img = String(row.image || "").startsWith("https://asset.ston.fi/") ? `<img src="${esc(row.image)}" alt="" width="18" height="18">` : "";
-      tr.innerHTML = `<td><div class="pp-name">${img}<b>${esc(row.symbol)}</b></div></td><td>${esc(row.amount)}</td><td>${esc(row.amount)}</td><td>0</td><td>—</td><td>—</td><td>—</td><td class="muted">TON</td>`;
-      body.appendChild(tr);
+      const usd = Number(row.usd) > 0 ? money(row.usd) : "—";
+      tr.innerHTML = `<td><div class="pp-name">${img}<b>${esc(row.symbol)}</b></div></td><td>${esc(row.amount)}</td><td>${esc(row.amount)}</td><td>—</td><td>${usd}</td><td>—</td><td>—</td><td class="muted">TON</td>`;
+      if (total) body.insertBefore(tr, total);
+      else body.appendChild(tr);
+    }
+    if (total?.dataset.hl != null) {
+      const base = Number(total.dataset.hl) || 0;
+      const cell = total.querySelector("b");
+      if (cell) cell.textContent = money(base + tonUsd);
     }
   }
   const page = document.getElementById("pgAssets");
@@ -398,8 +414,18 @@ function paintHoldings() {
       div.className = "as-row";
       div.dataset.tonHold = "1";
       const img = String(row.image || "").startsWith("https://asset.ston.fi/") ? `<img src="${esc(row.image)}" alt="" width="28" height="28">` : "";
-      div.innerHTML = `${img}<div><b>${esc(row.symbol)}</b><small class="muted">${esc(row.amount)} · сеть TON</small></div><span>в активах</span>`;
+      const usd = Number(row.usd) > 0 ? money(row.usd) : "";
+      div.innerHTML = `${img}<div><b>${esc(row.symbol)}</b><small class="muted">${esc(row.amount)} · сеть TON</small></div><span>${usd}</span>`;
       spotCard.appendChild(div);
+    }
+  }
+  const sum = page?.querySelector(".hc-sum");
+  if (sum) {
+    const included = Number(sum.dataset.ton || 0);
+    if (included !== tonUsd) {
+      const cur = Number(String(sum.textContent).replace(/[^\d,.-]/g, "").replace(/\.(?=.*\.)/g, "").replace(",", ".")) || 0;
+      sum.textContent = money(cur - included + tonUsd);
+      sum.dataset.ton = String(tonUsd);
     }
   }
   painting = false;
