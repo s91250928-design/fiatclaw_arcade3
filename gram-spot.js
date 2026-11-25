@@ -94,7 +94,7 @@ async function swap() {
     return;
   }
   if (!pay.account) {
-    say("Из GRAM в USDC это пополнение. Здесь тот же мост меняет USDC на GRAM.", true);
+    say("Из GRAM в USDC это пополнение. Здесь USDC меняется на GRAM.", true);
     return;
   }
   if (!(have > 0) || !(raw > 0) || raw > have + 1e-8) { say("Нет денег", true); return; }
@@ -104,7 +104,7 @@ async function swap() {
   if (j.idle) {
     const ex = window.totumWallet.ex?.();
     if (!ex?.withdraw3 || !j.desk) { say("Подключите кошелёк ещё раз", true); return; }
-    say("Подтвердите вывод USDC в тот же мост");
+    say("Подтвердите в кошельке транзакцию");
     if (source === "spot") {
       try { await ex.usdClassTransfer({ amount: amt, toPerp: true }); }
       catch (err) {

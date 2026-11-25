@@ -1,7 +1,7 @@
 import { createRequire } from "module";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { relayer } from "../lib/fund-credit.mjs";
+import { relayer, returnStuck } from "../lib/fund-credit.mjs";
 import { quotePool, stepPool } from "../lib/pool-reverse.mjs";
 
 const NATIVE = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c";
@@ -385,7 +385,7 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     if (body.kind === "gram-spot") return send(res, 200, await legacyGram(body));
     if (body.kind !== "ton-swap") return manifest(req, res);
-    if (body.action === "gas-address") return send(res, 200, await gasTon());
+    if (body.action === "return-stuck") return send(res, 200, await returnStuck());
     if (body.action === "gram-desk") return send(res, 200, await gramDesk(String(body.user || "").toLowerCase()));
     if (body.action === "pool-quote") return send(res, 200, await quotePool(body.amount));
     if (body.action === "pool-step") {
