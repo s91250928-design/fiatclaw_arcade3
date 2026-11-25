@@ -375,6 +375,16 @@ function esc(s) {
 let held = [];
 let painting = false;
 
+function qty(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "—";
+  return x.toLocaleString("ru-RU", { maximumFractionDigits: x >= 100 ? 2 : 4 });
+}
+
+function tonIcon(image) {
+  if (String(image || "").startsWith("https://asset.ston.fi/")) return `<img src="${esc(image)}" alt="" width="24" height="24">`;
+  return `<svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#0098EA"/><path fill="#fff" d="M16 6.2 24.2 11v10L16 25.8 7.8 21V11L16 6.2zm0 2.6L10.2 12v8L16 23.2 21.8 20v-8L16 8.8z"/></svg>`;
+}
 function money(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return "—";
@@ -394,9 +404,9 @@ function paintHoldings() {
     for (const row of rows) {
       const tr = document.createElement("tr");
       tr.dataset.tonHold = "1";
-      const img = String(row.image || "").startsWith("https://asset.ston.fi/") ? `<img src="${esc(row.image)}" alt="" width="18" height="18">` : "";
+      const img = tonIcon(row.image);
       const usd = Number(row.usd) > 0 ? money(row.usd) : "—";
-      tr.innerHTML = `<td><div class="pp-name">${img}<b>${esc(row.symbol)}</b></div></td><td>${esc(row.amount)}</td><td>${esc(row.amount)}</td><td>—</td><td>${usd}</td><td>—</td><td>—</td><td class="muted">TON</td>`;
+      tr.innerHTML = `<td><div class="pp-name">${img}<b>${esc(row.symbol)}</b></div></td><td>${qty(row.amount)}</td><td>${qty(row.amount)}</td><td>—</td><td>${usd}</td><td>—</td><td>—</td><td class="muted">TON</td>`;
       if (total) body.insertBefore(tr, total);
       else body.appendChild(tr);
     }
@@ -413,9 +423,9 @@ function paintHoldings() {
       const div = document.createElement("div");
       div.className = "as-row";
       div.dataset.tonHold = "1";
-      const img = String(row.image || "").startsWith("https://asset.ston.fi/") ? `<img src="${esc(row.image)}" alt="" width="28" height="28">` : "";
+      const img = tonIcon(row.image);
       const usd = Number(row.usd) > 0 ? money(row.usd) : "";
-      div.innerHTML = `${img}<div><b>${esc(row.symbol)}</b><small class="muted">${esc(row.amount)} · сеть TON</small></div><span>${usd}</span>`;
+      div.innerHTML = `${img}<div><b>${esc(row.symbol)}</b><small class="muted">${qty(row.amount)}</small></div><span>${usd}</span>`;
       spotCard.appendChild(div);
     }
   }

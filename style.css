@@ -804,6 +804,7 @@ body:not(.connected) #trRow{display:none}
   .mv-ch{font:600 12px var(--mono);text-align:center;padding:5px 0;border-radius:8px;color:#fff}
   .mv-ch.pos{background:var(--buy);color:#fff} .mv-ch.neg{background:var(--sell);color:#fff}
   .as-row{grid-template-columns:24px 1fr auto}
+  .as-row > svg,.as-row > img{width:24px;height:24px;border-radius:50%;display:block}
   .as-row small{display:block}
   .as-row>span{font-family:var(--mono);font-size:13px}
   .faucet{display:block;text-align:center;font-size:12px;color:var(--accent);padding:6px 0 2px;text-decoration:none}
