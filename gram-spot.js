@@ -445,14 +445,21 @@ function paintHoldings() {
   painting = false;
 }
 
+function remember(rows) {
+  held = (rows || []).filter((row) => Number(row.amount) > 0);
+  window.totumTonHold = held;
+  window.totumTonUsd = held.reduce((sum, row) => sum + (Number(row.usd) || 0), 0);
+  try { localStorage.setItem("totum-ton-hold", JSON.stringify(held)); } catch { /* останется в памяти */ }
+}
+
 async function loadHoldings() {
   const user = window.totumWallet?.addr?.();
   if (!user) return;
   try {
     const j = await api({ action: "holdings", user });
-    held = j.assets || [];
-    paintHoldings();
-  } catch { /* активы подтянутся следующим заходом */ }
+    remember(j.assets || []);
+    window.dispatchEvent(new Event("totum-hold"));
+  } catch { /* баланс уже показан из сохранённого */ }
 }
 
 function watchHoldings() {
