@@ -381,9 +381,13 @@ function qty(n) {
   return x.toLocaleString("ru-RU", { maximumFractionDigits: x >= 100 ? 2 : 4 });
 }
 
-function tonIcon(image) {
-  if (String(image || "").startsWith("https://asset.ston.fi/")) return `<img src="${esc(image)}" alt="" width="24" height="24">`;
-  return `<svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#0098EA"/><path fill="#fff" d="M16 6.2 24.2 11v10L16 25.8 7.8 21V11L16 6.2zm0 2.6L10.2 12v8L16 23.2 21.8 20v-8L16 8.8z"/></svg>`;
+function tonIcon(row) {
+  const own = String(row.image || "");
+  const src = own.startsWith("https://asset.ston.fi/")
+    ? own
+    : (row.symbol === "GRAM" ? "https://asset.ston.fi/img/EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c/7e9ffa3a3fc433184f7f2dd80b2bb9bfb4371f9d505f33cae81a41b5e0a50107" : "");
+  if (!src) return `<span class="coin-ic">${esc(String(row.symbol || "?").slice(0, 1))}</span>`;
+  return `<span class="coin-ic"><img alt="" decoding="async" src="${esc(src)}"></span>`;
 }
 function money(n) {
   const x = Number(n);
@@ -404,7 +408,7 @@ function paintHoldings() {
     for (const row of rows) {
       const tr = document.createElement("tr");
       tr.dataset.tonHold = "1";
-      const img = tonIcon(row.image);
+      const img = tonIcon(row);
       const usd = Number(row.usd) > 0 ? money(row.usd) : "—";
       tr.innerHTML = `<td><div class="pp-name">${img}<b>${esc(row.symbol)}</b></div></td><td>${qty(row.amount)}</td><td>${qty(row.amount)}</td><td>—</td><td>${usd}</td><td>—</td><td>—</td><td class="muted">TON</td>`;
       if (total) body.insertBefore(tr, total);
@@ -423,7 +427,7 @@ function paintHoldings() {
       const div = document.createElement("div");
       div.className = "as-row";
       div.dataset.tonHold = "1";
-      const img = tonIcon(row.image);
+      const img = tonIcon(row);
       const usd = Number(row.usd) > 0 ? money(row.usd) : "";
       div.innerHTML = `${img}<div><b>${esc(row.symbol)}</b><small class="muted">${qty(row.amount)}</small></div><span>${usd}</span>`;
       spotCard.appendChild(div);
@@ -454,7 +458,14 @@ async function loadHoldings() {
 function watchHoldings() {
   const spot = document.getElementById("spotBody");
   const page = document.getElementById("pgAssets");
-  const kick = () => { if (!painting && held.length && !document.querySelector("#spotBody [data-ton-hold], #pgAssets [data-ton-hold]")) paintHoldings(); };
+  const kick = () => {
+    if (painting || !held.length) return;
+    const body = document.getElementById("spotBody");
+    const page = document.getElementById("pgAssets");
+    const spotMissing = body && !body.querySelector("[data-ton-hold]");
+    const pageMissing = page?.querySelector(".cb-head") && !page.querySelector("[data-ton-hold]");
+    if (spotMissing || pageMissing) paintHoldings();
+  };
   if (spot) new MutationObserver(kick).observe(spot, { childList: true });
   if (page) new MutationObserver(kick).observe(page, { childList: true });
   setInterval(loadHoldings, 20000);
