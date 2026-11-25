@@ -2372,7 +2372,7 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .ts-card-r{display:flex;align-items:center;gap:8px;margin-top:2px}
 .ts-card-r input{flex:1;min-width:0;border:0;background:transparent;outline:0;font-size:24px;font-weight:800;padding:0;width:0}
 .ts-recv{flex:1;min-width:0;font-size:24px;font-weight:800;letter-spacing:-.03em;overflow:hidden;text-overflow:ellipsis}
-.ts-asset{display:flex;align-items:center;gap:6px;border:0;background:var(--panel);border-radius:999px;padding:4px 10px 4px 4px;font-weight:800;flex:none}
+.ts-asset{display:flex;align-items:center;gap:6px;border:0;background:var(--panel);border-radius:999px;padding:4px 10px 4px 4px;font-weight:800;flex:none;cursor:pointer}
 .ts-asset img{width:22px;height:22px;border-radius:50%;object-fit:cover;background:var(--panel2)}
 .ts-card small{display:block;min-height:16px;color:var(--muted)}
 .ts-flip{display:grid;place-items:center;width:40px;height:40px;margin:8px auto;padding:0;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);box-shadow:none}

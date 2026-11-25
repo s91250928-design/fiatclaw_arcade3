@@ -94,7 +94,7 @@ async function swap() {
     return;
   }
   if (!pay.account) {
-    say("Из GRAM в USDC это пополнение. Здесь USDC меняется на GRAM.", true);
+    say("Продажа с активов вернёт USDC на фьючерсы. Сейчас покупайте: токен останется в активах, не на кошельке.", true);
     return;
   }
   if (!(have > 0) || !(raw > 0) || raw > have + 1e-8) { say("Нет денег", true); return; }
@@ -112,29 +112,36 @@ async function swap() {
       }
     }
     await ex.withdraw3({ destination: j.desk, amount: amt });
-    await api({ action: "pool-arm", user: addr, amount: amt });
+    await api({ action: "pool-arm", user: addr, amount: amt, token: recv.address });
   }
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 60; i++) {
     try {
-      j = await api({ action: "pool-step", user: addr, amount: amt });
+      j = await api({ action: "pool-step", user: addr, amount: amt, token: recv.address });
     } catch (err) {
-      say(err.message || "Обмен ещё идёт");
+      say(err.message || "Обмен идёт");
       await new Promise((r) => setTimeout(r, 5000));
       continue;
     }
     if (j.done) {
-      gramBal = Number(j.yours) || gramBal;
-      say(`Готово: ${j.got} GRAM на споте`);
+      say(j.step || `Готово: ${j.got} ${recv.symbol} в активах`);
       const input = document.getElementById("gramAmt");
       if (input) input.value = "";
       schedule();
+      loadHoldings();
       window.totumWallet?.refresh?.().catch(() => {});
       return;
     }
-    say(j.step || "Обмен идёт");
+    say(progress(j));
     await new Promise((r) => setTimeout(r, 5000));
   }
   say("Обмен ещё идёт. Откройте его снова: повторно деньги не спишутся.", true);
+}
+
+function progress(j) {
+  let text = j.step || "Обмен идёт";
+  const min = j.since ? Math.floor((Date.now() - Number(j.since)) / 60000) : 0;
+  if (min >= 1) text += `. Уже ${min} мин`;
+  return text;
 }
 
 async function api(body) {
@@ -157,7 +164,7 @@ function paintIcons() {
     if (img) img.src = asset.image;
   }
   const pair = document.getElementById("tsPair");
-  if (pair) pair.textContent = "GRAM";
+  if (pair) pair.textContent = recv.symbol;
   const have = available();
   const book = accountBook();
   const sub = document.getElementById("tsPayUsd");
@@ -177,7 +184,7 @@ function paintIcons() {
   }
   if (max) max.hidden = !(have > 0);
   const where = document.getElementById("tsRecvUsd");
-  if (where && !where.dataset.usd) where.textContent = recv.account ? "На счёт" : "На спот";
+  if (where && !where.dataset.usd) where.textContent = "В активы";
 }
 
 function paintGramPrice(price) {
@@ -224,7 +231,7 @@ function drawChart(points) {
 
 async function loadChart() {
   try {
-    const j = await api({ action: "chart", address: GRAM, days: tf });
+    const j = await api({ action: "chart", address: recv.address || GRAM, days: tf });
     drawChart(j.points || []);
   } catch {
     drawChart([]);
@@ -246,10 +253,13 @@ async function refresh() {
     if (box) box.replaceChildren();
     return;
   }
+  if (!pay.account) {
+    if (out) out.textContent = "—";
+    if (box) box.textContent = "Продажа с активов вернёт USDC на фьючерсы. Пока покупайте: токен останется в активах.";
+    return;
+  }
   try {
-    const j = pay.account
-      ? await api({ action: "pool-quote", amount: raw })
-      : await api({ action: "quote", offer: pay.address, ask: recv.address, amount: raw });
+    const j = await api({ action: "pool-quote", amount: raw, token: recv.address });
     if (out) out.textContent = j.receive;
     if (payUsd) {
       payUsd.dataset.usd = "1";
@@ -261,7 +271,7 @@ async function refresh() {
     }
     if (recvUsd) {
       recvUsd.dataset.usd = "1";
-      recvUsd.textContent = `≈ $${j.recvUsd || "—"} · ${recv.account ? "на счёт" : "на спот"}`;
+      recvUsd.textContent = `≈ $${j.recvUsd || "—"} · в активах`;
     }
     if (box) {
       box.replaceChildren();
@@ -309,6 +319,7 @@ function openGram() {
   loadChart();
   refresh();
   loadDesk();
+  loadHoldings();
   window.totumWallet?.refresh?.().then(() => { if (dlg.open) paintIcons(); }).catch(() => {});
 }
 
@@ -352,6 +363,124 @@ document.getElementById("gramGo")?.addEventListener("click", async () => {
     if (btn) btn.disabled = false;
   }
 });
+
+function esc(s) {
+  const amp = String.fromCharCode(38) + "amp;";
+  const lt = String.fromCharCode(38) + "lt;";
+  const gt = String.fromCharCode(38) + "gt;";
+  const quot = String.fromCharCode(38) + "quot;";
+  return String(s ?? "").replace(/&/g, amp).replace(/</g, lt).replace(/>/g, gt).replace(/"/g, quot);
+}
+
+let held = [];
+let painting = false;
+
+function paintHoldings() {
+  if (painting) return;
+  painting = true;
+  document.querySelectorAll("[data-ton-hold]").forEach((n) => n.remove());
+  const rows = held.filter((row) => Number(row.amount) > 0);
+  const body = document.getElementById("spotBody");
+  if (body) {
+    for (const row of rows) {
+      const tr = document.createElement("tr");
+      tr.dataset.tonHold = "1";
+      const img = String(row.image || "").startsWith("https://asset.ston.fi/") ? `<img src="${esc(row.image)}" alt="" width="18" height="18">` : "";
+      tr.innerHTML = `<td><div class="pp-name">${img}<b>${esc(row.symbol)}</b></div></td><td>${esc(row.amount)}</td><td>${esc(row.amount)}</td><td>0</td><td>—</td><td>—</td><td>—</td><td class="muted">TON</td>`;
+      body.appendChild(tr);
+    }
+  }
+  const page = document.getElementById("pgAssets");
+  const spotCard = [...(page?.querySelectorAll(".card-block") || [])].find((n) => n.querySelector(".cb-head")?.textContent?.includes("Спот"));
+  if (spotCard) {
+    for (const row of rows) {
+      const div = document.createElement("div");
+      div.className = "as-row";
+      div.dataset.tonHold = "1";
+      const img = String(row.image || "").startsWith("https://asset.ston.fi/") ? `<img src="${esc(row.image)}" alt="" width="28" height="28">` : "";
+      div.innerHTML = `${img}<div><b>${esc(row.symbol)}</b><small class="muted">${esc(row.amount)} · сеть TON</small></div><span>в активах</span>`;
+      spotCard.appendChild(div);
+    }
+  }
+  painting = false;
+}
+
+async function loadHoldings() {
+  const user = window.totumWallet?.addr?.();
+  if (!user) return;
+  try {
+    const j = await api({ action: "holdings", user });
+    held = j.assets || [];
+    paintHoldings();
+  } catch { /* активы подтянутся следующим заходом */ }
+}
+
+function watchHoldings() {
+  const spot = document.getElementById("spotBody");
+  const page = document.getElementById("pgAssets");
+  const kick = () => { if (!painting && held.length && !document.querySelector("#spotBody [data-ton-hold], #pgAssets [data-ton-hold]")) paintHoldings(); };
+  if (spot) new MutationObserver(kick).observe(spot, { childList: true });
+  if (page) new MutationObserver(kick).observe(page, { childList: true });
+  setInterval(loadHoldings, 20000);
+  loadHoldings();
+}
+
+let catalog = [];
+function drawList(list) {
+  const box = document.getElementById("tsList");
+  if (!box) return;
+  box.replaceChildren();
+  for (const a of list) {
+    if (a.symbol === "USDC") continue;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ts-opt";
+    const img = String(a.image || "").startsWith("https://asset.ston.fi/") ? `<img src="${esc(a.image)}" alt="">` : "";
+    b.innerHTML = `${img}<span><b>${esc(a.symbol)}</b><small>${esc(a.name || "")}</small></span><em>${a.price ? "$" + fmt(a.price, 4) : ""}</em>`;
+    b.addEventListener("click", () => {
+      recv = {
+        symbol: a.symbol,
+        name: a.name,
+        address: a.address,
+        decimals: a.decimals,
+        image: a.image || "",
+        native: !!a.native,
+        account: false,
+      };
+      document.getElementById("tsMain").hidden = false;
+      document.getElementById("tsPick").hidden = true;
+      document.getElementById("tsBack").hidden = true;
+      paintIcons();
+      loadChart();
+      schedule();
+    });
+    box.appendChild(b);
+  }
+}
+
+document.getElementById("tsRecvBtn")?.addEventListener("click", async () => {
+  document.getElementById("tsMain").hidden = true;
+  document.getElementById("tsPick").hidden = false;
+  document.getElementById("tsBack").hidden = false;
+  try {
+    if (!catalog.length) catalog = (await api({ action: "assets" })).assets || [];
+    drawList(catalog);
+  } catch (err) {
+    const box = document.getElementById("tsList");
+    if (box) box.textContent = err.message || "Список не пришёл";
+  }
+});
+document.getElementById("tsBack")?.addEventListener("click", () => {
+  document.getElementById("tsMain").hidden = false;
+  document.getElementById("tsPick").hidden = true;
+  document.getElementById("tsBack").hidden = true;
+});
+document.getElementById("tsSearch")?.addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  drawList(catalog.filter((a) => `${a.symbol} ${a.name}`.toLowerCase().includes(q)));
+});
+
+watchHoldings();
 
 api({ action: "assets" }).then((j) => {
   const g = (j.assets || []).find((a) => a.symbol === "GRAM");
