@@ -112,9 +112,16 @@ async function swap() {
       }
     }
     await ex.withdraw3({ destination: j.desk, amount: amt });
+    await api({ action: "pool-arm", user: addr, amount: amt });
   }
-  for (let i = 0; i < 40; i++) {
-    j = await api({ action: "pool-step", user: addr, amount: amt });
+  for (let i = 0; i < 50; i++) {
+    try {
+      j = await api({ action: "pool-step", user: addr, amount: amt });
+    } catch (err) {
+      say(err.message || "Обмен ещё идёт");
+      await new Promise((r) => setTimeout(r, 5000));
+      continue;
+    }
     if (j.done) {
       gramBal = Number(j.yours) || gramBal;
       say(`Готово: ${j.got} GRAM на споте`);
@@ -124,10 +131,10 @@ async function swap() {
       window.totumWallet?.refresh?.().catch(() => {});
       return;
     }
-    say(j.step || "Мост идёт");
-    await new Promise((r) => setTimeout(r, 8000));
+    say(j.step || "Обмен идёт");
+    await new Promise((r) => setTimeout(r, 5000));
   }
-  say("Мост ещё идёт. Откройте обмен снова: повторно USDC не спишутся.", true);
+  say("Обмен ещё идёт. Откройте его снова: повторно деньги не спишутся.", true);
 }
 
 async function api(body) {
