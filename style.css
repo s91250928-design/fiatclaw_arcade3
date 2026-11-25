@@ -2198,6 +2198,7 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .sc-tk-h{font-size:12px}.sc-tk-h small{font-size:11.5px}
 .pos-row,.pos-card[data-pos-coin]{cursor:pointer}
 .pos-row:hover td{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.pos-row.on td,.pos-card.on{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 
 /* профиль: поле ника в общем стиле, без белой подсветки автозаполнения */
 .pf-edit .inp input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--text);font:600 14px var(--font);text-align:left;padding:0 0 0 10px}
