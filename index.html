@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795650000">
+<link rel="stylesheet" href="style.css?v=1795652000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -378,17 +378,17 @@
       <input id="pct" class="range" type="range" min="0" max="100" value="0" step="1" aria-label="Процент">
       <div class="steps-marks"><button data-p="0">0%</button><button data-p="25">25%</button><button data-p="50">50%</button><button data-p="75">75%</button><button data-p="100">100%</button></div>
     </div>
-    <label class="chk dotted" id="slipToggle" title="Насколько цена рыночного ордера может отличаться от текущей"><input type="checkbox" id="slipOn"><span class="box"></span> Проскальзывание <b id="slipVal" class="muted small"></b></label>
+    <label class="chk" id="slipToggle" title="Насколько цена рыночного ордера может отличаться от текущей"><input type="checkbox" id="slipOn"><span class="box"></span> Проскальзывание <b id="slipVal" class="muted small"></b></label>
     <div id="slipRow" class="slip-chips" hidden>
       <button data-slip="0.001" type="button">0,1%</button><button data-slip="0.005" type="button">0,5%</button><button data-slip="0.01" type="button">1%</button><button data-slip="0.03" type="button">3%</button>
       <label class="inp mini-inp"><input id="slipCustom" type="number" inputmode="decimal" step="0.1" min="0.05" max="10" placeholder="своё"><em>%</em></label>
     </div>
-    <label class="chk dotted perp-only" id="carryToggle" hidden><input type="checkbox" id="carryOn"><span class="box"></span> Хедж позиция</label>
+    <label class="chk perp-only" id="carryToggle" hidden><input type="checkbox" id="carryOn"><span class="box"></span> Хедж позиция</label>
     <div id="carryBox" hidden>
       <p class="muted small ladder-note">Покупается спот и открывается шорт того же размера. Если фандинг положительный, его получает шорт. Это две рыночные сделки, вкладку можно закрыть.</p>
       <p class="tpsl-hint" id="carryLive"></p>
     </div>
-    <label class="chk dotted perp-only" id="tpslToggle"><input type="checkbox" id="tpslOn"><span class="box"></span> ТП / СЛ</label>
+    <label class="chk perp-only" id="tpslToggle"><input type="checkbox" id="tpslOn"><span class="box"></span> ТП / СЛ</label>
     <div id="tpslRow" class="tpsl perp-only" hidden>
       <div class="risk-box">
         <label class="chk" title="Укажите, сколько готовы потерять, и поставьте стоп — размер позиции посчитается сам"><input type="checkbox" id="riskOn"><span class="box"></span> Размер от риска</label>
@@ -618,49 +618,50 @@
 <dialog id="fundDialog" class="sheet-dlg">
   <div class="dlg-body">
   <h2>Пополнить</h2>
-  <p class="muted small" id="fundTo">На ваш счёт</p>
-  <div class="fund-send" id="fundSend">
-    <p class="arb-one">Сеть Arbitrum One</p>
-    <div class="fund-qr-wrap"><svg class="fund-qr" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 31 31" shape-rendering="crispEdges"><path stroke="#0b1220" d="M1 1.5h7m3 0h4m1 0h2m1 0h3m1 0h7M1 2.5h1m5 0h1m3 0h3m1 0h2m1 0h2m1 0h1m1 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h5m1 0h3m1 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m1 0h3m4 0h1m2 0h1m1 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m1 0h3m2 0h1m1 0h1m2 0h2m2 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m1 0h5m1 0h1m1 0h3m3 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h2m1 0h1m1 0h1m1 0h1m3 0h1M1 9.5h1m1 0h5m3 0h1m1 0h1m1 0h1m1 0h3m3 0h5M2 10.5h1m5 0h1m2 0h2m1 0h5m1 0h7m1 0h2M3 11.5h1m1 0h3m2 0h4m3 0h1m1 0h1m1 0h2m1 0h2M2 12.5h2m1 0h2m1 0h1m1 0h3m2 0h2m3 0h1m5 0h1m1 0h2M1 13.5h4m1 0h8m2 0h1m1 0h2m4 0h1m2 0h2M1 14.5h1m8 0h2m1 0h4m1 0h1m1 0h4m1 0h2m2 0h1M1 15.5h1m1 0h1m1 0h3m1 0h1m3 0h1m2 0h2m1 0h1m1 0h1m3 0h1m1 0h2M1 16.5h2m1 0h3m3 0h1m2 0h5m1 0h1m5 0h1m2 0h1M1 17.5h2m1 0h1m1 0h5m6 0h2m5 0h1m1 0h4M1 18.5h2m1 0h1m4 0h1m2 0h3m1 0h2m1 0h5m1 0h1m3 0h1M1 19.5h1m1 0h5m2 0h1m4 0h1m2 0h2m1 0h2m1 0h3M1 20.5h1m1 0h4m1 0h2m1 0h2m1 0h4m2 0h1m2 0h4m1 0h1M1 21.5h1m3 0h3m2 0h2m1 0h1m1 0h2m1 0h1m2 0h5m1 0h2M9 22.5h3m4 0h2m1 0h1m1 0h1m3 0h1m3 0h1M1 23.5h7m2 0h4m2 0h1m1 0h4m1 0h1m1 0h4M1 24.5h1m5 0h1m1 0h5m3 0h1m1 0h3m3 0h1m2 0h1M1 25.5h1m1 0h3m1 0h1m1 0h1m9 0h1m1 0h7m1 0h1M1 26.5h1m1 0h3m1 0h1m1 0h5m6 0h1m5 0h1M1 27.5h1m1 0h3m1 0h1m1 0h1m2 0h3m4 0h1m1 0h6m1 0h1M1 28.5h1m5 0h1m6 0h4m1 0h3m2 0h2m2 0h1M1 29.5h7m1 0h2m1 0h2m3 0h1m1 0h1m2 0h2m1 0h3"/></svg></div>
-    <p class="fund-token">USDC · минимум 5</p>
-    <button id="fundCopy" class="fund-copy" type="button" data-addr="0x2df1c51e09aecf9cacb7bc98cb1742757f163df7">0x2df1c51e09aecf9cacb7bc98cb1742757f163df7</button>
-    <p class="muted small">Это адрес Totum. Отправьте USDC сами: кошелёк покажет обычный перевод, без разрешения тратить токены. Деньги придут на счёт того кошелька, с которого отправили, обычно меньше чем за минуту.</p>
+  <div class="seg" id="fundPick">
+    <button type="button" data-fund="usdc" class="on">USDC</button>
+    <button type="button" data-fund="gram">GRAM</button>
   </div>
-  <div class="fund-gram">
-    <b>GRAM с кошелька TON</b>
-    <p>Подключите кошелёк и подтвердите обмен в нём. GRAM станет USDC и зачислится на этот счёт Totum.</p>
-    <button id="fundGramOpen" class="btn ghost wide-btn" type="button">Обменять GRAM</button>
+  <div id="fundUsdc">
+    <p class="arb-one">Сеть Arbitrum</p>
+    <div class="fund-send" id="fundSend">
+      <div class="fund-qr-wrap"><svg class="fund-qr" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 31 31" shape-rendering="crispEdges"><path stroke="#0b1220" d="M1 1.5h7m3 0h4m1 0h2m1 0h3m1 0h7M1 2.5h1m5 0h1m3 0h3m1 0h2m1 0h2m1 0h1m1 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h5m1 0h3m1 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m1 0h3m4 0h1m2 0h1m1 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m1 0h3m2 0h1m1 0h1m2 0h2m2 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m1 0h5m1 0h1m1 0h3m3 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h2m1 0h1m1 0h1m1 0h1m3 0h1M1 9.5h1m1 0h5m3 0h1m1 0h1m1 0h1m1 0h3m3 0h5M2 10.5h1m5 0h1m2 0h2m1 0h5m1 0h7m1 0h2M3 11.5h1m1 0h3m2 0h4m3 0h1m1 0h1m1 0h2m1 0h2M2 12.5h2m1 0h2m1 0h1m1 0h3m2 0h2m3 0h1m5 0h1m1 0h2M1 13.5h4m1 0h8m2 0h1m1 0h2m4 0h1m2 0h2M1 14.5h1m8 0h2m1 0h4m1 0h1m1 0h4m1 0h2m2 0h1M1 15.5h1m1 0h1m1 0h3m1 0h1m3 0h1m2 0h2m1 0h1m1 0h1m3 0h1m1 0h2M1 16.5h2m1 0h3m3 0h1m2 0h5m1 0h1m5 0h1m2 0h1M1 17.5h2m1 0h1m1 0h5m6 0h2m5 0h1m1 0h4M1 18.5h2m1 0h1m4 0h1m2 0h3m1 0h2m1 0h5m1 0h1m3 0h1M1 19.5h1m1 0h5m2 0h1m4 0h1m2 0h2m1 0h2m1 0h3M1 20.5h1m1 0h4m1 0h2m1 0h2m1 0h4m2 0h1m2 0h4m1 0h1M1 21.5h1m3 0h3m2 0h2m1 0h1m1 0h2m1 0h1m2 0h5m1 0h2M9 22.5h3m4 0h2m1 0h1m1 0h1m3 0h1m3 0h1M1 23.5h7m2 0h4m2 0h1m1 0h4m1 0h1m1 0h4M1 24.5h1m5 0h1m1 0h5m3 0h1m1 0h3m3 0h1m2 0h1M1 25.5h1m1 0h3m1 0h1m1 0h1m9 0h1m1 0h7m1 0h1M1 26.5h1m1 0h3m1 0h1m1 0h5m6 0h1m5 0h1M1 27.5h1m1 0h3m1 0h1m1 0h1m2 0h3m4 0h1m1 0h6m1 0h1M1 28.5h1m5 0h1m6 0h4m1 0h3m2 0h2m2 0h1M1 29.5h7m1 0h2m1 0h2m3 0h1m1 0h1m2 0h2m1 0h3"/></svg></div>
+      <p class="fund-token">Минимум 5 USDC</p>
+      <button id="fundCopy" class="fund-copy" type="button" data-addr="0x2df1c51e09aecf9cacb7bc98cb1742757f163df7">0x2df1c51e09aecf9cacb7bc98cb1742757f163df7</button>
+      <p class="muted small" id="fundTo">Отправьте USDC на этот адрес. Деньги придут на счёт того же кошелька.</p>
+    </div>
+    <button id="fundWalletOpen" class="btn ghost wide-btn" type="button">С этого кошелька</button>
   </div>
-  <button id="fundWalletOpen" class="btn ghost wide-btn" type="button">Подключённым кошельком</button>
+  <div id="fundGram" hidden>
+    <p class="arb-one">Сеть TON</p>
+    <p class="muted small">Подключите кошелёк и подтвердите обмен. GRAM станет USDC на счёте Totum.</p>
+    <button id="fundTon" class="btn ghost wide-btn" type="button">Подключить кошелёк</button>
+    <div id="fundWallets" class="fund-wallets" hidden></div>
+    <div class="seg fund-assets" id="fundAssets" hidden><button type="button" data-asset="usdt">USDT</button><button type="button" data-asset="gram" class="on">GRAM</button></div>
+    <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="от 12" autocomplete="off" autocorrect="off" spellcheck="false"></label>
+    <p class="muted small fund-min" id="fundMin">Минимум 12 GRAM</p>
+    <button id="fundGo" class="btn wide-btn" type="button">Пополнить</button>
+    <p class="neg small" data-fund-err hidden></p>
+    <p class="fund-out" data-fund-ok hidden></p>
+  </div>
   <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button></div>
   </div>
 </dialog>
 <dialog id="fundWalletDlg" class="sheet-dlg">
   <div class="dlg-body">
-  <h2>Пополнить кошельком</h2>
-  <p class="muted small" id="fundWalletTo">Подключите кошелёк</p>
+  <h2>С этого кошелька</h2>
+  <p class="muted small" id="fundWalletTo">USDC · сеть Arbitrum</p>
   <div class="fund-keeper" id="fundKeeperBox">
-    <p class="muted small" id="fundKeeper">Подключите кошелёк, с которого зачисляем.</p>
+    <p class="muted small" id="fundKeeper">Подключите кошелёк.</p>
     <button id="fundKeeperGo" class="btn ghost wide-btn" type="button">Подключить кошелёк</button>
   </div>
   <div class="fund-hl" id="fundHlBox">
-    <label class="inp"><span>USDC на кошельке</span><input id="fundHlAmt" inputmode="decimal" placeholder="от 5" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-hl-usdc"></label>
-    <p class="muted small fund-min">Минимум 5 USDC. Списывается только эта сумма.</p>
-    <button id="fundHl" class="btn wide-btn" type="button">Зачислить с кошелька</button>
+    <label class="inp"><span>Сумма</span><input id="fundHlAmt" inputmode="decimal" placeholder="от 5" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-hl-usdc"></label>
+    <p class="muted small fund-min">Минимум 5 USDC. Спишется только эта сумма.</p>
+    <button id="fundHl" class="btn wide-btn" type="button">Подтвердить в кошельке</button>
   </div>
-  <button id="fundOther" class="btn ghost wide-btn" type="button">С другого кошелька</button>
-  <div id="fundOtherBox" hidden>
-    <p class="muted small">Подключите кошелёк TON. В нём подтвердите обмен: GRAM или USDT станет USDC и сразу зачислится на Totum.</p>
-    <button id="fundTon" class="fund-other" type="button">Выбрать кошелёк</button>
-    <div id="fundWallets" class="fund-wallets" hidden></div>
-    <div class="seg fund-assets" id="fundAssets"><button type="button" data-asset="usdt" class="on">USDT</button><button type="button" data-asset="gram">GRAM</button></div>
-    <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="от 10" autocomplete="off" autocorrect="off" spellcheck="false"></label>
-    <p class="muted small fund-min" id="fundMin">Минимум 10 USDT</p>
-    <button id="fundGo" class="btn wide-btn" type="button">Пополнить</button>
-  </div>
-  <p class="neg small" id="fundErr" hidden></p>
-  <p class="fund-out" id="fundOut" hidden></p>
-  <p class="fund-wait" id="fundWait" hidden></p>
+  <p class="neg small" id="fundErr" data-fund-err hidden></p>
+  <p class="fund-out" id="fundOut" data-fund-ok hidden></p>
   <div class="row"><button id="fundWalletClose" class="btn ghost grow" type="button">Закрыть</button></div>
   </div>
 </dialog>
@@ -716,8 +717,8 @@
   <div class="dlg-body">
   <h2>Вывести</h2>
   <div class="seg" id="wdCoin">
-    <button type="button" data-coin="usdc" class="on">USDC · Arbitrum</button>
-    <button type="button" data-coin="ton" id="wdCoinTon" hidden>Сеть TON</button>
+    <button type="button" data-coin="usdc" class="on">USDC</button>
+    <button type="button" data-coin="ton" id="wdCoinTon" hidden>GRAM</button>
   </div>
   <p class="arb-one" id="wdNetName">Сеть Arbitrum One</p>
   <div class="seg" id="wdTonTokens" hidden></div>
@@ -729,7 +730,7 @@
   <label class="consent wd-check" id="wdOwnOkWrap">
     <input type="checkbox" id="wdOwnOk">
     <i class="box"></i>
-    <span id="wdOwnLabel">Я подтверждаю, что это мой адрес в сети Arbitrum One.</span>
+    <span id="wdOwnLabel">Это мой кошелёк</span>
   </label>
   <div id="wdOther" hidden>
     <label class="wd-addr"><span id="wdAddrLabel">Адрес сети Arbitrum One</span><input id="wdAddr" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="0x…"></label>
@@ -737,12 +738,12 @@
     <label class="consent wd-check">
       <input type="checkbox" id="wdArb">
       <i class="box"></i>
-      <span id="wdArbLabel">Я вставил адрес сети Arbitrum One.</span>
+      <span id="wdArbLabel">Это мой адрес</span>
     </label>
-    <label class="consent wd-check">
+    <label class="consent wd-check" hidden>
       <input type="checkbox" id="wdMine">
       <i class="box"></i>
-      <span>Я подтверждаю, что это мой адрес.</span>
+      <span>Это мой адрес</span>
     </label>
   </div>
   <label class="inp"><span id="wdAmtLabel">USDC</span><input id="wdAmt" inputmode="decimal" placeholder="больше 1" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-wd-usdc"></label>
@@ -796,7 +797,7 @@ try{var tonSaved=JSON.parse(localStorage.getItem("totum-ton-hold")||"[]");if(!Ar
 <script type="module" src="ladder.js?v=1795618000"></script>
 <script type="module" src="position.js?v=1795618000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1795650000"></script>
+<script type="module" src="fund.js?v=1795652000"></script>
 <script type="module" src="gram-spot.js?v=1795648000"></script>
 <script src="scrub.js?v=1795618000"></script>
 <script src="liq.js?v=1795032614"></script>

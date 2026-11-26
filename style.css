@@ -356,7 +356,7 @@ dialog .row{margin-top:12px}
 .ob-ratio{flex:none}
 
 /* ===== Проскальзывание и TP/SL как на Gate ===== */
-.chk.dotted{text-decoration:underline dotted;text-underline-offset:3px;color:var(--text)}
+.chk.dotted{text-decoration:none}
 #slipRow{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .mini-inp{height:28px;width:84px;padding:0 6px}
 .mini-inp input{font-size:12px}

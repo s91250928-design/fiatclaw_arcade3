@@ -7,7 +7,7 @@ const BRIDGE = "0x2df1c51e09aecf9cacb7bc98cb1742757f163df7";
 const PREFERRED = ["tonkeeper", "mytonwallet", "telegram", "telegram-wallet", "tonhub", "binanceWeb3TonWallet", "okxTonWallet", "bybitTonWallet", "bitgetTonWallet", "hot"];
 const fundDlg = document.getElementById("fundDialog");
 const connector = new TonConnect({ manifestUrl: location.origin + "/api/ton-manifest" });
-let fundAsset = "usdt";
+let fundAsset = "gram";
 let fundTimer = 0;
 let tonAddr = "";
 let run = 0;
@@ -38,7 +38,7 @@ function setTon(wallet) {
   const raw = wallet?.account?.address || "";
   tonAddr = raw ? toUserFriendlyAddress(raw) : "";
   const btn = document.getElementById("fundTon");
-  if (btn) btn.textContent = tonAddr ? fundShort(tonAddr) : "Выбрать кошелёк";
+  if (btn) btn.textContent = tonAddr ? fundShort(tonAddr) : "Подключить кошелёк";
   document.getElementById("fundWallets").hidden = true;
 }
 
@@ -100,6 +100,10 @@ document.getElementById("fundAssets")?.addEventListener("click", (e) => {
 });
 
 function fundHide(id) {
+  if (id === "fundErr" || id === "fundOut") {
+    document.querySelectorAll("[data-fund-err],[data-fund-ok]").forEach((n) => { n.hidden = true; });
+    return;
+  }
   const n = document.getElementById(id);
   if (n) n.hidden = true;
 }
@@ -188,28 +192,24 @@ function fundKeeperNote() {
   const box = document.getElementById("fundKeeper");
   const go = document.getElementById("fundKeeperGo");
   const addr = fundAddr();
-  const here = keeperTrade();
-  if (box) {
-    box.textContent = here && addr
-      ? "Это Keeper. USDC отправляйте из него на адрес ниже — тогда они придут на этот счёт."
-      : here
-        ? "Вы в браузере Keeper. Подключите кошелёк и отправьте USDC на адрес ниже."
-        : addr
-          ? "Отправляйте USDC с подключённого кошелька на адрес ниже. Тогда они придут на этот счёт Totum."
-          : "Сеть Arbitrum One, токен USDC. Сканируйте код или скопируйте адрес и отправьте сами.";
-  }
+  if (box) box.textContent = addr ? "Подтвердите в кошельке. Спишется только введённая сумма." : "Сначала подключите кошелёк.";
   if (go) go.hidden = !!addr;
 }
 
+function fundTab(asset) {
+  const gram = asset === "gram";
+  document.querySelectorAll("#fundPick button").forEach((n) => n.classList.toggle("on", n.dataset.fund === (gram ? "gram" : "usdc")));
+  const usdc = document.getElementById("fundUsdc");
+  const pane = document.getElementById("fundGram");
+  if (usdc) usdc.hidden = gram;
+  if (pane) pane.hidden = !gram;
+  if (gram) pickAsset("gram");
+}
+
 function fundShow() {
-  const to = document.getElementById("fundTo");
-  const addr = fundAddr();
-  if (to) to.textContent = addr ? `Счёт Totum для ${fundShort(addr)}. Отправьте USDC с этого же кошелька.` : "Отправьте USDC. Счёт откроется у кошелька, с которого ушёл перевод.";
   fundHide("fundOut");
   fundHide("fundErr");
-  const other = document.getElementById("fundOtherBox");
-  if (other) other.hidden = true;
-  fundKeeperNote();
+  fundTab("usdc");
   fundDlg.showModal();
   pinDlg(fundDlg);
   fundArm();
@@ -250,15 +250,12 @@ function fundWalletShow() {
   fundWatch();
 }
 
-document.getElementById("fundGramOpen")?.addEventListener("click", () => {
-  fundDlg.close();
-  fundWalletShow();
-  const box = document.getElementById("fundOtherBox");
-  if (box) box.hidden = false;
-  pickAsset("gram");
-  const min = document.getElementById("fundMin");
-  if (min) min.textContent = "Минимум 12 GRAM. Дальше кошелёк попросит подтвердить обмен.";
-  focusAmt(document.getElementById("fundAmt"));
+document.getElementById("fundPick")?.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-fund]");
+  if (!b) return;
+  fundHide("fundOut");
+  fundHide("fundErr");
+  fundTab(b.dataset.fund);
 });
 document.getElementById("fundWalletClose")?.addEventListener("click", () => {
   clearInterval(fundTimer);
@@ -282,8 +279,9 @@ document.getElementById("fundClose")?.addEventListener("click", () => { clearInt
 fundDlg?.addEventListener("close", () => { clearInterval(fundTimer); run++; });
 
 function say(text, bad) {
-  const out = document.getElementById(bad ? "fundErr" : "fundOut");
-  const other = document.getElementById(bad ? "fundOut" : "fundErr");
+  const root = document.getElementById("fundWalletDlg")?.open ? document.getElementById("fundWalletDlg") : fundDlg;
+  const out = root?.querySelector(bad ? "[data-fund-err]" : "[data-fund-ok]");
+  const other = root?.querySelector(bad ? "[data-fund-ok]" : "[data-fund-err]");
   if (other) other.hidden = true;
   if (!out) return;
   out.hidden = false;
@@ -533,7 +531,7 @@ document.getElementById("fundHl")?.addEventListener("click", async () => {
   } finally {
     if (mine === run) {
       btn.disabled = false;
-      btn.textContent = "Зачислить с кошелька";
+      btn.textContent = "Подтвердить в кошельке";
     }
   }
 });
@@ -698,8 +696,8 @@ function wdApplyCoin() {
   const addrLabel = document.getElementById("wdAddrLabel");
   const amtLabel = document.getElementById("wdAmtLabel");
   const addr = document.getElementById("wdAddr");
-  if (ownLabel) ownLabel.textContent = ton ? "Я подтверждаю, что это мой адрес в сети TON." : "Я подтверждаю, что это мой адрес в сети Arbitrum One.";
-  if (arbLabel) arbLabel.textContent = ton ? "Я вставил адрес сети TON." : "Я вставил адрес сети Arbitrum One.";
+  if (ownLabel) ownLabel.textContent = "Это мой кошелёк";
+  if (arbLabel) arbLabel.textContent = ton ? "Это мой адрес в сети TON" : "Это мой адрес в сети Arbitrum";
   if (addrLabel) addrLabel.textContent = ton ? "Адрес сети TON" : "Адрес сети Arbitrum One";
   if (addr) addr.placeholder = ton ? "UQ…" : "0x…";
   if (amtLabel) amtLabel.textContent = ton ? (token?.symbol || "TON") : "USDC";
@@ -719,7 +717,7 @@ function wdApplyCoin() {
 function wdFillTon() {
   const rows = tonHoldings();
   const btn = document.getElementById("wdCoinTon");
-  if (btn) btn.hidden = !rows.length;
+  if (btn) { btn.hidden = !rows.length; btn.textContent = rows.length === 1 ? rows[0].symbol : "TON"; }
   if (!rows.some((row) => row.address === wdTon)) wdTon = rows[0]?.address || "";
   const box = document.getElementById("wdTonTokens");
   if (!box) return;
@@ -983,7 +981,12 @@ document.getElementById("wdDest")?.addEventListener("click", (e) => {
   wdHide("wdErr");
   wdGate();
 });
-document.getElementById("wdArb")?.addEventListener("change", wdGate);
+document.getElementById("wdArb")?.addEventListener("change", () => {
+  const mine = document.getElementById("wdMine");
+  const arb = document.getElementById("wdArb");
+  if (mine && arb) mine.checked = arb.checked;
+  wdGate();
+});
 document.getElementById("wdMine")?.addEventListener("change", wdGate);
 document.getElementById("wdOwnOk")?.addEventListener("change", wdGate);
 document.getElementById("wdAddr")?.addEventListener("input", wdGate);
