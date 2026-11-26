@@ -2292,14 +2292,16 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 #wdFinal .dlg-body{padding:16px 16px 8px;overflow:auto;flex:1 1 auto;min-height:0}
 #wdFinal .dlg-foot{flex:none;display:flex;flex-direction:column;gap:8px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}
 #wdFinal .dlg-foot .btn{padding:14px;font-size:16px}
-.wd-review{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.wd-review{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.wd-sheet{border:1px solid var(--line);border-radius:16px;background:var(--panel2);overflow:hidden}
 .wd-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.wd-row{padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
-.wd-row span{display:block;color:var(--muted);font-size:12px;font-weight:600}
-.wd-row b{display:block;margin-top:2px;font-size:16px;font-weight:800;line-height:1.3}
-.wd-row.addr b{font-family:var(--mono);font-size:14px;font-weight:700;word-break:break-all}
-.wd-row.net b{color:var(--accent);font-size:20px}
-.wd-row.ok b{color:var(--buy)}
+.wd-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 14px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
+.wd-sheet .wd-row:last-child{border-bottom:0}
+.wd-row span{display:block;flex:none;color:var(--muted);font-size:13px;font-weight:600}
+.wd-row b{display:block;margin:0;max-width:68%;text-align:right;font-size:14px;font-weight:800;line-height:1.35}
+.wd-row.addr b{font-family:var(--mono);font-size:12px;font-weight:700;word-break:break-all}
+.wd-row.recv{background:color-mix(in srgb,var(--buy) 12%,transparent)}
+.wd-row.recv b{color:var(--buy);font-size:16px}
 .wd-warn{margin:0;padding:10px 12px;border-radius:12px;background:rgba(245,158,11,.16);color:#f59e0b;font-size:13px;line-height:1.4}
 .fund-keeper{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
 .fund-keeper p{margin:0}

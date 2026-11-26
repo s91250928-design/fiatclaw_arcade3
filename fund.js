@@ -345,6 +345,7 @@ function human(e) {
   if (!m) return "";
   if (/does not exist|not available|unsupported method|not supported/i.test(m)) return "Кошелёк не дал подписать разрешение. Отключите его и подключите ещё раз.";
   if (/user rejected|reject|denied|cancel|отклон/i.test(m)) return "Подпись отменена. Деньги не уходили.";
+  if (/address is required|TON_CONNECT|SendTransaction/i.test(m)) return "Кошелёк не открыл перевод. Нажмите «Пополнить» ещё раз.";
   return m;
 }
 
@@ -490,10 +491,10 @@ async function depositGram(mine) {
     body: JSON.stringify({ kind: "ton-swap", action: "gram-in", user, from: tonAddr, raw, amount: document.getElementById("fundAmt").value }),
   });
   const ready = await prep.json().catch(() => ({}));
-  if (!prep.ok || !ready.ok) throw new Error(ready.error || "Перевод не собрался");
+  if (!prep.ok || !ready.ok || !ready.to) throw new Error(ready.error || "Перевод не собрался");
   if (mine !== run) return;
   say("Подтвердите перевод в кошельке. GRAM появятся в активах.");
-  await send(ready);
+  await send({ address: ready.to, amount: ready.amount, payload: ready.payload });
   if (mine !== run) return;
   say("Перевод подписан. Ждём зачисление в активы.");
   for (let i = 0; i < 20; i++) {
@@ -875,18 +876,13 @@ function wdOpenReview() {
     wdPending = { ton: true, token: token.address, symbol: token.symbol, dest: picked.dest, own: false, amount, net: amount, mine, same: false };
     const box = document.getElementById("wdReview");
     if (box) {
-      box.innerHTML = `<div class="wd-grid">${[
-        wdRow("Откуда", "Totum"),
-        wdRow("Куда", "Адрес сети TON"),
-      ].join("")}</div>` + [
+      box.innerHTML = `<div class="wd-sheet">${[
+        wdRow("Сеть", "TON"),
         wdRow("Адрес", wdPending.dest, "addr"),
-        wdRow("Сеть", "TON", "net"),
-      ].join("") + `<div class="wd-grid">${[
-        wdRow("Списывается", `${wdPending.amount} ${token.symbol}`),
-        wdRow("Придёт", `${wdPending.amount} ${token.symbol}`),
-        wdRow("Комиссия Totum", "0"),
-        wdRow("Время", "Около минуты"),
-      ].join("")}</div>` + wdRow("Адрес действителен", "Да", "ok") + `<p class="wd-warn">${esc("Вы подтвердили: адрес ваш и он в сети TON. На чужой адрес токен не вернуть.")}</p>`;
+        wdRow("Сумма", `${wdPending.amount} ${token.symbol}`),
+        wdRow("Комиссия", "0"),
+        wdRow("Придёт", `${wdPending.amount} ${token.symbol}`, "recv"),
+      ].join("")}</div><p class="wd-warn">${esc("Проверьте адрес. На чужой адрес в сети TON токен не вернуть.")}</p>`;
     }
     const err = document.getElementById("wdFinalErr");
     if (err) { err.hidden = true; err.textContent = ""; }
@@ -928,21 +924,14 @@ function wdOpenReview() {
   };
   const box = document.getElementById("wdReview");
   if (box) {
-    const warn = wdPending.own
-      ? "Вы подтвердили: это ваш адрес в сети Arbitrum One."
-      : "Вы подтвердили: адрес ваш и он в сети Arbitrum One. На чужой адрес деньги не вернуть.";
-    box.innerHTML = `<div class="wd-grid">${[
-      wdRow("Откуда", "Totum"),
-      wdRow("Куда", wdPending.own ? "На подключённый кошелёк" : "На другой адрес"),
-    ].join("")}</div>` + [
+    const warn = "Проверьте адрес. На чужой адрес в сети Arbitrum деньги не вернуть.";
+    box.innerHTML = `<div class="wd-sheet">${[
+      wdRow("Сеть", "Arbitrum"),
       wdRow("Адрес", wdPending.dest, "addr"),
-      wdRow("Сеть", "Arbitrum One", "net"),
-    ].join("") + `<div class="wd-grid">${[
-      wdRow("Списывается", `${wdPending.amount} USDC`),
-      wdRow("Придёт", `${wdPending.net} USDC`),
+      wdRow("Сумма", `${wdPending.amount} USDC`),
       wdRow("Комиссия", "1 USDC"),
-      wdRow("Время", "Около 5 минут"),
-    ].join("")}</div>` + wdRow("Адрес действителен", "Да", "ok") + `<p class="wd-warn">${esc(warn)}</p>`;
+      wdRow("Придёт", `${wdPending.net} USDC`, "recv"),
+    ].join("")}</div><p class="wd-warn">${esc(warn)}</p>`;
   }
   const err = document.getElementById("wdFinalErr");
   if (err) { err.hidden = true; err.textContent = ""; }
