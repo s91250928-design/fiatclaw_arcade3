@@ -634,12 +634,12 @@
   </div>
   <div id="fundGram" hidden>
     <p class="arb-one">Сеть TON</p>
-    <p class="muted small">Подключите кошелёк и подтвердите обмен. GRAM станет USDC на счёте Totum.</p>
+    <p class="muted small">Подключите Tonkeeper и подтвердите перевод один раз. GRAM появятся в активах. На USDC их меняет уже биржа, второе подтверждение не нужно.</p>
     <button id="fundTon" class="btn ghost wide-btn" type="button">Подключить кошелёк</button>
     <div id="fundWallets" class="fund-wallets" hidden></div>
     <div class="seg fund-assets" id="fundAssets" hidden><button type="button" data-asset="usdt">USDT</button><button type="button" data-asset="gram" class="on">GRAM</button></div>
     <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="от 12" autocomplete="off" autocorrect="off" spellcheck="false"></label>
-    <p class="muted small fund-min" id="fundMin">Минимум 12 GRAM</p>
+    <p class="muted small fund-min" id="fundMin">Минимум 1 GRAM. Одно подтверждение в кошельке.</p>
     <button id="fundGo" class="btn wide-btn" type="button">Пополнить</button>
     <p class="neg small" data-fund-err hidden></p>
     <p class="fund-out" data-fund-ok hidden></p>
@@ -797,8 +797,8 @@ try{var tonSaved=JSON.parse(localStorage.getItem("totum-ton-hold")||"[]");if(!Ar
 <script type="module" src="ladder.js?v=1795618000"></script>
 <script type="module" src="position.js?v=1795618000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1795652000"></script>
-<script type="module" src="gram-spot.js?v=1795648000"></script>
+<script type="module" src="fund.js?v=1795654000"></script>
+<script type="module" src="gram-spot.js?v=1795654000"></script>
 <script src="scrub.js?v=1795618000"></script>
 <script src="liq.js?v=1795032614"></script>
 </body>

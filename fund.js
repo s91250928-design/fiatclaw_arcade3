@@ -96,7 +96,7 @@ document.getElementById("fundAssets")?.addEventListener("click", (e) => {
   fundAsset = b.dataset.asset;
   for (const n of document.querySelectorAll("#fundAssets button")) n.classList.toggle("on", n === b);
   const min = document.getElementById("fundMin");
-  if (min) min.textContent = fundAsset === "gram" ? "Минимум 12 GRAM. Дальше кошелёк попросит подтвердить обмен." : "Минимум 10 USDT";
+  if (min) min.textContent = fundAsset === "gram" ? "Минимум 1 GRAM. Одно подтверждение в кошельке." : "Минимум 10 USDT";
 });
 
 function fundHide(id) {
@@ -460,6 +460,64 @@ async function waitArrived(mine, before) {
   throw new Error("USDC ещё идёт на кошелёк. Как появится, нажмите «Зачислить с кошелька».");
 }
 
+async function holdRefresh() {
+  const user = fundAddr();
+  if (!user) return;
+  try {
+    const r = await fetch("/api/ton-manifest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "ton-swap", action: "holdings", user }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) return;
+    const rows = (j.assets || []).filter((row) => Number(row.amount) > 0);
+    window.totumTonHold = rows;
+    window.totumTonUsd = rows.reduce((sum, row) => sum + (Number(row.usd) || 0), 0);
+    try { localStorage.setItem("totum-ton-hold", JSON.stringify(rows)); } catch {}
+    window.dispatchEvent(new Event("totum-hold"));
+  } catch { /* активы обновятся следующим заходом */ }
+}
+
+async function depositGram(mine) {
+  const user = fundAddr();
+  if (!user) throw new Error("Сначала подключите счёт Totum");
+  if (!tonAddr) { showWallets(); throw new Error(""); }
+  const raw = connector.wallet?.account?.address || "";
+  const prep = await fetch("/api/ton-manifest", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "ton-swap", action: "gram-in", user, from: tonAddr, raw, amount: document.getElementById("fundAmt").value }),
+  });
+  const ready = await prep.json().catch(() => ({}));
+  if (!prep.ok || !ready.ok) throw new Error(ready.error || "Перевод не собрался");
+  if (mine !== run) return;
+  say("Подтвердите перевод в кошельке. GRAM появятся в активах.");
+  await send(ready);
+  if (mine !== run) return;
+  say("Перевод подписан. Ждём зачисление в активы.");
+  for (let i = 0; i < 20; i++) {
+    await sleep(3000);
+    if (mine !== run) return;
+    const r = await fetch("/api/ton-manifest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "ton-swap", action: "gram-in-step", user }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || "Зачисление не подтвердилось");
+    if (j.done) {
+      await holdRefresh();
+      say("Успешно");
+      const amt = document.getElementById("fundAmt");
+      if (amt) amt.value = "";
+      return;
+    }
+    say(j.step || "Ждём перевод");
+  }
+  throw new Error("Перевод ещё в пути. Через минуту нажмите «Пополнить» ещё раз: повторно не спишется.");
+}
+
 document.getElementById("fundGo")?.addEventListener("click", async () => {
   const btn = document.getElementById("fundGo");
   if (!tonAddr) { showWallets(); return; }
@@ -467,8 +525,12 @@ document.getElementById("fundGo")?.addEventListener("click", async () => {
   const mine = ++run;
   btn.disabled = true;
   const prev = btn.textContent;
-  btn.textContent = "Считаем…";
+  btn.textContent = fundAsset === "gram" ? "Ждём кошелёк…" : "Считаем…";
   try {
+    if (fundAsset === "gram") {
+      await depositGram(mine);
+      return;
+    }
     const before = (await usdcNow()) || 0n;
     let j = await quote(fundAsset, document.getElementById("fundAmt").value);
     if (mine !== run) return;

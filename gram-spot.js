@@ -85,16 +85,13 @@ function usdStr(n) {
 }
 
 async function swap() {
+  if (!pay.account) return sellSwap();
   const raw = Number(amount());
   const have = available();
   const addr = window.totumWallet?.addr?.();
   if (!addr) {
     say("Сначала подключите кошелёк, которым торгуете", true);
     document.getElementById("btnConnect")?.click();
-    return;
-  }
-  if (!pay.account) {
-    say("Продажа с активов вернёт USDC на фьючерсы. Сейчас покупайте: токен останется в активах, не на кошельке.", true);
     return;
   }
   if (!(have > 0) || !(raw > 0) || raw > have + 1e-8) { say("Нет денег", true); return; }
@@ -135,6 +132,34 @@ async function swap() {
     await new Promise((r) => setTimeout(r, 5000));
   }
   say("Обмен ещё идёт. Откройте его снова: повторно деньги не спишутся.", true);
+}
+
+async function sellSwap() {
+  const raw = amount();
+  const have = available();
+  const addr = window.totumWallet?.addr?.();
+  if (!addr) {
+    say("Сначала подключите счёт Totum", true);
+    document.getElementById("btnConnect")?.click();
+    return;
+  }
+  if (!(have > 0) || !(Number(raw) > 0) || Number(raw) > have + 1e-8) { say("Нет GRAM в активах", true); return; }
+  let j = await api({ action: "sell-arm", user: addr, amount: raw });
+  for (let i = 0; i < 80; i++) {
+    if (j.done) {
+      say(j.step || `Готово: ${j.got} USDC на фьючерсах`);
+      const input = document.getElementById("gramAmt");
+      if (input) input.value = "";
+      schedule();
+      loadHoldings();
+      window.totumWallet?.refresh?.().catch(() => {});
+      return;
+    }
+    say(progress(j));
+    await new Promise((r) => setTimeout(r, 5000));
+    j = await api({ action: "sell-step", user: addr });
+  }
+  say("Обмен ещё идёт. Откройте снова: повторно GRAM не спишутся.", true);
 }
 
 function progress(j) {
@@ -184,7 +209,7 @@ function paintIcons() {
   }
   if (max) max.hidden = !(have > 0);
   const where = document.getElementById("tsRecvUsd");
-  if (where && !where.dataset.usd) where.textContent = "В активы";
+  if (where && !where.dataset.usd) where.textContent = pay.account ? "В активы" : "На фьючерсы";
 }
 
 function paintGramPrice(price) {
@@ -254,8 +279,34 @@ async function refresh() {
     return;
   }
   if (!pay.account) {
-    if (out) out.textContent = "—";
-    if (box) box.textContent = "Продажа с активов вернёт USDC на фьючерсы. Пока покупайте: токен останется в активах.";
+    try {
+      const j = await api({ action: "sell-quote", amount: raw });
+      if (out) out.textContent = j.receive;
+      if (payUsd) {
+        payUsd.dataset.usd = "1";
+        const have = available();
+        payUsd.textContent = `≈ $${j.payUsd || "—"} · в активах ${fmt(have, 4)}`;
+      }
+      if (recvUsd) {
+        recvUsd.dataset.usd = "1";
+        recvUsd.textContent = `≈ $${j.recvUsd || "—"} · на фьючерсы`;
+      }
+      if (box) {
+        box.replaceChildren();
+        for (const text of [
+          `1 GRAM ≈ ${fmt(j.rate)} USDC`,
+          `минимум ${j.minReceive} USDC`,
+          "без второго подтверждения",
+        ]) {
+          const s = document.createElement("span");
+          s.textContent = text;
+          box.appendChild(s);
+        }
+      }
+    } catch (err) {
+      if (out) out.textContent = "—";
+      if (box) box.textContent = err.message || "Курс не пришёл";
+    }
     return;
   }
   try {
