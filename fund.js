@@ -96,7 +96,7 @@ document.getElementById("fundAssets")?.addEventListener("click", (e) => {
   fundAsset = b.dataset.asset;
   for (const n of document.querySelectorAll("#fundAssets button")) n.classList.toggle("on", n === b);
   const min = document.getElementById("fundMin");
-  if (min) min.textContent = fundAsset === "gram" ? "Минимум на 10 USDT в GRAM" : "Минимум 10 USDT";
+  if (min) min.textContent = fundAsset === "gram" ? "Минимум 12 GRAM. Дальше кошелёк попросит подтвердить обмен." : "Минимум 10 USDT";
 });
 
 function fundHide(id) {
@@ -250,7 +250,16 @@ function fundWalletShow() {
   fundWatch();
 }
 
-document.getElementById("fundWalletOpen")?.addEventListener("click", fundWalletShow);
+document.getElementById("fundGramOpen")?.addEventListener("click", () => {
+  fundDlg.close();
+  fundWalletShow();
+  const box = document.getElementById("fundOtherBox");
+  if (box) box.hidden = false;
+  pickAsset("gram");
+  const min = document.getElementById("fundMin");
+  if (min) min.textContent = "Минимум 12 GRAM. Дальше кошелёк попросит подтвердить обмен.";
+  focusAmt(document.getElementById("fundAmt"));
+});
 document.getElementById("fundWalletClose")?.addEventListener("click", () => {
   clearInterval(fundTimer);
   run++;
@@ -654,7 +663,67 @@ function addrState(raw) {
   return { ok: true, empty: false, addr: good, text: "Адрес действителен" };
 }
 function wdModeOther() {
-  return document.querySelector("#wdDest button.on")?.dataset.dest === "other";
+  return !wdIsTon() && document.querySelector("#wdDest button.on")?.dataset.dest === "other";
+}
+let wdTon = "";
+function tonHoldings() {
+  return (Array.isArray(window.totumTonHold) ? window.totumTonHold : []).filter((row) => Number(row.amount) > 0);
+}
+function wdIsTon() {
+  return document.querySelector("#wdCoin button.on")?.dataset.coin === "ton";
+}
+function wdTonToken() {
+  const rows = tonHoldings();
+  return rows.find((row) => row.address === wdTon) || rows[0] || null;
+}
+function addrStateTon(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return { ok: false, empty: true, addr: "", text: "Вставьте адрес" };
+  if (!/^(EQ|UQ)[A-Za-z0-9_-]{46}$/.test(s)) return { ok: false, empty: false, addr: "", text: "Адрес недействителен" };
+  return { ok: true, empty: false, addr: s, text: "Адрес действителен" };
+}
+function wdAddressState(raw) {
+  return wdIsTon() ? addrStateTon(raw) : addrState(raw);
+}
+function wdApplyCoin() {
+  const ton = wdIsTon();
+  const token = wdTonToken();
+  const name = ton ? "Сеть TON" : "Сеть Arbitrum One";
+  const netName = document.getElementById("wdNetName");
+  const fin = document.getElementById("wdFinalNet");
+  if (netName) netName.textContent = name;
+  if (fin) fin.textContent = name;
+  const ownLabel = document.getElementById("wdOwnLabel");
+  const arbLabel = document.getElementById("wdArbLabel");
+  const addrLabel = document.getElementById("wdAddrLabel");
+  const amtLabel = document.getElementById("wdAmtLabel");
+  const addr = document.getElementById("wdAddr");
+  if (ownLabel) ownLabel.textContent = ton ? "Я подтверждаю, что это мой адрес в сети TON." : "Я подтверждаю, что это мой адрес в сети Arbitrum One.";
+  if (arbLabel) arbLabel.textContent = ton ? "Я вставил адрес сети TON." : "Я вставил адрес сети Arbitrum One.";
+  if (addrLabel) addrLabel.textContent = ton ? "Адрес сети TON" : "Адрес сети Arbitrum One";
+  if (addr) addr.placeholder = ton ? "UQ…" : "0x…";
+  if (amtLabel) amtLabel.textContent = ton ? (token?.symbol || "TON") : "USDC";
+  const dest = document.getElementById("wdDest");
+  const tokens = document.getElementById("wdTonTokens");
+  const rows = tonHoldings();
+  if (dest) dest.hidden = ton;
+  if (tokens) tokens.hidden = !ton || rows.length < 2;
+  if (!ton) return;
+  const other = document.getElementById("wdOther");
+  if (other) other.hidden = false;
+  const own = document.getElementById("wdOwn");
+  if (own) own.hidden = true;
+  const ownOk = document.getElementById("wdOwnOkWrap");
+  if (ownOk) ownOk.hidden = true;
+}
+function wdFillTon() {
+  const rows = tonHoldings();
+  const btn = document.getElementById("wdCoinTon");
+  if (btn) btn.hidden = !rows.length;
+  if (!rows.some((row) => row.address === wdTon)) wdTon = rows[0]?.address || "";
+  const box = document.getElementById("wdTonTokens");
+  if (!box) return;
+  box.innerHTML = rows.map((row) => `<button type="button" data-token="${row.address}" class="${row.address === wdTon ? "on" : ""}">${row.symbol}</button>`).join("");
 }
 function wdAmount() {
   const raw = String(document.getElementById("wdAmt")?.value || "").trim().replace(",", ".");
@@ -663,6 +732,10 @@ function wdAmount() {
 }
 function wdDestination() {
   const mine = fundAddr();
+  if (wdIsTon()) {
+    const state = wdAddressState(document.getElementById("wdAddr")?.value || "");
+    return { own: false, dest: state.ok ? state.addr : "", state };
+  }
   if (!wdModeOther()) {
     const state = mine ? addrState(mine) : { ok: false, empty: true, addr: "", text: "Сначала подключите кошелёк" };
     return { own: true, dest: state.addr || "", state };
@@ -698,20 +771,22 @@ function wdResetDest() {
   const field = document.getElementById("wdAddr");
   if (field) field.value = "";
   wdOwnText();
+  wdApplyCoin();
   wdGate();
 }
 function wdGate() {
   const btn = document.getElementById("wdGo");
   const st = document.getElementById("wdAddrState");
   const c = wdChecks();
-  if (!wdModeOther()) {
+  if (!wdIsTon() && !wdModeOther()) {
     if (btn) { btn.disabled = !(c.own && fundAddr()); btn.textContent = "Дальше"; }
     return;
   }
-  const state = addrState(document.getElementById("wdAddr")?.value || "");
+  const state = wdAddressState(document.getElementById("wdAddr")?.value || "");
   const ready = c.arb && c.mine && state.ok;
+  const netName = wdIsTon() ? "TON" : "Arbitrum One";
   if (st) {
-    st.textContent = !state.ok ? state.text : ready ? "Адрес действителен" : "Подтвердите, что адрес ваш и он в сети Arbitrum One";
+    st.textContent = !state.ok ? state.text : ready ? "Адрес действителен" : `Подтвердите, что адрес ваш и он в сети ${netName}`;
     st.classList.toggle("pos", ready);
     st.classList.toggle("neg", !state.empty && !state.ok);
   }
@@ -727,6 +802,41 @@ function wdOpenReview() {
   wdHide("wdErr");
   wdHide("wdOut");
   const { n, amount } = wdAmount();
+  if (wdIsTon()) {
+    const token = wdTonToken();
+    if (!token) { wdSay("Токенов сети TON на балансе нет.", true); return; }
+    if (!(n > 0)) { wdSay("Введите сумму.", true); return; }
+    if (n > Number(token.amount) + 1e-9) { wdSay(`Можно вывести ${token.amount} ${token.symbol}.`, true); return; }
+    const picked = wdDestination();
+    if (!picked.dest || !picked.state.ok) { wdSay("Адрес недействителен.", true); return; }
+    const c = wdChecks();
+    if (!c.arb || !c.mine) { wdSay("Подтвердите, что адрес ваш и он в сети TON.", true); return; }
+    const mine = fundAddr();
+    wdPending = { ton: true, token: token.address, symbol: token.symbol, dest: picked.dest, own: false, amount, net: amount, mine, same: false };
+    const box = document.getElementById("wdReview");
+    if (box) {
+      box.innerHTML = `<div class="wd-grid">${[
+        wdRow("Откуда", "Totum"),
+        wdRow("Куда", "Адрес сети TON"),
+      ].join("")}</div>` + [
+        wdRow("Адрес", wdPending.dest, "addr"),
+        wdRow("Сеть", "TON", "net"),
+      ].join("") + `<div class="wd-grid">${[
+        wdRow("Списывается", `${wdPending.amount} ${token.symbol}`),
+        wdRow("Придёт", `${wdPending.amount} ${token.symbol}`),
+        wdRow("Комиссия Totum", "0"),
+        wdRow("Время", "Около минуты"),
+      ].join("")}</div>` + wdRow("Адрес действителен", "Да", "ok") + `<p class="wd-warn">${esc("Вы подтвердили: адрес ваш и он в сети TON. На чужой адрес токен не вернуть.")}</p>`;
+    }
+    const err = document.getElementById("wdFinalErr");
+    if (err) { err.hidden = true; err.textContent = ""; }
+    const fin = document.getElementById("wdFinal");
+    fin?.showModal();
+    pinDlg(fin);
+    const body = fin?.querySelector(".dlg-body");
+    if (body) body.scrollTop = 0;
+    return;
+  }
   let info = null;
   try { info = window.totumWallet?.out?.() || null; } catch { info = null; }
   const max = info ? (info.unified ? info.spot : info.perp) : 0;
@@ -748,6 +858,7 @@ function wdOpenReview() {
   }
   const mine = fundAddr();
   wdPending = {
+    ton: false,
     dest: picked.dest,
     own: picked.own,
     amount,
@@ -783,6 +894,18 @@ function wdOpenReview() {
 }
 
 function wdPaint(info) {
+  if (wdIsTon()) {
+    const token = wdTonToken();
+    const max = Number(token?.amount) || 0;
+    const avail = document.getElementById("wdAvail");
+    const spot = document.getElementById("wdSpot");
+    const net = document.getElementById("wdNet");
+    if (avail) avail.textContent = token ? `Доступно ${token.amount} ${token.symbol}` : "";
+    if (spot) spot.hidden = true;
+    const n = Number(String(document.getElementById("wdAmt")?.value || "").replace(",", "."));
+    if (net) net.textContent = n > 0 ? `Придёт ${money(n)} ${token?.symbol || ""}. Сеть TON, комиссию Totum не берёт.` : "Сеть TON. Сумма придёт целиком.";
+    return max;
+  }
   const avail = document.getElementById("wdAvail");
   const spot = document.getElementById("wdSpot");
   const net = document.getElementById("wdNet");
@@ -801,6 +924,8 @@ function wdPaint(info) {
 async function wdOpen() {
   wdHide("wdErr");
   wdHide("wdOut");
+  document.querySelectorAll("#wdCoin button").forEach((n) => n.classList.toggle("on", n.dataset.coin === "usdc"));
+  wdFillTon();
   wdResetDest();
   let info = null;
   try { info = window.totumWallet?.out?.() || null; } catch { info = null; }
@@ -816,6 +941,32 @@ async function wdOpen() {
 document.getElementById("btnWithdraw")?.addEventListener("click", wdOpen);
 document.getElementById("wdClose")?.addEventListener("click", () => wdDlg.close());
 document.getElementById("wdAmt")?.addEventListener("input", () => {
+  try { wdPaint(window.totumWallet?.out?.() || null); } catch { wdPaint(null); }
+});
+document.getElementById("wdCoin")?.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-coin]");
+  if (!b || b.hidden) return;
+  document.querySelectorAll("#wdCoin button").forEach((n) => n.classList.toggle("on", n === b));
+  for (const id of ["wdArb", "wdMine", "wdOwnOk"]) {
+    const box = document.getElementById(id);
+    if (box) box.checked = false;
+  }
+  const field = document.getElementById("wdAddr");
+  if (field) field.value = "";
+  const amt = document.getElementById("wdAmt");
+  if (amt) amt.value = "";
+  if (wdIsTon()) wdApplyCoin();
+  else wdResetDest();
+  wdHide("wdErr");
+  try { wdPaint(window.totumWallet?.out?.() || null); } catch { wdPaint(null); }
+  wdGate();
+});
+document.getElementById("wdTonTokens")?.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-token]");
+  if (!b) return;
+  wdTon = b.dataset.token || "";
+  wdFillTon();
+  wdApplyCoin();
   try { wdPaint(window.totumWallet?.out?.() || null); } catch { wdPaint(null); }
 });
 document.getElementById("wdDest")?.addEventListener("click", (e) => {
@@ -841,7 +992,7 @@ document.getElementById("wdMax")?.addEventListener("click", () => {
   try { info = window.totumWallet?.out?.() || null; } catch { info = null; }
   const max = wdPaint(info);
   const amt = document.getElementById("wdAmt");
-  if (amt) amt.value = max > 1 ? money(max) : "";
+  if (amt) amt.value = max > (wdIsTon() ? 0 : 1) ? money(max) : "";
   wdPaint(info);
 });
 document.getElementById("wdGo")?.addEventListener("click", () => wdOpenReview());
@@ -856,7 +1007,8 @@ document.getElementById("wdSend")?.addEventListener("click", async () => {
   if (!pending?.dest) { fail("Сначала проверьте адрес."); return; }
   const again = wdDestination();
   const { n, amount } = wdAmount();
-  if (again.dest.toLowerCase() !== pending.dest.toLowerCase() || amount !== pending.amount || !(n > 1)) {
+  const sameDest = pending.ton ? again.dest === pending.dest : again.dest.toLowerCase() === pending.dest.toLowerCase();
+  if (!sameDest || amount !== pending.amount || !(pending.ton ? n > 0 : n > 1)) {
     fail("Сумма или адрес изменились. Нажмите «Изменить» и проверьте ещё раз.");
     return;
   }
@@ -867,6 +1019,38 @@ document.getElementById("wdSend")?.addEventListener("click", async () => {
   }
   if (!again.own && (!c.arb || !c.mine)) {
     fail("Подтверждение адреса снято. Вывод остановлен.");
+    return;
+  }
+  if (pending.ton) {
+    const user = String(window.totumWallet?.addr?.() || "").toLowerCase();
+    if (!user || user !== String(pending.mine || "").toLowerCase()) { fail("Кошелёк сменился. Откройте вывод ещё раз."); return; }
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.textContent = "Отправляем…";
+    if (err) err.hidden = true;
+    try {
+      const r = await fetch("/api/ton-manifest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "ton-swap", action: "withdraw", user, address: pending.dest, token: pending.token, amount: pending.amount }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || "Вывод не ушёл. Токен на месте.");
+      const left = tonHoldings().map((row) => row.address === pending.token ? { ...row, amount: String(Math.max(0, Number(row.amount) - n)), usd: Number(row.price) * Math.max(0, Number(row.amount) - n) } : row).filter((row) => Number(row.amount) > 1e-9);
+      window.totumTonHold = left;
+      window.totumTonUsd = left.reduce((sum, row) => sum + (Number(row.usd) || 0), 0);
+      try { localStorage.setItem("totum-ton-hold", JSON.stringify(left)); } catch {}
+      window.dispatchEvent(new Event("totum-hold"));
+      wdPending = null;
+      document.getElementById("wdFinal")?.close();
+      wdDlg.close();
+      wdSay("Успешно");
+    } catch (e) {
+      if (e?.message) fail(wdHuman(e));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
     return;
   }
   const ex = window.totumWallet?.ex?.();

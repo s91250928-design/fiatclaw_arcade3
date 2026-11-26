@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795644000">
+<link rel="stylesheet" href="style.css?v=1795650000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <div id="boot" class="boot-splash" aria-hidden="true"><div class="bs-ring"><i></i></div></div>
@@ -626,6 +626,11 @@
     <button id="fundCopy" class="fund-copy" type="button" data-addr="0x2df1c51e09aecf9cacb7bc98cb1742757f163df7">0x2df1c51e09aecf9cacb7bc98cb1742757f163df7</button>
     <p class="muted small">Это адрес Totum. Отправьте USDC сами: кошелёк покажет обычный перевод, без разрешения тратить токены. Деньги придут на счёт того кошелька, с которого отправили, обычно меньше чем за минуту.</p>
   </div>
+  <div class="fund-gram">
+    <b>GRAM с кошелька TON</b>
+    <p>Подключите кошелёк и подтвердите обмен в нём. GRAM станет USDC и зачислится на этот счёт Totum.</p>
+    <button id="fundGramOpen" class="btn ghost wide-btn" type="button">Обменять GRAM</button>
+  </div>
   <button id="fundWalletOpen" class="btn ghost wide-btn" type="button">Подключённым кошельком</button>
   <div class="row"><button id="fundClose" class="btn ghost grow" type="button">Закрыть</button></div>
   </div>
@@ -645,6 +650,7 @@
   </div>
   <button id="fundOther" class="btn ghost wide-btn" type="button">С другого кошелька</button>
   <div id="fundOtherBox" hidden>
+    <p class="muted small">Подключите кошелёк TON. В нём подтвердите обмен: GRAM или USDT станет USDC и сразу зачислится на Totum.</p>
     <button id="fundTon" class="fund-other" type="button">Выбрать кошелёк</button>
     <div id="fundWallets" class="fund-wallets" hidden></div>
     <div class="seg fund-assets" id="fundAssets"><button type="button" data-asset="usdt" class="on">USDT</button><button type="button" data-asset="gram">GRAM</button></div>
@@ -709,7 +715,12 @@
 <dialog id="withdrawDialog" class="sheet-dlg">
   <div class="dlg-body">
   <h2>Вывести</h2>
-  <p class="arb-one">Сеть Arbitrum One</p>
+  <div class="seg" id="wdCoin">
+    <button type="button" data-coin="usdc" class="on">USDC · Arbitrum</button>
+    <button type="button" data-coin="ton" id="wdCoinTon" hidden>Сеть TON</button>
+  </div>
+  <p class="arb-one" id="wdNetName">Сеть Arbitrum One</p>
+  <div class="seg" id="wdTonTokens" hidden></div>
   <div class="seg" id="wdDest">
     <button type="button" data-dest="own" class="on">На этот кошелёк</button>
     <button type="button" data-dest="other">На другой адрес</button>
@@ -718,15 +729,15 @@
   <label class="consent wd-check" id="wdOwnOkWrap">
     <input type="checkbox" id="wdOwnOk">
     <i class="box"></i>
-    <span>Я подтверждаю, что это мой адрес в сети Arbitrum One.</span>
+    <span id="wdOwnLabel">Я подтверждаю, что это мой адрес в сети Arbitrum One.</span>
   </label>
   <div id="wdOther" hidden>
-    <label class="wd-addr"><span>Адрес сети Arbitrum One</span><input id="wdAddr" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="0x…"></label>
+    <label class="wd-addr"><span id="wdAddrLabel">Адрес сети Arbitrum One</span><input id="wdAddr" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="0x…"></label>
     <p id="wdAddrState">Вставьте адрес</p>
     <label class="consent wd-check">
       <input type="checkbox" id="wdArb">
       <i class="box"></i>
-      <span>Я вставил адрес сети Arbitrum One.</span>
+      <span id="wdArbLabel">Я вставил адрес сети Arbitrum One.</span>
     </label>
     <label class="consent wd-check">
       <input type="checkbox" id="wdMine">
@@ -734,7 +745,7 @@
       <span>Я подтверждаю, что это мой адрес.</span>
     </label>
   </div>
-  <label class="inp"><span>USDC</span><input id="wdAmt" inputmode="decimal" placeholder="больше 1" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-wd-usdc"></label>
+  <label class="inp"><span id="wdAmtLabel">USDC</span><input id="wdAmt" inputmode="decimal" placeholder="больше 1" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-wd-usdc"></label>
   <p class="muted small fund-min" id="wdAvail">Минимум больше 1 USDC</p>
   <p class="muted small" id="wdNet"></p>
   <p class="muted small" id="wdSpot" hidden></p>
@@ -747,7 +758,7 @@
 <dialog id="wdFinal" class="sheet-dlg">
   <div class="dlg-body">
     <h2>Проверьте вывод</h2>
-    <p class="arb-one">Сеть Arbitrum One</p>
+    <p class="arb-one" id="wdFinalNet">Сеть Arbitrum One</p>
     <div class="wd-review" id="wdReview"></div>
     <p class="neg small" id="wdFinalErr" hidden></p>
   </div>
@@ -785,7 +796,7 @@ try{var tonSaved=JSON.parse(localStorage.getItem("totum-ton-hold")||"[]");if(!Ar
 <script type="module" src="ladder.js?v=1795618000"></script>
 <script type="module" src="position.js?v=1795618000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1795618000"></script>
+<script type="module" src="fund.js?v=1795650000"></script>
 <script type="module" src="gram-spot.js?v=1795648000"></script>
 <script src="scrub.js?v=1795618000"></script>
 <script src="liq.js?v=1795032614"></script>

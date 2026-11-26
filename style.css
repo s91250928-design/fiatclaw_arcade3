@@ -2305,7 +2305,9 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
 .fund-keeper p{margin:0}
 #fundKeeperGo{margin-top:8px}
 #wdNet:empty,#wdSpot:empty{display:none}
-.fund-min{margin:6px 2px 0}
+.fund-gram{margin:14px 0 8px;padding:12px;border:1px solid var(--line);border-radius:14px}
+.fund-gram b{display:block;margin-bottom:4px}
+.fund-gram p{margin:0 0 10px;color:var(--muted);font-size:13px;line-height:1.4}
 .fund-hl{margin-top:12px}
 .fund-send{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel2)}
 .fund-qr-wrap{width:168px;margin:10px auto 0;padding:8px;border-radius:16px;background:#fff}
