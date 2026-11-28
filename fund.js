@@ -232,6 +232,15 @@ document.getElementById("fundCopy")?.addEventListener("click", async () => {
   btn.textContent = "Адрес скопирован";
   setTimeout(() => { if (btn.textContent === "Адрес скопирован") btn.textContent = prev; }, 1600);
 });
+document.getElementById("fundWalletOpen")?.addEventListener("click", () => {
+  const open = () => fundWalletShow();
+  if (fundDlg?.open) {
+    fundDlg.addEventListener("close", open, { once: true });
+    fundDlg.close();
+    return;
+  }
+  open();
+});
 function fundWalletShow() {
   const to = document.getElementById("fundWalletTo");
   const addr = fundAddr();
