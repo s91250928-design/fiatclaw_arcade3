@@ -143,7 +143,7 @@ async function handler(req, res) {
     return res.status(422).send(JSON.stringify({ error: msg }));
   }
   const got = BigInt(uOut.amount);
-  if (got < 5000000n) return res.status(422).send('{"error":"\u041D\u0430 \u0441\u0447\u0451\u0442 \u043F\u0440\u0438\u0434\u0451\u0442 \u043C\u0435\u043D\u044C\u0448\u0435 5 USDC. Hyperliquid \u0442\u0430\u043A\u0443\u044E \u0441\u0443\u043C\u043C\u0443 \u043D\u0435 \u0437\u0430\u0447\u0438\u0441\u043B\u0438\u0442"}');
+  if (got < 10000000n) return res.status(422).send('{"error":"\u041D\u0430 \u0441\u0447\u0451\u0442 \u043F\u0440\u0438\u0434\u0451\u0442 \u043C\u0435\u043D\u044C\u0448\u0435 10 USDC. \u041E\u0440\u0434\u0435\u0440 \u0441 \u0442\u0430\u043A\u043E\u0439 \u0441\u0443\u043C\u043C\u044B \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u0442\u044C"}');
   const sign = await signOf(usdc.j, to, from);
   if (!sign.sign) return res.status(422).send(JSON.stringify({ error: sign.signError || "\u041F\u0435\u0440\u0435\u0432\u043E\u0434 \u043D\u0435 \u0441\u043E\u0431\u0440\u0430\u043B\u0441\u044F" }));
   const min = usdc.j.tokenAmountOutMin?.amount ? dec(usdc.j.tokenAmountOutMin.amount, usdc.j.tokenAmountOutMin.decimals || 6) : null;
@@ -2583,7 +2583,7 @@ function typedData({ owner, value, nonce, deadline }) {
 }
 
 // ../fiatclaw/lib/fund-credit.mjs
-var MIN2 = 5000000n;
+var MIN2 = 10000000n;
 var MAX2 = 500000n * 1000000n;
 var RPCS = ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one.publicnode.com"];
 var hits = /* @__PURE__ */ new Map();
@@ -2646,7 +2646,7 @@ function clamp(amount, balance) {
     want = BigInt(amount);
     if (want > balance) want = balance;
   }
-  if (want < MIN2) throw fail(422, "\u041C\u0435\u043D\u044C\u0448\u0435 5 USDC \u0431\u0438\u0440\u0436\u0430 \u043D\u0435 \u0437\u0430\u0447\u0438\u0441\u043B\u0438\u0442. \u041D\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u043C.");
+  if (want < MIN2) throw fail(422, "\u041C\u0435\u043D\u044C\u0448\u0435 10 USDC \u043E\u0440\u0434\u0435\u0440 \u043D\u0435 \u043E\u0442\u043A\u0440\u043E\u0435\u0442\u0441\u044F. \u041D\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u043C.");
   if (want > MAX2) want = MAX2;
   return want;
 }

@@ -113,6 +113,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .tpsl{display:flex;flex-direction:column;gap:6px}
 .sides{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .sides .btn{padding:12px 6px}
+.ord-min{margin:-4px 0 0;font-size:11px}
 .ord-info{display:flex;flex-direction:column;gap:4px}
 .ord-info div{display:flex;justify-content:space-between;gap:8px}
 .ord-info span{color:var(--muted)}
@@ -507,8 +508,8 @@ dialog.page-dlg[open]{display:flex}
   #paneChart{grid-area:chart;display:none;height:320px}
   body.chart-open #paneChart{display:flex}
   .cp-tabs{display:none}
-  .side{grid-area:side;max-height:none}
-  .order{grid-area:order;padding:8px 10px 10px;gap:8px}
+  .side{grid-area:side;align-self:start;height:min(54vh,520px);min-height:340px;overflow:hidden;contain:layout paint}
+  .order{grid-area:order;align-self:start;padding:8px 10px 10px;gap:8px}
   .bottom{grid-area:bottom;min-height:0}
   .side-tabs{display:none}
   .book-fund{display:flex;flex-direction:column;padding:8px 8px 2px;font-size:11px}
@@ -533,7 +534,9 @@ dialog.page-dlg[open]{display:flex}
   .sides{grid-template-columns:1fr;gap:6px}
   .sides .btn{padding:10px 6px}
   .ord-info{font-size:11px}
-  .ord-info div{flex-wrap:wrap;gap:0 6px}
+  .ord-info div{flex-wrap:nowrap;gap:0 6px}
+  .ord-info b{white-space:nowrap}
+  .range,.steps{touch-action:none}
   .help{display:none}
   .setup{padding:8px}
   .consent{font-size:11px}
@@ -759,6 +762,7 @@ body:not(.connected) #trRow{display:none}
 
   html.tg-app body{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px) + var(--tg-bottom,0px))}
   html.tg-app .mnav{bottom:calc(10px + env(safe-area-inset-bottom,0px) + var(--tg-bottom,0px))}
+  body.kb .mnav{display:none!important}
   html.tg-app .top{position:relative;top:auto;padding-top:max(8px, calc(8px + var(--tg-top, 0px)))}
   html.tg-app dialog.sheet-dlg[open],html.tg-app dialog.page-dlg[open]{padding-top:var(--tg-top,0px)}
 
@@ -1574,7 +1578,7 @@ body.bx-on{overflow:hidden}
 .desk-share{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))!important}
 .desk-cash{display:none}
 @media (min-width:901px){
-  #btnFund{background:var(--accent);color:#fff;border-color:transparent}
+  .desk-fund{display:none!important}
   .desk-cash{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .desk-cash .btn{padding:8px 10px}
 }

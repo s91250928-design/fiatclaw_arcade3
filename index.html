@@ -8,8 +8,8 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795914000">
-<link rel="modulepreload" href="app.js?v=1795914000">
+<link rel="stylesheet" href="style.css?v=1795922000">
+<link rel="modulepreload" href="app.js?v=1795922000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <script>
@@ -27,7 +27,7 @@
   <nav class="ln-nav">
     <a class="ln-brand" href="/" aria-label="Totum"><img src="brand/mark-128.webp" alt="" width="34" height="34"><span>totum</span></a>
     <div class="ln-links"><a href="#lnTools">Инструменты</a><a href="#lnShare">Твоя доля</a><a href="#lnSafe">Безопасность</a><a href="#lnMarkets">Рынки</a></div>
-    <a class="ln-btn" href="/trade" data-open-term>Открыть терминал</a>
+    <a class="ln-btn" href="/trade" data-open-term>Начать торговать</a>
   </nav>
   <header class="ln-hero">
     <div class="ln-copy">
@@ -167,7 +167,7 @@
     <div class="fn-mark" id="fnMark"><div class="spin-logo"></div></div>
     <h2 class="fn-title"><span>Торгуй</span> <span>с инструментами</span> <span>профи</span> <span>и копи</span> <span class="ln-grad">очки к аирдропу</span></h2>
     <p class="fn-sub" id="fnSub">Фьючерсы, спот и акции · ликвидность Hyperliquid · 30% токена за очки</p>
-    <a class="ln-btn big fn-cta" href="/trade" data-open-term><span>Открыть терминал</span><i></i></a>
+    <a class="ln-btn big fn-cta" href="/trade" data-open-term><span>Начать торговать</span><i></i></a>
   </section>
   <footer class="ln-foot"><span>© Totum</span><span>Торговля с плечом связана с высоким риском потери средств.</span></footer>
 </div>
@@ -388,6 +388,7 @@
       <input id="size" type="number" inputmode="decimal" min="0" step="any" value="100">
       <em>USDC</em>
     </label>
+    <p class="muted small ord-min">Ордер от 10 USDC</p>
     <div class="steps" id="pctSteps" role="group" aria-label="Процент от доступного">
       <input id="pct" class="range" type="range" min="0" max="100" value="0" step="1" aria-label="Процент">
       <div class="steps-marks"><button data-p="0">0%</button><button data-p="25">25%</button><button data-p="50">50%</button><button data-p="75">75%</button><button data-p="100">100%</button></div>
@@ -640,7 +641,7 @@
     <p class="arb-one">Сеть Arbitrum</p>
     <div class="fund-send" id="fundSend">
       <div class="fund-qr-wrap"><svg class="fund-qr" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 31 31" shape-rendering="crispEdges"><path stroke="#0b1220" d="M1 1.5h7m3 0h4m1 0h2m1 0h3m1 0h7M1 2.5h1m5 0h1m3 0h3m1 0h2m1 0h2m1 0h1m1 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h5m1 0h3m1 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m1 0h3m4 0h1m2 0h1m1 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m1 0h3m2 0h1m1 0h1m2 0h2m2 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m1 0h5m1 0h1m1 0h3m3 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h2m1 0h1m1 0h1m1 0h1m3 0h1M1 9.5h1m1 0h5m3 0h1m1 0h1m1 0h1m1 0h3m3 0h5M2 10.5h1m5 0h1m2 0h2m1 0h5m1 0h7m1 0h2M3 11.5h1m1 0h3m2 0h4m3 0h1m1 0h1m1 0h2m1 0h2M2 12.5h2m1 0h2m1 0h1m1 0h3m2 0h2m3 0h1m5 0h1m1 0h2M1 13.5h4m1 0h8m2 0h1m1 0h2m4 0h1m2 0h2M1 14.5h1m8 0h2m1 0h4m1 0h1m1 0h4m1 0h2m2 0h1M1 15.5h1m1 0h1m1 0h3m1 0h1m3 0h1m2 0h2m1 0h1m1 0h1m3 0h1m1 0h2M1 16.5h2m1 0h3m3 0h1m2 0h5m1 0h1m5 0h1m2 0h1M1 17.5h2m1 0h1m1 0h5m6 0h2m5 0h1m1 0h4M1 18.5h2m1 0h1m4 0h1m2 0h3m1 0h2m1 0h5m1 0h1m3 0h1M1 19.5h1m1 0h5m2 0h1m4 0h1m2 0h2m1 0h2m1 0h3M1 20.5h1m1 0h4m1 0h2m1 0h2m1 0h4m2 0h1m2 0h4m1 0h1M1 21.5h1m3 0h3m2 0h2m1 0h1m1 0h2m1 0h1m2 0h5m1 0h2M9 22.5h3m4 0h2m1 0h1m1 0h1m3 0h1m3 0h1M1 23.5h7m2 0h4m2 0h1m1 0h4m1 0h1m1 0h4M1 24.5h1m5 0h1m1 0h5m3 0h1m1 0h3m3 0h1m2 0h1M1 25.5h1m1 0h3m1 0h1m1 0h1m9 0h1m1 0h7m1 0h1M1 26.5h1m1 0h3m1 0h1m1 0h5m6 0h1m5 0h1M1 27.5h1m1 0h3m1 0h1m1 0h1m2 0h3m4 0h1m1 0h6m1 0h1M1 28.5h1m5 0h1m6 0h4m1 0h3m2 0h2m2 0h1M1 29.5h7m1 0h2m1 0h2m3 0h1m1 0h1m2 0h2m1 0h3"/></svg></div>
-      <p class="fund-token">Минимум 5 USDC</p>
+      <p class="fund-token">Минимум 10 USDC. Ордер открывается от 10.</p>
       <button id="fundCopy" class="fund-copy" type="button" data-addr="0x2df1c51e09aecf9cacb7bc98cb1742757f163df7">0x2df1c51e09aecf9cacb7bc98cb1742757f163df7</button>
       <p class="muted small" id="fundTo">Отправьте USDC на этот адрес. Деньги придут на счёт того же кошелька.</p>
     </div>
@@ -653,7 +654,7 @@
     <div id="fundWallets" class="fund-wallets" hidden></div>
     <div class="seg fund-assets" id="fundAssets" hidden><button type="button" data-asset="usdt">USDT</button><button type="button" data-asset="gram" class="on">GRAM</button></div>
     <label class="inp"><span>Сумма</span><input id="fundAmt" inputmode="decimal" placeholder="от 12" autocomplete="off" autocorrect="off" spellcheck="false"></label>
-    <p class="muted small fund-min" id="fundMin">Минимум 1 GRAM. Одно подтверждение в кошельке.</p>
+    <p class="muted small fund-min" id="fundMin">Минимум 1 GRAM. На бирже ордер открывается от 10 USDC.</p>
     <button id="fundGo" class="btn wide-btn" type="button">Пополнить</button>
     <p class="neg small" data-fund-err hidden></p>
     <p class="fund-out" data-fund-ok hidden></p>
@@ -670,8 +671,8 @@
     <button id="fundKeeperGo" class="btn ghost wide-btn" type="button">Подключить кошелёк</button>
   </div>
   <div class="fund-hl" id="fundHlBox">
-    <label class="inp"><span>Сумма</span><input id="fundHlAmt" inputmode="decimal" placeholder="от 5" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-hl-usdc"></label>
-    <p class="muted small fund-min">Минимум 5 USDC. Спишется только эта сумма.</p>
+    <label class="inp"><span>Сумма</span><input id="fundHlAmt" inputmode="decimal" placeholder="от 10" autocomplete="off" autocorrect="off" spellcheck="false" name="totum-hl-usdc"></label>
+    <p class="muted small fund-min">Минимум 10 USDC. Ордер открывается от 10. Спишется только эта сумма.</p>
     <button id="fundHl" class="btn wide-btn" type="button">Подтвердить в кошельке</button>
   </div>
   <p class="neg small" id="fundErr" data-fund-err hidden></p>
@@ -805,16 +806,16 @@
 </dialog>
 
 <script src="vendor/telegram-web-app.js?v=1795174000"></script>
-<script src="tg.js?v=1795204000"></script>
+<script src="tg.js?v=1795922000"></script>
 <script src="config.js"></script>
 <script>
 try{var tonSaved=JSON.parse(localStorage.getItem("totum-ton-hold")||"[]");if(!Array.isArray(tonSaved))tonSaved=[];window.totumTonHold=tonSaved;window.totumTonUsd=tonSaved.reduce(function(s,r){return s+(Number(r.usd)||0)},0)}catch(e){}
 </script>
-<script type="module" src="app.js?v=1795914000"></script>
+<script type="module" src="app.js?v=1795922000"></script>
 <script type="module" src="ladder.js?v=1795618000"></script>
 <script type="module" src="position.js?v=1795618000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
-<script type="module" src="fund.js?v=1795914000"></script>
+<script type="module" src="fund.js?v=1795922000"></script>
 <script type="module" src="gram-spot.js?v=1795914000"></script>
 <script src="scrub.js?v=1795914000"></script>
 <script src="liq.js?v=1795032614"></script>

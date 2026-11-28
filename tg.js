@@ -80,3 +80,17 @@
 
   window.totumTg = { on: true };
 })();
+
+(function () {
+  function kb() {
+    var mob = window.matchMedia("(max-width:900px)").matches;
+    var el = document.activeElement;
+    var typing = !!(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA") && !el.readOnly && el.type !== "range");
+    var vv = window.visualViewport;
+    var keyboard = !!(vv && vv.height < window.innerHeight - 80);
+    document.body.classList.toggle("kb", mob && (typing || keyboard));
+  }
+  document.addEventListener("focusin", kb);
+  document.addEventListener("focusout", function () { setTimeout(kb, 80); });
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", kb);
+})();

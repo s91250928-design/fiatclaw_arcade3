@@ -96,7 +96,7 @@ document.getElementById("fundAssets")?.addEventListener("click", (e) => {
   fundAsset = b.dataset.asset;
   for (const n of document.querySelectorAll("#fundAssets button")) n.classList.toggle("on", n === b);
   const min = document.getElementById("fundMin");
-  if (min) min.textContent = fundAsset === "gram" ? "Минимум 1 GRAM. Одно подтверждение в кошельке." : "Минимум 10 USDT";
+  if (min) min.textContent = fundAsset === "gram" ? "Минимум 1 GRAM. На бирже ордер открывается от 10 USDC." : "Минимум 10 USDT. На бирже ордер открывается от 10 USDC.";
 });
 
 function fundHide(id) {
@@ -423,7 +423,7 @@ async function hlCredit(want) {
     const live = await usdcNow();
     let amt = want;
     if (live != null && (amt == null || amt > live)) amt = live;
-    if (amt == null || amt < 5000000n) throw new Error("Меньше 5 USDC Totum не зачислит. Не отправляем.");
+    if (amt == null || amt < 10000000n) throw new Error("Меньше 10 USDC ордер не откроется. Не отправляем.");
     const prep = await fetch("/api/fund-quote", {
       method: "POST",
       headers: { "content-type": "application/json" },
