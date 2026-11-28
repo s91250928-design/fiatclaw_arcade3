@@ -28,8 +28,23 @@
     try { if (navigator.vibrate) navigator.vibrate(10); } catch { /* нет вибрации */ }
   }
 
+  function plotH(el) {
+    const n = Number(el.getAttribute("data-h"));
+    return n > 0 ? n : 64;
+  }
+
+  function liveNode(el) {
+    const id = el.getAttribute("data-live");
+    return id ? document.getElementById(id) : null;
+  }
+
   function show(el, on) {
     el.querySelectorAll(".hc-scrub-line,.hc-scrub-dot,.hc-scrub-tip").forEach((n) => n.classList.toggle("on", on));
+    const node = liveNode(el);
+    if (!on && node && el.dataset.hold != null) {
+      node.textContent = el.dataset.hold;
+      delete el.dataset.hold;
+    }
   }
 
   function place(el, clientX) {
@@ -48,7 +63,7 @@
     }
     const p = list[best];
     const left = (Number(p.x) / 320) * 100;
-    const top = (Number(p.y) / 64) * 100;
+    const top = (Number(p.y) / plotH(el)) * 100;
     const line = el.querySelector(".hc-scrub-line");
     const dot = el.querySelector(".hc-scrub-dot");
     const tip = el.querySelector(".hc-scrub-tip");
@@ -62,6 +77,11 @@
       tip.style.transform = top < 36
         ? `translate(-${shift}, 10px)`
         : `translate(-${shift}, calc(-100% - 10px))`;
+    }
+    const node = liveNode(el);
+    if (node) {
+      if (el.dataset.hold == null) el.dataset.hold = node.textContent;
+      if (p.b) node.textContent = p.b;
     }
     show(el, true);
     if (best !== lastIdx || Math.abs(x - lastX) >= 12) {

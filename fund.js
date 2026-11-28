@@ -1328,6 +1328,22 @@ document.getElementById("cashHist")?.addEventListener("click", cashHistory);
 window.totumCash = { paint: cashPaint, open: cashOpen };
 window.totumFund = { open: fundShow, withdraw: wdOpen };
 
+function seatTradeField(el) {
+  if (!el || !matchMedia("(max-width:900px)").matches) return;
+  const run = () => {
+    if (document.activeElement !== el) return;
+    const top = el.getBoundingClientRect().top;
+    const target = Math.round(window.innerHeight * 0.32);
+    const dy = top - target;
+    if (Math.abs(dy) > 16) window.scrollBy({ top: dy, behavior: "smooth" });
+  };
+  setTimeout(run, 60);
+  setTimeout(run, 340);
+}
+for (const id of ["size", "px"]) {
+  document.getElementById(id)?.addEventListener("focus", (e) => seatTradeField(e.target));
+}
+
 function syncDlgLock() {
   document.documentElement.classList.toggle("dlg-lock", !!document.querySelector("dialog[open]"));
 }

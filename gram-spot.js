@@ -224,6 +224,8 @@ function drawChart(points) {
   if (!svg) return;
   if (!points || points.length < 2) {
     svg.innerHTML = "";
+    const scrub = document.getElementById("tsScrub");
+    if (scrub) scrub.removeAttribute("data-pts");
     if (px) px.textContent = "—";
     if (ch) ch.textContent = "";
     return;
@@ -245,6 +247,12 @@ function drawChart(points) {
   const color = up ? "#22c55e" : "#f43f5e";
   const line = coords.map((c, i) => `${i ? "L" : "M"}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join("");
   svg.innerHTML = `<defs><linearGradient id="tsFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity="0.35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path d="${line}L${w},${h}L0,${h}Z" fill="url(#tsFill)"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const scrub = document.getElementById("tsScrub");
+  if (scrub) {
+    const pts = coords.map((c, i) => ({ x: +c[0].toFixed(1), y: +c[1].toFixed(1), b: `$${fmt(points[i], 4)}` }));
+    scrub.setAttribute("data-pts", encodeURIComponent(JSON.stringify(pts)));
+    scrub.setAttribute("data-h", String(h));
+  }
   if (px) px.textContent = `$${fmt(last, 4)}`;
   if (ch && first) {
     const p = (last / first - 1) * 100;
