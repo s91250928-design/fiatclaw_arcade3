@@ -2484,71 +2484,96 @@ dialog#feedView{width:auto !important;max-width:min(1200px,calc(100vw - 32px)) !
   .xn-row span,.xn-row em{font-style:normal;font-weight:600;font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}
   .xn-row em.pos{color:var(--buy)} .xn-row em.neg{color:var(--sell)}
 
-  body[data-app="home"] .app-page#pgHome,
-  body[data-app="markets"] .app-page#pgMarkets,
-  body[data-app="assets"] .app-page#pgAssets{display:block}
-  body[data-app="home"] .layout,body[data-app="markets"] .layout,body[data-app="assets"] .layout{display:none}
+  .app-page{display:none!important}
+  body[data-app="home"] .layout,body[data-app="markets"] .layout{display:none}
+  body[data-app="assets"] .layout{display:block;background:var(--panel)}
+  body[data-app="assets"] .bottom{min-height:calc(100dvh - 132px)}
+  body[data-app="assets"] #paneChart,
+  body[data-app="assets"] #sidePanel,
+  body[data-app="assets"] #orderPanel,
+  body[data-app="assets"] #mTools{display:none!important}
+  body[data-app="assets"] .bottom{grid-column:auto;grid-row:auto}
 
-  body[data-app="home"] #pgHome{
-    max-width:1120px;margin:0 auto;padding:22px 28px 72px;
-    display:grid;grid-template-columns:332px minmax(0,1fr);gap:14px 18px;align-items:start
+  #deskBoard:not([hidden]){
+    display:grid;grid-template-columns:300px minmax(0,1fr);
+    height:calc(100dvh - 58px);min-height:420px;background:var(--bg)
   }
-  body[data-app="home"] #pgHome .hero-card{grid-column:1;margin:0}
-  body[data-app="home"] #pgHome .cash-note{grid-column:1}
-  body[data-app="home"] #pgHome .quick{grid-column:1;margin:0}
-  body[data-app="home"] #pgHome .card-block{grid-column:2;grid-row:1 / span 4;margin:0;min-height:420px}
-  body[data-app="assets"] #pgAssets,body[data-app="markets"] #pgMarkets{max-width:1040px;margin:0 auto;padding:26px 28px 72px}
-  #pgHome .pg-title,#pgAssets .pg-title,#pgMarkets .pg-title{font:750 26px/1.2 "Manrope",var(--font);margin:4px 0 16px;letter-spacing:-.03em}
-  #pgHome .hero-card,#pgAssets .hero-card{position:relative;overflow:hidden;border-radius:20px;padding:20px 20px 18px;color:#fff;
-    background:radial-gradient(120% 140% at 100% 0%,rgba(34,211,238,.55),transparent 46%),linear-gradient(155deg,#0c1733 0%,#1d4ed8 62%,#0e7490 130%);
-    box-shadow:0 16px 40px rgba(29,78,216,.18)}
-  #pgHome .hc-top,#pgAssets .hc-top{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;opacity:.9}
-  #pgHome .hc-mark,#pgAssets .hc-mark{width:26px;height:26px}
-  #pgHome .hc-sum,#pgAssets .hc-sum{font:750 34px/1.1 var(--mono);margin:12px 0 2px;letter-spacing:-.03em}
-  #pgHome .hc-sub,#pgAssets .hc-sub{font-size:13px;opacity:.82}
-  #pgHome .hc-lead{font-size:14.5px;line-height:1.5;margin:12px 0 16px;opacity:.94}
-  #pgHome .hc-cta,#pgAssets .hc-cta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
-  #pgHome .hc-btn,#pgAssets .hc-btn{display:flex;align-items:center;justify-content:center;gap:6px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);color:#fff;font:750 14px "Manrope",var(--font);cursor:pointer}
-  #pgHome .hc-btn.main,#pgAssets .hc-btn.main{background:#fff;color:#0f172a;border-color:#fff}
-  #pgHome .hc-btn svg,#pgAssets .hc-btn svg{width:16px;height:16px}
-  #pgHome .hc-actions,#pgAssets .hc-actions{display:flex;gap:8px;margin-top:14px}
-  #pgHome .hc-actions .btn,#pgAssets .hc-actions .btn{flex:1;border-radius:12px}
-  #pgHome .hc-links,#pgAssets .hc-links{margin-left:auto;display:flex;gap:6px}
-  #pgHome .hc-hist,#pgAssets .hc-hist{background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:999px;padding:4px 10px;font:700 12px "Manrope",var(--font);cursor:pointer}
-  #pgHome .hero-card .btn.ghost,#pgAssets .hero-card .btn.ghost{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.28)}
-  #pgHome .wide-btn,#pgAssets .wide-btn{width:100%;border-radius:12px;padding:12px}
-  #pgHome .quick{display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 4px}
-  #pgHome .quick button{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;color:var(--text);font:650 12px "Manrope",var(--font);position:relative;padding:4px 0}
-  #pgHome .quick button+button::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:1px;background:var(--line)}
-  #pgHome .quick i{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
-  #pgHome .quick svg{width:18px;height:18px}
-  #pgHome .quick button:hover i{background:color-mix(in srgb,var(--accent) 18%,transparent)}
-  #pgHome .card-block,#pgAssets .card-block,#pgMarkets .card-block{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
-  #pgHome .cb-head,#pgAssets .cb-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  #pgHome .mini-seg{display:grid;grid-template-columns:repeat(3,1fr);margin-bottom:8px}
-  #pgHome .mv-row{display:grid;grid-template-columns:28px minmax(0,1.2fr) auto minmax(88px,.7fr) 84px;align-items:center;gap:10px;padding:11px 8px;border-top:1px solid var(--line);border-radius:10px;cursor:pointer}
-  #pgHome .mv-row:first-child{border-top:0}
-  #pgHome .mv-row:hover{background:var(--panel2)}
-  #pgHome .mv-px{font-family:var(--mono);font-size:13px;text-align:right}
-  #pgHome .mv-ch{font:700 12px var(--mono);text-align:center;padding:6px 0;border-radius:8px;color:#fff}
-  #pgHome .mv-ch.pos{background:var(--buy)} #pgHome .mv-ch.neg{background:var(--sell)}
-  #pgAssets .as-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;padding:12px 4px;border-top:1px solid var(--line)}
-  #pgAssets .as-row>svg,#pgAssets .as-row>img{width:28px;height:28px;border-radius:50%}
-  #pgAssets .as-row small{display:block;color:var(--muted)}
-  #pgAssets .as-row>span{font-family:var(--mono);font-size:13px}
-  body[data-app="markets"] #pgMarkets .pp-list{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px 8px 10px}
-  body[data-app="markets"] #mList .pp-row{padding:9px 8px}
-  body[data-app="assets"] #pgAssets .card-block{margin-top:12px}
+  body[data-app="markets"] #deskBoard:not([hidden]){grid-template-columns:minmax(0,1fr)}
+  body[data-app="markets"] .db-side{display:none}
+  body[data-app="assets"] #deskBoard:not([hidden]){display:block;height:auto;min-height:0;background:transparent}
+  body[data-app="assets"] .db-side,body[data-app="assets"] .db-main{display:none}
+  .db-assets{display:none}
+  body[data-app="assets"] .db-assets{display:block}
+
+  .db-side{display:flex;flex-direction:column;min-height:0;overflow:auto;background:var(--panel);border-right:1px solid var(--line)}
+  .db-acc{padding:20px 18px 16px;border-bottom:1px solid var(--line)}
+  .db-k{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .db-eq{display:block;margin:10px 0 14px;font:750 32px/1 "Manrope",var(--font);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .db-kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:13px}
+  .db-kv span{color:var(--muted)}
+  .db-kv b{font-weight:700;font-variant-numeric:tabular-nums}
+  .db-note{margin:12px 0 0;color:var(--muted);font-size:12.5px;line-height:1.45}
+  .db-acts{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+  .db-acts .btn{width:100%}
+  .db-tools{padding:14px 8px 24px;display:flex;flex-direction:column;gap:2px}
+  .db-tools .db-k{padding:4px 10px 8px}
+  .db-tools button{
+    display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;
+    background:transparent;border:0;border-radius:8px;padding:8px 10px;color:var(--text)
+  }
+  .db-tools button b{font-weight:750;font-size:13.5px;letter-spacing:-.015em}
+  .db-tools button span{color:var(--muted);font-size:12px;font-weight:550}
+  .db-tools button:hover{background:var(--panel2)}
+  .db-tools button:focus-visible,.db-tabs button:focus-visible,.db-table tbody tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+  .db-main{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)}
+  .db-bar{display:flex;align-items:center;gap:12px;padding:0 12px 0 4px;border-bottom:1px solid var(--line);min-height:46px}
+  .db-tabs{display:flex;min-width:0;overflow-x:auto;scrollbar-width:none}
+  .db-tabs::-webkit-scrollbar{display:none}
+  .db-tabs button{
+    flex:none;background:transparent;border:0;border-radius:0;padding:14px 14px 12px;
+    color:var(--muted);font-weight:750;letter-spacing:-.015em;white-space:nowrap
+  }
+  .db-tabs button.on{color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
+  .db-count{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .db-search{margin-left:auto}
+  .db-search input{width:220px;height:32px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:0 12px;outline:none}
+  .db-search input:focus{border-color:var(--accent)}
+  .db-scroll{flex:1;min-height:0;overflow:auto}
+  .db-table{width:100%;border-collapse:collapse}
+  .db-table th{
+    position:sticky;top:0;z-index:1;background:var(--panel);text-align:right;
+    font-weight:500;font-size:11px;color:var(--muted);padding:8px 16px;border-bottom:1px solid var(--line)
+  }
+  .db-table th:first-child,.db-table td:first-child{text-align:left}
+  .db-table td{text-align:right;padding:11px 16px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:13.5px}
+  .db-table tbody tr{cursor:pointer}
+  .db-table tbody tr:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+  .db-pair{display:flex;align-items:center;gap:10px;min-width:0}
+  .db-pair b{font-weight:750;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .db-pair small{color:var(--muted);font-weight:600;font-size:11px}
+  .db-go{color:var(--accent);font-weight:750;font-size:12.5px;opacity:0}
+  .db-table tr:hover .db-go,.db-table tr:focus-visible .db-go{opacity:1}
+  .db-empty{text-align:center!important;color:var(--muted);padding:48px 16px!important}
+  .db-table.spot .db-fund,.db-table.spot .db-fund-h{display:none}
+  .db-ic::before{content:attr(data-letter)}
+  .db-ic:has(img)::before{content:none}
+
+  .db-strip{display:flex;align-items:flex-end;gap:28px;flex-wrap:wrap;padding:16px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .db-strip>div>span{display:block;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+  .db-strip>div>b{font:750 22px/1.2 "Manrope",var(--font);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .db-strip-acts{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 }
 @media (min-width:901px) and (max-width:1100px){
-  body[data-app="home"] #pgHome{grid-template-columns:1fr}
-  body[data-app="home"] #pgHome .hero-card,
-  body[data-app="home"] #pgHome .quick,
-  body[data-app="home"] #pgHome .cash-note,
-  body[data-app="home"] #pgHome .card-block{grid-column:1;grid-row:auto}
+  #deskBoard:not([hidden]){grid-template-columns:232px minmax(0,1fr)}
+  .db-search input{width:140px}
+  .db-tabs button{padding-left:10px;padding-right:10px}
+  .db-go{display:none}
   .xn>button{padding:0 8px}
   .xn-pop.xn-wide,.xn-tools{min-width:0;width:min(480px,calc(100vw - 32px))}
 }
 @media (prefers-reduced-motion:reduce){
   .xn-pop{transition:none}
 }
+
+@media (max-width:900px){#deskBoard{display:none!important}}

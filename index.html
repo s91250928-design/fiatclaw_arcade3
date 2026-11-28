@@ -8,8 +8,8 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="brand/spin.webp" as="image" fetchpriority="high">
-<link rel="stylesheet" href="style.css?v=1795932000">
-<link rel="modulepreload" href="app.js?v=1795932000">
+<link rel="stylesheet" href="style.css?v=1795948000">
+<link rel="modulepreload" href="app.js?v=1795948000">
 </head>
 <body data-mv="trade" data-cp="chart" class="boot">
 <script>
@@ -309,6 +309,66 @@
     <button id="btnConnect" class="btn" title="Нажмите ещё раз, чтобы отключить">Подключить кошелёк</button>
   </div>
 </header>
+
+<div id="deskBoard" hidden>
+  <aside class="db-side">
+    <div class="db-acc">
+      <span class="db-k">Счёт</span>
+      <b class="db-eq" id="dbEq">—</b>
+      <div class="db-kv"><span>Доступно</span><b id="dbAvail">—</b></div>
+      <div class="db-kv"><span>Позиции</span><b id="dbPos">0</b></div>
+      <p class="db-note" id="dbNote">Подключите кошелёк, чтобы видеть счёт. Деньги остаются у вас.</p>
+      <div class="db-acts">
+        <button type="button" class="btn" id="dbConnect">Подключить кошелёк</button>
+        <button type="button" class="btn" id="dbDep" data-act="deposit" hidden>Пополнить</button>
+        <button type="button" class="btn ghost" id="dbWd" data-act="withdraw" hidden>Вывести</button>
+        <button type="button" class="btn ghost" id="dbTrade" data-desk="futures" hidden>Торговать</button>
+      </div>
+    </div>
+    <div class="db-tools">
+      <span class="db-k">Инструменты</span>
+      <button type="button" data-tool="scalp"><b>Скальпинг-стакан</b><span>Клик по цене — заявка</span></button>
+      <button type="button" data-tool="funding"><b>Сканер фандинга</b><span>16 бирж, лучшие связки</span></button>
+      <button type="button" data-tool="arb"><b>Арбитраж</b><span>Разница цен в реальном времени</span></button>
+      <button type="button" data-tool="risk"><b>Вход от риска</b><span>Размер, стоп и тейк из суммы риска</span></button>
+      <button type="button" data-tool="protect"><b>Защита позиции</b><span>Безубыток и риск ликвидации</span></button>
+      <button type="button" data-gram-open><b>TON Swap</b><span>GRAM и USDT</span></button>
+    </div>
+  </aside>
+  <section class="db-main">
+    <div class="db-bar">
+      <div class="db-tabs" id="dbTabs">
+        <button type="button" data-db="perp" class="on">Фьючерсы</button>
+        <button type="button" data-db="spot">Спот</button>
+        <button type="button" data-db="tradfi">Акции</button>
+        <button type="button" data-db="gain">Растут</button>
+        <button type="button" data-db="loss">Падают</button>
+      </div>
+      <span class="db-count" id="dbCount"></span>
+      <label class="db-search"><input id="dbQ" type="search" placeholder="Поиск пары" autocomplete="off" enterkeyhint="search"></label>
+    </div>
+    <div class="db-scroll">
+      <table class="db-table" id="dbTable">
+        <thead><tr><th>Пара</th><th>Цена</th><th>24ч</th><th>Объём</th><th class="db-fund-h">Фандинг</th><th></th></tr></thead>
+        <tbody id="dbBody"><tr><td class="db-empty" colspan="6">Загружаем рынки…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+  <section class="db-assets">
+    <div class="db-strip">
+      <div><span>Счёт</span><b id="dbEq2">—</b></div>
+      <div><span>Доступно</span><b id="dbAvail2">—</b></div>
+      <div><span>Позиции</span><b id="dbPos2">0</b></div>
+      <div class="db-strip-acts">
+        <button type="button" class="btn small" data-act="deposit">Пополнить</button>
+        <button type="button" class="btn ghost small" data-act="withdraw">Вывести</button>
+        <button type="button" class="btn ghost small" data-act="transfer">Перевод</button>
+        <button type="button" class="btn ghost small" data-act="acchist">История</button>
+        <button type="button" class="btn ghost small" data-act="orders">Ордера</button>
+      </div>
+    </div>
+  </section>
+</div>
 
 <main class="layout">
   <!-- График -->
@@ -899,8 +959,8 @@
 <script>
 try{var tonSaved=JSON.parse(localStorage.getItem("totum-ton-hold")||"[]");if(!Array.isArray(tonSaved))tonSaved=[];window.totumTonHold=tonSaved;window.totumTonUsd=tonSaved.reduce(function(s,r){return s+(Number(r.usd)||0)},0)}catch(e){}
 </script>
-<script src="desk.js?v=1795932000"></script>
-<script type="module" src="app.js?v=1795932000"></script>
+<script src="desk.js?v=1795948000"></script>
+<script type="module" src="app.js?v=1795948000"></script>
 <script type="module" src="ladder.js?v=1795618000"></script>
 <script type="module" src="position.js?v=1795618000"></script>
 <script type="module" src="carry.js?v=1794152000"></script>
